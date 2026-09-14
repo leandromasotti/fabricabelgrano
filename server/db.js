@@ -185,6 +185,56 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_envasado_tina ON movimientos_envasado(tina_id);
 
+  -- Formatos en que se arma un pallet de leche. Un pallet es homogeneo: una marca, un
+  -- tipo de leche, un envase. Pero el envase varia entre pallets, y por eso los litros
+  -- por pallet NO son fijos — que era justamente el detalle que faltaba.
+  --
+  -- litros del pallet = bultos_por_pallet x unidades_por_bulto x litros_por_unidad
+  CREATE TABLE IF NOT EXISTS envases (
+    id                 INTEGER PRIMARY KEY,
+    nombre             TEXT NOT NULL,
+    bultos_por_pallet  INTEGER,
+    unidades_por_bulto INTEGER,
+    litros_por_unidad  REAL,
+    -- 1 mientras los numeros sean estimados. La pantalla lo dice y el operario ve que
+    -- ese formato todavia no esta confirmado.
+    provisorio         INTEGER NOT NULL DEFAULT 1,
+    activo             INTEGER NOT NULL DEFAULT 1,
+    orden              INTEGER NOT NULL DEFAULT 0
+  );
+
+  -- Yogur. Se registra CAJA POR CAJA, no por pallet: es otra tablet y otro flujo.
+  CREATE TABLE IF NOT EXISTS registros_yogur (
+    id           INTEGER PRIMARY KEY,
+    client_id    TEXT NOT NULL UNIQUE,
+    fecha_hora   TEXT NOT NULL,
+    origen       TEXT NOT NULL DEFAULT 'online',
+    sincronizado TEXT,
+    operario_id  INTEGER NOT NULL REFERENCES operarios(id),
+    marca_id     INTEGER NOT NULL REFERENCES marcas(id),
+    producto_id  INTEGER NOT NULL REFERENCES productos(id),
+    -- Unidades de la caja y kilos equivalentes, CONGELADOS igual que los litros del
+    -- pallet: si manana cambia el tamano de la caja, lo viejo no se reescribe.
+    unidades     INTEGER NOT NULL,
+    kilos        REAL,
+    anulado      INTEGER NOT NULL DEFAULT 0,
+    anulado_en   TEXT
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_yogur_fecha ON registros_yogur(fecha_hora);
+
+  -- Que familia de producto hace cada marca. El yogur se produce en dos marcas y
+  -- Ovenac no lo hace; la leche la hacen las tres.
+  --
+  -- Va como tabla y no como un flag "hace_yogur" porque la regla real es "esta marca
+  -- hace estas familias": si manana Ovenac arranca con yogur, o aparece una cuarta
+  -- marca que solo hace yogur, es una fila y no un cambio de codigo.
+  CREATE TABLE IF NOT EXISTS marcas_familias (
+    marca_id INTEGER NOT NULL REFERENCES marcas(id),
+    familia  TEXT NOT NULL,
+    PRIMARY KEY (marca_id, familia)
+  );
+
   -- Maduracion. Se registra la ENTRADA a la camara, no la produccion: el audio dice
   -- "se cuando entraron, se cuantos dias tienen los pategras de maduracion" [A5 00:43].
   -- La diferencia importa: entre producir y madurar hay saladero, y contar esos dias
@@ -238,8 +288,18 @@ agregarColumna('tipos_queso', 'dias_provisorios', 'INTEGER NOT NULL DEFAULT 1')
 // Va por PRODUCTO y no como constante global aunque hoy los tres valores sean
 // iguales: el dia que la Largavida venga en otra caja, es un cambio de dato y no de
 // codigo. Cuesta lo mismo ahora.
+// OBSOLETAS: la equivalencia dejo de ser una propiedad del producto.
+// Un mismo tipo de leche puede armarse en caja o en palangana y dar litros distintos,
+// asi que el envase es una eleccion del operario en cada pallet (tabla `envases`).
+// Se conservan solo para la migracion de los registros que ya existian.
 agregarColumna('productos', 'cajas_por_pallet', 'INTEGER NOT NULL DEFAULT 70')
 agregarColumna('productos', 'litros_por_caja', 'INTEGER NOT NULL DEFAULT 12')
+
+// Yogur: el sachet se trabaja por kilos. El peso queda en NULL hasta que la fabrica
+// lo confirme; mostrar un peso inventado seria peor que no mostrar nada.
+agregarColumna('productos', 'kilos_por_unidad', 'REAL')
+agregarColumna('productos', 'unidades_por_caja', 'INTEGER')
+agregarColumna('productos', 'datos_provisorios', 'INTEGER NOT NULL DEFAULT 1')
 
 // Los litros se CONGELAN en cada registro, no se calculan al mostrarlos.
 //
@@ -248,22 +308,30 @@ agregarColumna('productos', 'litros_por_caja', 'INTEGER NOT NULL DEFAULT 12')
 // pasado cambiarian solos y dejarian de coincidir con lo que se facturo. El registro
 // guarda la equivalencia que era cierta el dia que se armo.
 agregarColumna('registros_pallet', 'litros', 'INTEGER')
+agregarColumna('registros_pallet', 'envase_id', 'INTEGER REFERENCES envases(id)')
 
-// Los pallets ya cargados quedaron sin litros: se completan una sola vez con la
-// equivalencia vigente de su producto.
-const pendientes = db
-  .prepare('SELECT COUNT(*) n FROM registros_pallet WHERE litros IS NULL')
+// Relleno de los pallets ANTERIORES a que existieran los envases.
+//
+// La condicion es `envase_id IS NULL`, no `litros IS NULL`, y la diferencia importa:
+// desde que el envase existe, un pallet con litros en nulo NO es un dato faltante, es
+// un pallet armado en un formato cuya equivalencia todavia no se conoce (las
+// palanganas). Rellenar esos con el valor del producto les inventaba 840 L en cada
+// arranque del servidor, en silencio.
+//
+// Esos se completan solos cuando alguien carga el formato en /envases.html.
+const legado = db
+  .prepare('SELECT COUNT(*) n FROM registros_pallet WHERE envase_id IS NULL AND litros IS NULL')
   .get().n
-if (pendientes) {
+if (legado) {
   db.prepare(`
     UPDATE registros_pallet
        SET litros = (
          SELECT p.cajas_por_pallet * p.litros_por_caja
            FROM productos p WHERE p.id = registros_pallet.producto_id
        )
-     WHERE litros IS NULL
+     WHERE envase_id IS NULL AND litros IS NULL
   `).run()
-  console.log(`  ${pendientes} pallets completados con su equivalencia en litros`)
+  console.log(`  ${legado} pallets previos a los envases completados en litros`)
 }
 
 export const ahora = () => new Date().toISOString()

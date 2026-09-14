@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#101418">
-  <title>Lechería · Registro de pallets</title>
+  <title>Yogures · Producción</title>
   <link rel="icon" href="data:,">
   <link rel="manifest" href="/manifest.json">
   <link rel="stylesheet" href="/styles.css">
@@ -12,41 +12,31 @@
 <body>
   <div class="app">
     <header>
-      <h1>LECHERÍA</h1>
+      <h1>YOGURES</h1>
       <div class="migas" id="migas"></div>
       <button class="btn-txt" id="btn-reiniciar" hidden>Cambiar</button>
       <div class="estado" id="estado"><span class="punto"></span><span id="estado-txt">En línea</span></div>
     </header>
 
-    <!-- paso 1 -->
     <section class="paso" id="paso-operario">
       <p class="pregunta">¿Quién sos?</p>
       <div class="opciones" id="op-operarios"></div>
     </section>
 
-    <!-- paso 2 -->
     <section class="paso" id="paso-marca" hidden>
       <p class="pregunta">¿Qué marca?</p>
       <div class="opciones" id="op-marcas"></div>
     </section>
 
-    <!-- paso 3 -->
     <section class="paso" id="paso-producto" hidden>
-      <p class="pregunta">¿Qué leche?</p>
+      <p class="pregunta">¿Qué sabor?</p>
       <div class="opciones" id="op-productos"></div>
     </section>
 
-    <!-- paso 4: el envase decide los litros del pallet, y varía entre pallets -->
-    <section class="paso" id="paso-envase" hidden>
-      <p class="pregunta">¿Cómo se armó el pallet?</p>
-      <div class="opciones" id="op-envases"></div>
-    </section>
-
-    <!-- paso 4 -->
     <section class="paso" id="paso-listo" hidden>
       <div class="confirmacion">
         <div class="tilde">✓</div>
-        <div class="titulo">PALLET REGISTRADO</div>
+        <div class="titulo">CAJA REGISTRADA</div>
         <div class="hora" id="listo-hora"></div>
         <div class="detalle" id="listo-detalle"></div>
         <div class="acciones-confirmacion">
@@ -58,13 +48,13 @@
 
     <section class="historial">
       <div class="historial-titulo">
-        <span>Hoy · <span id="litros-hoy">0</span> L</span>
-        <strong id="total-hoy">0</strong>
+        <span>Hoy · <span id="unidades-hoy">0</span> sachets<span id="kilos-hoy"></span></span>
+        <strong id="cajas-hoy">0</strong>
       </div>
       <div id="lista-hoy"></div>
     </section>
   </div>
 
-  <script type="module" src="/lecheria.js"></script>
+  <script type="module" src="/yogures.js"></script>
 </body>
 </html>

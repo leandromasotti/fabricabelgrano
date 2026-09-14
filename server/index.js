@@ -29,11 +29,26 @@ const qCatalogo = {
   operarios: db.prepare(
     'SELECT id, nombre FROM operarios WHERE activo = 1 AND sector = ? ORDER BY orden, nombre'
   ),
-  marcas: db.prepare('SELECT id, nombre FROM marcas WHERE activo = 1 ORDER BY orden, nombre'),
+  // Las marcas se filtran por familia: el yogur va en dos marcas, Ovenac no lo hace.
+  marcas: db.prepare(`
+    SELECT m.id, m.nombre
+      FROM marcas m
+      JOIN marcas_familias f ON f.marca_id = m.id
+     WHERE m.activo = 1 AND f.familia = ?
+     ORDER BY m.orden, m.nombre
+  `),
   productos: db.prepare(`
-    SELECT id, nombre, cajas_por_pallet, litros_por_caja,
-           cajas_por_pallet * litros_por_caja AS litros_por_pallet
+    SELECT id, nombre, unidades_por_caja, kilos_por_unidad, datos_provisorios
       FROM productos WHERE activo = 1 AND familia = ? ORDER BY orden, nombre
+  `),
+  envases: db.prepare(`
+    SELECT id, nombre, bultos_por_pallet, unidades_por_bulto, litros_por_unidad, provisorio,
+           CASE
+             WHEN bultos_por_pallet IS NULL OR unidades_por_bulto IS NULL OR litros_por_unidad IS NULL
+             THEN NULL
+             ELSE CAST(bultos_por_pallet * unidades_por_bulto * litros_por_unidad AS INTEGER)
+           END AS litros_por_pallet
+      FROM envases WHERE activo = 1 ORDER BY orden, nombre
   `),
   quesos: db.prepare(
     'SELECT id, nombre, familia, se_envasa FROM tipos_queso WHERE activo = 1 ORDER BY orden, nombre'
@@ -41,10 +56,15 @@ const qCatalogo = {
 }
 
 app.get('/api/catalogo', (req, res) => {
+  const sector = req.query.sector ?? 'lecheria'
+  // El sector de la tablet decide la familia: la de yogures no tiene por que ver
+  // marcas ni productos de leche.
+  const familia = sector === 'yogures' ? 'yogur' : 'leche'
   res.json({
-    operarios: qCatalogo.operarios.all(req.query.sector ?? 'lecheria'),
-    marcas: qCatalogo.marcas.all(),
-    productos: qCatalogo.productos.all('leche'),
+    operarios: qCatalogo.operarios.all(sector),
+    marcas: qCatalogo.marcas.all(familia),
+    productos: qCatalogo.productos.all(familia),
+    envases: qCatalogo.envases.all(),
     quesos: qCatalogo.quesos.all(),
     // La tablet usa esto para calcular su desfasaje de reloj. Las tablets amuradas
     // se desconfiguran y nadie las mira, y la hora aca es un dato de proceso.
@@ -56,32 +76,47 @@ app.get('/api/catalogo', (req, res) => {
 
 const qPallet = {
   porClientId: db.prepare('SELECT id FROM registros_pallet WHERE client_id = ?'),
-  // Los litros se calculan y se guardan ACA, con la equivalencia vigente hoy.
-  // Recalcularlos al mostrarlos haria que un cambio futuro de caja reescriba la
-  // historia.
+  // Los litros salen del ENVASE, no del producto: el mismo tipo de leche puede armarse
+  // en caja o en palangana y dar litros distintos.
+  //
+  // Se congelan en el registro. Si el envase todavia no tiene sus numeros cargados
+  // (las palanganas), quedan en NULL y el pallet se guarda igual: no registrar
+  // produccion real por no saber una equivalencia seria mucho peor que un dato
+  // incompleto que despues se puede completar.
   insertar: db.prepare(`
     INSERT INTO registros_pallet
-      (client_id, fecha_hora, origen, sincronizado, operario_id, marca_id, producto_id, litros)
+      (client_id, fecha_hora, origen, sincronizado, operario_id, marca_id, producto_id,
+       envase_id, litros)
     VALUES
       (@client_id, @fecha_hora, @origen, @sincronizado, @operario_id, @marca_id, @producto_id,
-       (SELECT cajas_por_pallet * litros_por_caja FROM productos WHERE id = @producto_id))
+       @envase_id,
+       (SELECT CASE
+                 WHEN bultos_por_pallet IS NULL OR unidades_por_bulto IS NULL
+                      OR litros_por_unidad IS NULL THEN NULL
+                 ELSE CAST(bultos_por_pallet * unidades_por_bulto * litros_por_unidad AS INTEGER)
+               END
+          FROM envases WHERE id = @envase_id))
   `),
   detalle: db.prepare(`
     SELECT r.id, r.client_id, r.fecha_hora, r.origen, r.anulado, r.litros,
-           o.nombre AS operario, m.nombre AS marca, p.nombre AS producto
+           o.nombre AS operario, m.nombre AS marca, p.nombre AS producto,
+           e.nombre AS envase
       FROM registros_pallet r
       JOIN operarios o ON o.id = r.operario_id
       JOIN marcas    m ON m.id = r.marca_id
       JOIN productos p ON p.id = r.producto_id
+      LEFT JOIN envases e ON e.id = r.envase_id
      WHERE r.id = ?
   `),
   delDia: db.prepare(`
     SELECT r.id, r.client_id, r.fecha_hora, r.origen, r.anulado, r.litros,
-           o.nombre AS operario, m.nombre AS marca, p.nombre AS producto
+           o.nombre AS operario, m.nombre AS marca, p.nombre AS producto,
+           e.nombre AS envase
       FROM registros_pallet r
       JOIN operarios o ON o.id = r.operario_id
       JOIN marcas    m ON m.id = r.marca_id
       JOIN productos p ON p.id = r.producto_id
+      LEFT JOIN envases e ON e.id = r.envase_id
      WHERE date(r.fecha_hora, 'localtime') = ?
      ORDER BY r.fecha_hora DESC
   `),
@@ -91,9 +126,10 @@ const qPallet = {
 }
 
 app.post('/api/registros', (req, res) => {
-  const { client_id, operario_id, marca_id, producto_id, fecha_hora_cliente } = req.body ?? {}
+  const { client_id, operario_id, marca_id, producto_id, envase_id, fecha_hora_cliente } =
+    req.body ?? {}
 
-  if (!client_id || !operario_id || !marca_id || !producto_id) {
+  if (!client_id || !operario_id || !marca_id || !producto_id || !envase_id) {
     return res.status(400).json({ error: 'faltan campos obligatorios' })
   }
 
@@ -105,6 +141,7 @@ app.post('/api/registros', (req, res) => {
   if (!existe('operarios', operario_id)) return res.status(400).json({ error: 'operario inexistente' })
   if (!existe('marcas', marca_id)) return res.status(400).json({ error: 'marca inexistente' })
   if (!existe('productos', producto_id)) return res.status(400).json({ error: 'producto inexistente' })
+  if (!existe('envases', envase_id)) return res.status(400).json({ error: 'envase inexistente' })
 
   const info = qPallet.insertar.run({
     client_id,
@@ -112,6 +149,7 @@ app.post('/api/registros', (req, res) => {
     operario_id,
     marca_id,
     producto_id,
+    envase_id,
   })
   res.status(201).json(qPallet.detalle.get(info.lastInsertRowid))
 })
@@ -140,12 +178,181 @@ app.get('/api/registros.csv', (req, res) => {
   const fecha = req.query.fecha ?? hoyLocal()
   const filas = qPallet.delDia.all(fecha).filter((r) => !r.anulado)
   const csv = [
-    'fecha_hora,operario,marca,producto,litros,origen',
+    'fecha_hora,operario,marca,producto,envase,litros,origen',
     ...filas.map((r) =>
-      [r.fecha_hora, r.operario, r.marca, r.producto, r.litros ?? '', r.origen].join(',')
+      [r.fecha_hora, r.operario, r.marca, r.producto, r.envase ?? '', r.litros ?? '', r.origen].join(',')
     ),
   ].join('\n')
   res.type('text/csv').attachment(`pallets-${fecha}.csv`).send(csv)
+})
+
+// ---------------------------------------------------------------- yogur
+
+// Otra tablet y otro flujo: el yogur se registra CAJA POR CAJA, no por pallet.
+// Cada caja lleva ~500 sachets (el cliente lo dio como aproximado y eligio dejarlo
+// fijo). Los kilos salen del peso del sachet, que todavia no esta confirmado: mientras
+// no lo este quedan en NULL y la pantalla dice "sin dato" en vez de inventar.
+
+const qYogur = {
+  porClientId: db.prepare('SELECT id FROM registros_yogur WHERE client_id = ?'),
+  insertar: db.prepare(`
+    INSERT INTO registros_yogur
+      (client_id, fecha_hora, origen, sincronizado, operario_id, marca_id, producto_id,
+       unidades, kilos)
+    VALUES
+      (@client_id, @fecha_hora, @origen, @sincronizado, @operario_id, @marca_id, @producto_id,
+       @unidades,
+       (SELECT CASE WHEN kilos_por_unidad IS NULL THEN NULL
+                    ELSE kilos_por_unidad * @unidades END
+          FROM productos WHERE id = @producto_id))
+  `),
+  detalle: db.prepare(`
+    SELECT y.id, y.client_id, y.fecha_hora, y.origen, y.unidades, y.kilos, y.anulado,
+           o.nombre AS operario, m.nombre AS marca, p.nombre AS producto
+      FROM registros_yogur y
+      JOIN operarios o ON o.id = y.operario_id
+      JOIN marcas    m ON m.id = y.marca_id
+      JOIN productos p ON p.id = y.producto_id
+     WHERE y.id = ?
+  `),
+  delDia: db.prepare(`
+    SELECT y.id, y.fecha_hora, y.origen, y.unidades, y.kilos, y.anulado,
+           o.nombre AS operario, m.nombre AS marca, p.nombre AS producto
+      FROM registros_yogur y
+      JOIN operarios o ON o.id = y.operario_id
+      JOIN marcas    m ON m.id = y.marca_id
+      JOIN productos p ON p.id = y.producto_id
+     WHERE date(y.fecha_hora, 'localtime') = ?
+     ORDER BY y.fecha_hora DESC
+  `),
+  anular: db.prepare(
+    'UPDATE registros_yogur SET anulado = 1, anulado_en = ? WHERE id = ? AND anulado = 0'
+  ),
+  unidadesDe: db.prepare('SELECT unidades_por_caja FROM productos WHERE id = ?'),
+}
+
+app.post('/api/yogur', (req, res) => {
+  const { client_id, operario_id, marca_id, producto_id, unidades, fecha_hora_cliente } =
+    req.body ?? {}
+
+  if (!client_id || !operario_id || !marca_id || !producto_id) {
+    return res.status(400).json({ error: 'faltan campos obligatorios' })
+  }
+
+  const previo = qYogur.porClientId.get(client_id)
+  if (previo) return res.json({ ...qYogur.detalle.get(previo.id), duplicado: true })
+
+  if (!existe('operarios', operario_id)) return res.status(400).json({ error: 'operario inexistente' })
+  if (!existe('marcas', marca_id)) return res.status(400).json({ error: 'marca inexistente' })
+  if (!existe('productos', producto_id)) return res.status(400).json({ error: 'producto inexistente' })
+
+  // Si la tablet no manda unidades, se usa la cantidad configurada de la caja.
+  const porDefecto = qYogur.unidadesDe.get(producto_id)?.unidades_por_caja
+  const n = unidades ?? porDefecto
+  if (!Number.isInteger(n) || n < 1) {
+    return res.status(400).json({ error: 'unidades debe ser un entero mayor a cero' })
+  }
+
+  const info = qYogur.insertar.run({
+    client_id,
+    ...marcaDeTiempo(fecha_hora_cliente),
+    operario_id,
+    marca_id,
+    producto_id,
+    unidades: n,
+  })
+  res.status(201).json(qYogur.detalle.get(info.lastInsertRowid))
+})
+
+app.get('/api/yogur', (req, res) => {
+  const fecha = req.query.fecha ?? hoyLocal()
+  const registros = qYogur.delDia.all(fecha)
+  const vivos = registros.filter((r) => !r.anulado)
+  res.json({
+    fecha,
+    cajas: vivos.length,
+    unidades: vivos.reduce((n, r) => n + r.unidades, 0),
+    kilos: vivos.reduce((n, r) => n + (r.kilos ?? 0), 0),
+    registros,
+  })
+})
+
+app.post('/api/yogur/:id/anular', (req, res) => {
+  const id = Number(req.params.id)
+  if (qYogur.anular.run(ahora(), id).changes === 0) {
+    return res.status(404).json({ error: 'no existe o ya estaba anulado' })
+  }
+  res.json(qYogur.detalle.get(id))
+})
+
+// ---------------------------------------------------------------- envases (config)
+
+const qEnvases = {
+  todos: db.prepare(`
+    SELECT id, nombre, bultos_por_pallet, unidades_por_bulto, litros_por_unidad,
+           provisorio, activo
+      FROM envases ORDER BY orden, nombre
+  `),
+  actualizar: db.prepare(`
+    UPDATE envases
+       SET bultos_por_pallet = @bultos, unidades_por_bulto = @unidades,
+           litros_por_unidad = @litros, provisorio = 0
+     WHERE id = @id
+  `),
+  usos: db.prepare('SELECT COUNT(*) n FROM registros_pallet WHERE envase_id = ? AND anulado = 0'),
+}
+
+app.get('/api/envases', (_req, res) => {
+  res.json(
+    qEnvases.todos.all().map((e) => ({
+      ...e,
+      litros_por_pallet:
+        e.bultos_por_pallet && e.unidades_por_bulto && e.litros_por_unidad
+          ? Math.round(e.bultos_por_pallet * e.unidades_por_bulto * e.litros_por_unidad)
+          : null,
+      // Cuantos pallets se registraron con este formato. Si un envase provisorio ya
+      // tiene pallets encima, completarlo no alcanza: hay que recalcular esos litros.
+      pallets: qEnvases.usos.get(e.id).n,
+    }))
+  )
+})
+
+app.put('/api/envases/:id', (req, res) => {
+  const id = Number(req.params.id)
+  if (!existe('envases', id)) return res.status(404).json({ error: 'envase inexistente' })
+
+  const limpio = (v) => (v === null || v === undefined || v === '' ? null : Number(v))
+  const bultos = limpio(req.body?.bultos_por_pallet)
+  const unidades = limpio(req.body?.unidades_por_bulto)
+  const litros = limpio(req.body?.litros_por_unidad)
+
+  for (const [n, v, entero] of [
+    ['bultos por pallet', bultos, true],
+    ['unidades por bulto', unidades, true],
+    ['litros por unidad', litros, false],
+  ]) {
+    if (v === null) continue
+    if (entero ? !Number.isInteger(v) || v < 1 : !(v > 0)) {
+      return res.status(400).json({ error: `${n}: valor inválido` })
+    }
+  }
+
+  qEnvases.actualizar.run({ id, bultos, unidades, litros })
+
+  // Al completar un envase que ya tenia pallets registrados sin litros, se rellenan.
+  // Es el unico caso en que se toca un registro historico, y es correcto: esos litros
+  // nunca se supieron, no es que hayan cambiado.
+  const rellenados = db.prepare(`
+    UPDATE registros_pallet
+       SET litros = (
+         SELECT CAST(bultos_por_pallet * unidades_por_bulto * litros_por_unidad AS INTEGER)
+           FROM envases WHERE id = ?
+       )
+     WHERE envase_id = ? AND litros IS NULL
+  `).run(id, id).changes
+
+  const actualizado = qEnvases.todos.all().find((e) => e.id === id)
+  res.json({ ...actualizado, pallets_rellenados: rellenados })
 })
 
 // ---------------------------------------------------------------- queseria
@@ -1042,6 +1249,22 @@ const qTab = {
      WHERE r.anulado = 0 AND date(r.fecha_hora, 'localtime') = ?
      GROUP BY m.id, p.id
   `),
+  // Se cuenta aparte y no derivado de palletsHoy: esa consulta agrupa por marca y
+  // producto, asi que un grupo que mezcla un pallet en caja (840 L) con uno en
+  // palangana (sin litros) suma 840 y el segundo queda invisible.
+  palletsSinLitros: db.prepare(`
+    SELECT COUNT(*) AS n FROM registros_pallet
+     WHERE anulado = 0 AND litros IS NULL AND date(fecha_hora, 'localtime') = ?
+  `),
+  yogurHoy: db.prepare(`
+    SELECT p.nombre AS sabor, COUNT(*) AS cajas,
+           COALESCE(SUM(y.unidades), 0) AS unidades, SUM(y.kilos) AS kilos
+      FROM registros_yogur y
+      JOIN productos p ON p.id = y.producto_id
+     WHERE y.anulado = 0 AND date(y.fecha_hora, 'localtime') = ?
+     GROUP BY p.id
+     ORDER BY unidades DESC
+  `),
   producidoHoy: db.prepare(`
     SELECT q.nombre AS queso, COUNT(*) AS tinas, SUM(t.cantidad) AS piezas
       FROM tinas t
@@ -1168,6 +1391,19 @@ app.get('/api/tablero', (_req, res) => {
         detalle,
         total: detalle.reduce((n, r) => n + r.pallets, 0),
         litros: detalle.reduce((n, r) => n + r.litros, 0),
+        // Los pallets en un formato todavía sin confirmar no suman litros. Se cuentan
+        // aparte para que el total no parezca menor de lo que fue.
+        sin_litros: qTab.palletsSinLitros.get(hoy).n,
+      }
+    })(),
+
+    yogur: (() => {
+      const detalle = qTab.yogurHoy.all(hoy)
+      return {
+        detalle,
+        cajas: detalle.reduce((n, r) => n + r.cajas, 0),
+        unidades: detalle.reduce((n, r) => n + r.unidades, 0),
+        kilos: detalle.reduce((n, r) => n + (r.kilos ?? 0), 0),
       }
     })(),
 
@@ -1252,6 +1488,17 @@ const qRep = {
        AND date(t.fecha_hora, 'localtime') BETWEEN ? AND ?
      GROUP BY q.id
      ORDER BY piezas DESC
+  `),
+  yogur: db.prepare(`
+    SELECT m.nombre AS marca, p.nombre AS sabor,
+           COUNT(*) AS cajas, COALESCE(SUM(y.unidades), 0) AS unidades, SUM(y.kilos) AS kilos
+      FROM registros_yogur y
+      JOIN marcas    m ON m.id = y.marca_id
+      JOIN productos p ON p.id = y.producto_id
+     WHERE y.anulado = 0
+       AND date(y.fecha_hora, 'localtime') BETWEEN ? AND ?
+     GROUP BY m.id, p.id
+     ORDER BY unidades DESC
   `),
   lecheria: db.prepare(`
     SELECT m.nombre AS marca, p.nombre AS producto,
@@ -1358,6 +1605,8 @@ app.get('/api/reportes', (req, res) => {
       tinas: rendimiento.reduce((n, r) => n + r.tinas, 0),
       pallets: dias.reduce((n, d) => n + d.pallets, 0),
       litros: dias.reduce((n, d) => n + d.litros, 0),
+      yogur_cajas: qRep.yogur.all(desde, hasta).reduce((n, r) => n + r.cajas, 0),
+      yogur_unidades: qRep.yogur.all(desde, hasta).reduce((n, r) => n + r.unidades, 0),
       en_sal: qRep.enSalAhora.get().n,
       minutos_a_sal: mediana,
       muestras_a_sal: tiempos.length,
@@ -1366,6 +1615,7 @@ app.get('/api/reportes', (req, res) => {
     dias,
     rendimiento,
     lecheria: qRep.lecheria.all(desde, hasta),
+    yogur: qRep.yogur.all(desde, hasta),
     // Orden canonico de los productos, independiente de lo que traiga el filtro.
     // El color de cada tipo de leche se asigna por esta lista y no por el orden de
     // aparicion: si cambiar el rango repintara las series, comparar dos periodos

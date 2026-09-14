@@ -53,6 +53,12 @@ const litros = (n) => `${fmt(n)} L`
 function pintarLecheria(lecheria) {
   $('#pallets-total').textContent = fmt(lecheria.total)
   $('#pallets-litros').textContent = litros(lecheria.litros ?? 0)
+  // Un pallet armado en un formato sin confirmar no suma litros. Decirlo evita que el
+  // total parezca menor de lo que realmente se produjo.
+  const sin = lecheria.sin_litros ?? 0
+  $('#pallets-sin-litros').hidden = !sin
+  $('#pallets-sin-litros').textContent =
+    sin === 1 ? '1 pallet sin litros definidos' : `${sin} pallets sin litros definidos`
 
   const marcas = [...new Set(lecheria.detalle.map((d) => d.marca))]
   const colorDe = (producto) => COLORES_LECHE[ordenLeche.indexOf(producto) % COLORES_LECHE.length]
@@ -117,6 +123,15 @@ function etapa({ tipo, cabeza, n, u, detalle, clase }) {
 
 const top = (arr, campo = 'piezas') =>
   arr.slice(0, 3).map((r) => `<b>${fmt(r[campo])}</b> ${r.queso}`).join('<br>')
+
+function pintarYogur(y) {
+  $('#yogur-cajas').textContent = fmt(y.cajas)
+  $('#yogur-unidades').textContent =
+    `${fmt(y.unidades)} sachets` + (y.kilos ? ` · ${fmt(Math.round(y.kilos))} kg` : '')
+  $('#yogur-sabores').replaceChildren(
+    ...y.detalle.map((s) => el('div', null, `${fmt(s.cajas)} ${s.sabor}`))
+  )
+}
 
 function pintarCircuito(d) {
   const rendimiento = d.hoy.tinas ? Math.round(d.hoy.piezas / d.hoy.tinas) : 0
@@ -241,6 +256,7 @@ async function refrescar() {
     ultimoBueno = d
     $('#latido').className = 'latido vivo'
     pintarLecheria(d.lecheria)
+    pintarYogur(d.yogur)
     pintarCircuito(d)
     pintarPedidos(d.pedidos)
     pintarAlertas(d.alertas)

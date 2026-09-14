@@ -161,8 +161,14 @@ ver, aunque no lo hayan pedido.
 > obviamente es súper precario, pero sería lo más simple de hacer" **[A2 01:01-01:12]**
 
 - Registrar cada **pallet** armado.
-- ✅ **Equivalencia confirmada por el cliente (2026-09-13):** un pallet son **70 cajas de 12 litros
-  = 840 litros**. El cliente razona en litros, no en pallets, así que el equivalente se muestra en
+- ⚠️ **Corregido el 2026-09-14:** los litros **no son fijos por pallet**. Un pallet puede armarse
+  en **caja** (70 × 12 sachets de 1 L = 840 L, confirmado) o en **palangana** — dos tipos distintos,
+  con cantidades que el cliente todavía no tiene. Por eso el envase es una **elección del operario
+  en cada pallet**, no una propiedad del producto.
+  - Un pallet es **homogéneo**: una marca, un tipo de leche, un envase. No se mezcla.
+  - Los pallets en un formato sin confirmar **se registran igual** y sus litros quedan en nulo.
+    Al cargar el formato en `/envases.html` se completan solos.
+- ✅ **Equivalencia del formato en caja (2026-09-13):** **70 cajas de 12 litros = 840 litros**. El cliente razona en litros, no en pallets, así que el equivalente se muestra en
   el tablero LED, en los reportes y en la consulta del día.
   - 🔸 La equivalencia se guarda **por producto** (no como constante) y se **congela en cada
     registro**: si mañana cambia el tamaño de la caja, los pallets históricos conservan la
@@ -175,6 +181,20 @@ ver, aunque no lo hayan pedido.
 🔸 **Inferencia importante:** que produzcan bajo marcas de terceros *y* una propia sugiere trabajo
 de **maquila para terceros**. Si es así, la trazabilidad por marca/cliente tiene implicancias
 regulatorias y contractuales que no aparecieron en los audios. Ver pregunta **A3**.
+
+### 5.1b Lechería · yogures — **tablet separada**
+> Definido con el cliente el 2026-09-14.
+
+- Es **otra tablet**: dos puestos distintos, dos pantallas (`/lecheria.html` y `/yogures.html`).
+- Solo **dos sabores**: vainilla y frutilla.
+- Se produce en **dos marcas**. ⚠️ **Ovenac NO hace yogur** — el sistema lo modela como "qué
+  familia de producto hace cada marca", no como un caso especial.
+- Se registra **caja por caja**, no por pallet. Cada caja lleva ~500 sachets.
+- ❓ El cliente dio las 500 unidades como **aproximadas** y decidió dejarlas fijas. Queda
+  configurable: si al contarlas resulta que varían, conviene que el operario cargue la cantidad
+  real — igual que el rinde de la tina.
+- ❓ *"Los trabajan por kilos también"*, pero el **peso del sachet no está confirmado**. Hasta que
+  lo esté, los kilos quedan sin calcular y la pantalla no muestra nada en vez de inventar.
 
 ### 5.2 Quesería (producción)
 - El maestro quesero arma **la tina** de un tipo de queso (ej. sardo) **[A3 00:08-00:22]**.

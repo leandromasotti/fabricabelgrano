@@ -69,13 +69,21 @@
     }
 
     /* ------------------------------------------------------ lecheria */
-    .lecheria { display: grid; grid-template-columns: auto 1fr; gap: 1.2vw; align-items: center; }
+    .lecheria { display: grid; grid-template-columns: auto 1fr auto; gap: 1.2vw; align-items: center; }
+    /* Los yogures son el otro producto de lechería: van al lado, no mezclados con los
+       pallets, porque la unidad es distinta (cajas de sachets, no litros). */
+    .yogur-caja { padding-left: 1.2vw; border-left: 1px solid var(--borde); min-width: 11vw; }
+    .yogur-caja .yt { font-size: 1.5vh; color: var(--tenue); text-transform: uppercase; letter-spacing: .15vh; }
+    .yogur-caja .yn { font-size: 4.6vh; font-weight: 800; line-height: 1.05; }
+    .yogur-caja .yu { font-size: 1.6vh; color: var(--leche-2); font-weight: 700; }
+    .yogur-caja .ys { font-size: 1.4vh; color: var(--tenue); margin-top: .4vh; line-height: 1.5; }
     .gran-total { text-align: center; padding-right: 1.2vw; border-right: 1px solid var(--borde); }
     .gran-total .n { font-size: 8vh; font-weight: 800; line-height: 1; }
     .gran-total .t { font-size: 1.5vh; color: var(--tenue); text-transform: uppercase; letter-spacing: .15vh; }
     /* El equivalente en litros es lo que el cliente mira: los pallets son la unidad
        de trabajo, los litros son la unidad de negocio. */
     .gran-total .litros { font-size: 2.7vh; font-weight: 800; color: var(--leche-1); margin-top: .5vh; }
+    .gran-total .sin-litros { font-size: 1.3vh; color: var(--alerta); margin-top: .3vh; }
     .marca-caja .total .litros-marca { font-size: 1.4vh; color: var(--leche-1); font-weight: 700; margin-left: .5vw; }
 
     .marcas { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 1vw; }
@@ -146,16 +154,23 @@
 
     <!-- LECHERÍA -->
     <div>
-      <div class="seccion-titulo">Lechería · pallets terminados hoy</div>
+      <div class="seccion-titulo">Lechería · producción de hoy</div>
       <div class="panel lecheria">
         <div class="gran-total">
           <div class="n" id="pallets-total">0</div>
           <div class="t">pallets hoy</div>
           <div class="litros" id="pallets-litros">0 L</div>
+          <div class="sin-litros" id="pallets-sin-litros" hidden></div>
         </div>
         <div>
           <div class="marcas" id="marcas"></div>
           <div class="leyenda" id="leyenda-leche"></div>
+        </div>
+        <div class="yogur-caja" id="yogur">
+          <div class="yt">Yogures</div>
+          <div class="yn" id="yogur-cajas">0</div>
+          <div class="yu" id="yogur-unidades">0 sachets</div>
+          <div class="ys" id="yogur-sabores"></div>
         </div>
       </div>
     </div>

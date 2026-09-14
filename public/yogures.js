@@ -1,6 +1,14 @@
-// Lecheria: registrar cada pallet armado, por marca y tipo de leche.
-// Es el sector mas simple del circuito y por eso es el piloto: el proceso ya esta
-// estandarizado en papel ("precario pero bastante aceitado" [A2 00:21]).
+// Producción de yogures. Tablet separada de la de leches, como se acordó con el
+// cliente: son dos puestos distintos y mezclarlos obligaría a elegir "leche o yogur"
+// en cada registro, un toque de más todo el día para nada.
+//
+// Se registra CAJA POR CAJA. Cada caja lleva la cantidad configurada de sachets
+// —hoy 500, dada por el cliente como aproximada— así que el operario solo elige marca
+// y sabor: dos toques y listo.
+//
+// Solo dos sabores (vainilla y frutilla) y dos marcas: Ovenac no hace yogur. El
+// catálogo ya viene filtrado por el servidor, así que acá no hay ninguna regla escrita
+// a mano.
 
 import {
   $, hhmm, cola, red, horaServidor, pintarEstado, postear, sincronizar,
@@ -9,21 +17,19 @@ import {
 
 const VENTANA_DESHACER = 60
 
-const est = { operario: null, marca: null, producto: null, envase: null, ultimo: null, timer: null }
-// El paso de envase tiene 3 opciones: entra sin ocultar el historial.
-const mostrar = hacerPasos(['operario', 'marca', 'producto', 'envase', 'listo'])
+const est = { operario: null, marca: null, producto: null, ultimo: null, timer: null }
+const mostrar = hacerPasos(['operario', 'marca', 'producto', 'listo'])
 
 function irA(paso) {
   mostrar(paso)
   $('btn-reiniciar').hidden = paso === 'operario'
-  pintarMigas([est.operario?.nombre, est.marca?.nombre, est.producto?.nombre, est.envase?.nombre])
+  pintarMigas([est.operario?.nombre, est.marca?.nombre, est.producto?.nombre])
 }
 
 function reiniciar(conservarOperario = true) {
   clearInterval(est.timer)
   est.marca = null
   est.producto = null
-  est.envase = null
   if (!conservarOperario) est.operario = null
   irA(est.operario ? 'marca' : 'operario')
 }
@@ -37,27 +43,27 @@ async function registrar() {
     operario_id: est.operario.id,
     marca_id: est.marca.id,
     producto_id: est.producto.id,
-    envase_id: est.envase.id,
   }
+  const unidades = est.producto.unidades_por_caja ?? 0
+  const kilos = est.producto.kilos_por_unidad ? est.producto.kilos_por_unidad * unidades : null
+
   const local = {
     ...cuerpo,
     fecha_hora: fecha.toISOString(),
     operario: est.operario.nombre,
     marca: est.marca.nombre,
     producto: est.producto.nombre,
-    envase: est.envase.nombre,
-    litros: est.envase.litros_por_pallet,
+    unidades,
+    kilos,
   }
 
-  // Optimista: el operario ve la confirmacion ya. Que el POST llegue o se encole es
-  // problema nuestro, no suyo - el ya solto el pallet y agarro el siguiente.
   est.ultimo = local
   $('listo-hora').textContent = hhmm(fecha)
-  // Los litros se muestran si el envase los tiene cargados. Si es una palangana sin
-  // números todavía, el pallet se registra igual y no se inventa nada.
+  // Los kilos solo se muestran si el peso del sachet está confirmado. Mientras no lo
+  // esté, mostrar un número redondo sería peor que no mostrar ninguno.
   $('listo-detalle').textContent =
-    `${local.marca} · ${local.producto} · ${local.envase}` +
-    (local.litros ? ` · ${local.litros.toLocaleString('es-AR')} L` : '')
+    `${local.marca} · ${local.producto} · ${unidades} sachets` +
+    (kilos ? ` · ${kilos.toLocaleString('es-AR')} kg` : '')
   irA('listo')
   clearInterval(est.timer)
   est.timer = cuentaRegresiva(VENTANA_DESHACER, $('deshacer-seg'), reiniciar)
@@ -65,12 +71,12 @@ async function registrar() {
 
   try {
     if (!red.hay) throw new Error('sin red')
-    const guardado = await postear('/api/registros', cuerpo)
+    const guardado = await postear('/api/yogur', cuerpo)
     est.ultimo.id = guardado.id
     refrescarHoy()
   } catch {
     cola.agregar({
-      ruta: '/api/registros',
+      ruta: '/api/yogur',
       cuerpo: { ...cuerpo, fecha_hora_cliente: fecha.toISOString() },
     })
     red.hay = false
@@ -78,14 +84,12 @@ async function registrar() {
   pintarEstado()
 }
 
-// El deshacer cubre el error real: "toque el boton de al lado". Lo que cae fuera de la
-// ventana se corrige desde la pantalla del encargado.
 async function deshacer() {
   clearInterval(est.timer)
   const u = est.ultimo
   if (!u) return reiniciar()
   if (u.id) {
-    await fetch(`/api/registros/${u.id}/anular`, { method: 'POST' }).catch(() => {})
+    await fetch(`/api/yogur/${u.id}/anular`, { method: 'POST' }).catch(() => {})
   } else {
     cola.quitar(u.client_id)
   }
@@ -102,23 +106,25 @@ function fila(r, pendiente = false) {
   el.className = `fila${pendiente ? ' pendiente' : ''}${r.anulado ? ' anulada' : ''}`
   el.innerHTML = '<span class="h"></span><span class="q"></span><span class="op"></span>'
   el.querySelector('.h').textContent = hhmm(r.fecha_hora)
-  el.querySelector('.q').textContent =
-    `${r.marca} · ${r.producto}` + (r.envase ? ` · ${r.envase}` : '')
+  el.querySelector('.q').textContent = `${r.marca} · ${r.producto} · ${r.unidades}`
   el.querySelector('.op').textContent = r.operario
   return el
 }
 
 function agregarFila(r, pendiente) {
   $('lista-hoy').prepend(fila(r, pendiente))
-  $('total-hoy').textContent = Number($('total-hoy').textContent) + 1
+  $('cajas-hoy').textContent = Number($('cajas-hoy').textContent) + 1
+  $('unidades-hoy').textContent =
+    (Number($('unidades-hoy').textContent.replace(/\./g, '')) + r.unidades).toLocaleString('es-AR')
 }
 
 async function refrescarHoy() {
   if (!red.hay) return
   try {
-    const { registros, total, litros } = await (await fetch('/api/registros')).json()
-    $('total-hoy').textContent = total
-    $('litros-hoy').textContent = (litros ?? 0).toLocaleString('es-AR')
+    const { registros, cajas, unidades, kilos } = await (await fetch('/api/yogur')).json()
+    $('cajas-hoy').textContent = cajas
+    $('unidades-hoy').textContent = unidades.toLocaleString('es-AR')
+    $('kilos-hoy').textContent = kilos ? ` · ${kilos.toLocaleString('es-AR')} kg` : ''
     $('lista-hoy').replaceChildren(...registros.slice(0, 20).map((r) => fila(r)))
   } catch {
     red.hay = false
@@ -128,7 +134,7 @@ async function refrescarHoy() {
 
 // ---------------------------------------------------------------- arranque
 
-const catalogo = await cargarCatalogo('lecheria')
+const catalogo = await cargarCatalogo('yogures')
 
 botones($('op-operarios'), catalogo.operarios, (o) => {
   est.operario = o
@@ -140,22 +146,7 @@ botones($('op-marcas'), catalogo.marcas, (m) => {
 })
 botones($('op-productos'), catalogo.productos, (p) => {
   est.producto = p
-  irA('envase')
-})
-// El envase define los litros del pallet. Los que todavía no tienen los números
-// cargados se marcan, para que el operario sepa que ese formato está a confirmar.
-botones($('op-envases'), catalogo.envases, (e) => {
-  est.envase = e
   registrar()
-}, (e) => {
-  const partes = [document.createTextNode(e.nombre)]
-  const chico = document.createElement('small')
-  chico.style.cssText = 'display:block;font-size:15px;font-weight:600;opacity:.65;margin-top:6px'
-  chico.textContent = e.litros_por_pallet
-    ? `${e.litros_por_pallet.toLocaleString('es-AR')} litros`
-    : 'litros a confirmar'
-  partes.push(chico)
-  return partes
 })
 
 $('btn-deshacer').addEventListener('click', deshacer)

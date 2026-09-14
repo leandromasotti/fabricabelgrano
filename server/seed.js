@@ -9,11 +9,42 @@ const marcas = [
 ]
 
 // Confirmados contra el catalogo oficial de lacteosbelgrano.com.ar (2026-09-11).
+// Los yogures: solo vainilla y frutilla (confirmado por el cliente 2026-09-14).
 const productos = [
   { nombre: 'Entera', familia: 'leche', orden: 1 },
   { nombre: 'Largavida', familia: 'leche', orden: 2 },
   { nombre: 'Descremada', familia: 'leche', orden: 3 },
+  { nombre: 'Vainilla', familia: 'yogur', orden: 1 },
+  { nombre: 'Frutilla', familia: 'yogur', orden: 2 },
 ]
+
+// Formatos en que se arma un pallet de leche.
+//
+// Solo el primero esta confirmado: 70 cajas de 12 sachets de 1 litro = 840 L.
+// Los dos tipos de palangana quedan marcados como PROVISORIOS porque el cliente
+// todavia no tiene los numeros. La pantalla lo dice, y se corrigen desde
+// /envases.html sin tocar codigo.
+const envases = [
+  { nombre: 'Caja 12 × 1 L', bultos: 70, unidades: 12, litros: 1, provisorio: 0, orden: 1 },
+  { nombre: 'Palangana', bultos: null, unidades: null, litros: null, provisorio: 1, orden: 2 },
+  { nombre: 'Palangana 2', bultos: null, unidades: null, litros: null, provisorio: 1, orden: 3 },
+]
+
+// Que familia hace cada marca. El yogur va en dos marcas: Ovenac NO hace yogur
+// (confirmado por el cliente 2026-09-14).
+const marcasFamilias = [
+  { marca: 'Lácteos Belgrano', familias: ['leche', 'yogur'] },
+  { marca: 'Central Lechera', familias: ['leche', 'yogur'] },
+  { marca: 'Ovenac', familias: ['leche'] },
+]
+
+// Unidades por caja de yogur. El cliente lo dio como "aproximadamente 500" y decidio
+// dejarlo fijo. Queda configurable y marcado como provisorio: si al contarlas resulta
+// que varian, conviene que el operario cargue la cantidad real — igual que el rinde de
+// la tina, que tampoco se asume.
+// kilos_por_unidad queda en NULL: "los trabajan por kilos" pero el peso del sachet no
+// esta confirmado, y un peso inventado ensucia todo lo que se calcule despues.
+const yogurCaja = { unidades_por_caja: 500, kilos_por_unidad: null }
 
 // PLACEHOLDER - es el unico dato que bloquea el arranque real (ver 04-plan-mvp.md, seccion 6).
 // Reemplazar por las listas reales antes de instalar en planta.
@@ -21,6 +52,8 @@ const operarios = [
   { nombre: 'Operario 1', sector: 'lecheria', orden: 1 },
   { nombre: 'Operario 2', sector: 'lecheria', orden: 2 },
   { nombre: 'Operario 3', sector: 'lecheria', orden: 3 },
+  { nombre: 'Yogurtero 1', sector: 'yogures', orden: 1 },
+  { nombre: 'Yogurtero 2', sector: 'yogures', orden: 2 },
   { nombre: 'Quesero 1', sector: 'queseria', orden: 1 },
   { nombre: 'Quesero 2', sector: 'queseria', orden: 2 },
   { nombre: 'Salador 1', sector: 'saladero', orden: 1 },
@@ -113,6 +146,13 @@ const clientes = [
   { nombre: 'Cliente 5', orden: 5 },
 ]
 
+const insertEnvase = db.prepare(`
+  INSERT INTO envases (nombre, bultos_por_pallet, unidades_por_bulto, litros_por_unidad, provisorio, orden)
+  VALUES (@nombre, @bultos, @unidades, @litros, @provisorio, @orden)
+`)
+const insertMarcaFamilia = db.prepare(
+  'INSERT OR IGNORE INTO marcas_familias (marca_id, familia) VALUES (?, ?)'
+)
 const insertCliente = db.prepare(
   'INSERT INTO clientes (nombre, orden) VALUES (@nombre, @orden)'
 )
@@ -126,10 +166,10 @@ const cargar = db.transaction(() => {
     marcas.forEach((m) => insertMarca.run(m))
     console.log(`  marcas:    ${marcas.length}`)
   }
-  if (db.prepare('SELECT COUNT(*) n FROM productos').get().n === 0) {
-    productos.forEach((p) => insertProducto.run(p))
-    console.log(`  productos: ${productos.length}`)
-  }
+  const existeProducto = db.prepare('SELECT 1 FROM productos WHERE nombre = ? AND familia = ?')
+  const nuevosProductos = productos.filter((p) => !existeProducto.get(p.nombre, p.familia))
+  nuevosProductos.forEach((p) => insertProducto.run(p))
+  if (nuevosProductos.length) console.log(`  productos: +${nuevosProductos.length}`)
   // Idempotente por nombre+sector: agregar un operario nuevo no obliga a borrar la base.
   const existeOperario = db.prepare('SELECT 1 FROM operarios WHERE nombre = ? AND sector = ?')
   const nuevos = operarios.filter((o) => !existeOperario.get(o.nombre, o.sector))
@@ -144,6 +184,43 @@ const cargar = db.transaction(() => {
   if (db.prepare('SELECT COUNT(*) n FROM clientes').get().n === 0) {
     clientes.forEach((c) => insertCliente.run(c))
     console.log(`  clientes:  ${clientes.length}  <-- PLACEHOLDER, reemplazar`)
+  }
+
+  // Idempotente por nombre, igual que los quesos.
+  const existeEnvase = db.prepare('SELECT 1 FROM envases WHERE nombre = ?')
+  const nuevosEnvases = envases.filter((e) => !existeEnvase.get(e.nombre))
+  nuevosEnvases.forEach((e) => insertEnvase.run(e))
+  if (nuevosEnvases.length) console.log(`  envases:   +${nuevosEnvases.length}`)
+
+  // Que familia hace cada marca. INSERT OR IGNORE: no pisa lo que ya este.
+  const marcaPorNombre = db.prepare('SELECT id FROM marcas WHERE nombre = ?')
+  let relaciones = 0
+  for (const { marca, familias } of marcasFamilias) {
+    const m = marcaPorNombre.get(marca)
+    if (!m) continue
+    for (const f of familias) relaciones += insertMarcaFamilia.run(m.id, f).changes
+  }
+  if (relaciones) console.log(`  marcas×familias: +${relaciones}`)
+
+  // Datos de la caja de yogur, solo mientras sigan marcados como provisorios.
+  const ponerYogur = db.prepare(`
+    UPDATE productos
+       SET unidades_por_caja = @unidades_por_caja, kilos_por_unidad = @kilos_por_unidad
+     WHERE familia = 'yogur' AND datos_provisorios = 1
+  `)
+  const tocadosYogur = ponerYogur.run(yogurCaja).changes
+  if (tocadosYogur) {
+    console.log(`  yogur:     ${tocadosYogur} productos con ${yogurCaja.unidades_por_caja} u/caja (APROXIMADO)`)
+  }
+
+  // Los pallets viejos no tenian envase: se les asigna el unico formato que existia.
+  const sinEnvase = db.prepare('SELECT COUNT(*) n FROM registros_pallet WHERE envase_id IS NULL').get().n
+  if (sinEnvase) {
+    const caja = db.prepare("SELECT id FROM envases WHERE nombre = 'Caja 12 × 1 L'").get()
+    if (caja) {
+      db.prepare('UPDATE registros_pallet SET envase_id = ? WHERE envase_id IS NULL').run(caja.id)
+      console.log(`  ${sinEnvase} pallets viejos asignados al formato en caja`)
+    }
   }
 
   // Los dias de maduracion se aplican siempre, pero SOLO sobre los quesos que todavia

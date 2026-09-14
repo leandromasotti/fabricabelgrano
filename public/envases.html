@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Formatos de pallet</title>
+  <link rel="icon" href="data:,">
+  <style>
+    :root {
+      color-scheme: light;
+      --surface: #fcfcfb; --plane: #f9f9f7;
+      --ink: #0b0b0b; --ink-2: #52514e; --ink-muted: #898781;
+      --grid: #e1e0d9; --axis: #c3c2b7; --borde: rgba(11,11,11,.10);
+      --acento: #2a78d6; --ok: #0ca30c; --aviso: #8a6d1f; --aviso-bg: #fdf6e0;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:where(:not([data-theme="light"])) {
+        color-scheme: dark;
+        --surface: #1a1a19; --plane: #0d0d0d;
+        --ink: #fff; --ink-2: #c3c2b7; --ink-muted: #898781;
+        --grid: #2c2c2a; --axis: #383835; --borde: rgba(255,255,255,.10);
+        --acento: #3987e5; --aviso: #e8d49a; --aviso-bg: #33301f;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--plane); color: var(--ink);
+           font: 15px/1.45 system-ui, -apple-system, 'Segoe UI', sans-serif; }
+    .wrap { max-width: 980px; margin: 0 auto; padding: 26px 20px 70px; }
+    h1 { font-size: 23px; margin: 0 0 4px; }
+    .sub { color: var(--ink-2); font-size: 14px; margin-bottom: 18px; }
+
+    .aviso {
+      background: var(--aviso-bg); color: var(--aviso); border: 1px solid var(--aviso);
+      border-radius: 10px; padding: 13px 16px; margin-bottom: 20px; font-size: 14.5px; line-height: 1.5;
+    }
+    .aviso b { font-weight: 700; }
+
+    table { width: 100%; border-collapse: collapse; background: var(--surface);
+            border: 1px solid var(--borde); border-radius: 10px; overflow: hidden; }
+    th, td { padding: 10px 11px; border-bottom: 1px solid var(--grid); text-align: left; vertical-align: middle; }
+    th { font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--ink-muted);
+         font-weight: 600; background: var(--plane); }
+    th.num, td.num { text-align: right; }
+    tbody tr:hover { background: var(--plane); }
+
+    input[type=number] {
+      width: 82px; font: inherit; font-size: 14px; padding: 6px 8px; text-align: right;
+      color: var(--ink); background: var(--surface); border: 1px solid var(--axis); border-radius: 6px;
+    }
+    .resultado { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .resultado.vacio { color: var(--ink-muted); font-weight: 400; font-size: 14px; }
+
+    .tag { font-size: 11px; padding: 2px 8px; border-radius: 20px; white-space: nowrap; }
+    .tag.prov { background: var(--aviso-bg); color: var(--aviso); border: 1px solid var(--aviso); }
+    .tag.ok { background: transparent; color: var(--ok); border: 1px solid var(--ok); }
+    .uso { font-size: 13px; color: var(--ink-2); }
+
+    button {
+      font: 600 13.5px system-ui, sans-serif; padding: 8px 15px; cursor: pointer;
+      background: var(--acento); color: #fff; border: 1px solid var(--acento); border-radius: 8px;
+    }
+    button:disabled { opacity: .35; cursor: default; }
+    .guardado { font-size: 13px; color: var(--ok); margin-left: 8px; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Formatos de pallet</h1>
+  <div class="sub">Lácteos Belgrano · lechería</div>
+
+  <div class="aviso">
+    Un pallet puede armarse en <b>caja</b> o en <b>palangana</b>, y cada formato da una
+    cantidad distinta de litros — por eso los litros ya no son fijos por producto.
+    <br><br>
+    Solo el formato en caja está confirmado (70 × 12 × 1 L). Los dos de palangana
+    esperan los números de la fábrica; mientras tanto <b>los pallets se registran igual</b>
+    y sus litros quedan sin calcular. Al completar un formato acá, esos pallets se
+    completan solos — la columna <b>“pallets”</b> muestra cuántos están esperando.
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Formato</th>
+        <th class="num">Bultos por pallet</th>
+        <th class="num">Unidades por bulto</th>
+        <th class="num">Litros por unidad</th>
+        <th class="num">Litros por pallet</th>
+        <th class="num">Pallets</th>
+        <th></th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="filas"></tbody>
+  </table>
+</div>
+
+<script type="module" src="/envases.js"></script>
+</body>
+</html>
