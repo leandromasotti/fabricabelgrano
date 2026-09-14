@@ -100,8 +100,11 @@ anulado_en        timestamp
 3. **Toda escritura pasa por una sola función.** Si después aparece que hay que funcionar offline
    (pregunta D2), la cola se agrega en un solo lugar en vez de en toda la app.
 
-❓ **Pregunta que aparece al modelar:** ¿un pallet tiene una cantidad fija de unidades, o varía?
-Si varía, falta un campo `cantidad`. El cartón de lechería lo va a contestar.
+✅ **Contestado (2026-09-13):** un pallet son **70 cajas de 12 litros = 840 litros**, y es fijo.
+El cliente pidió ver el equivalente en litros en el tablero, los reportes y la consulta.
+
+Queda una pregunta derivada: **¿se cierra alguna vez un pallet incompleto?** Si a veces se arma con
+menos cajas, los litros quedarían sobreestimados. Hoy el sistema asume pallet completo siempre.
 
 ---
 

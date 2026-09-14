@@ -48,6 +48,10 @@ barra*, y el cremoso.
 
 ## Leche (sector lechería)
 
+**Pallet** (confirmado 2026-09-13): **70 cajas × 12 litros = 840 litros**. Es la unidad de trabajo
+del operario; los litros son la unidad de negocio del cliente. La equivalencia se guarda por
+producto y se congela en cada registro, así un cambio futuro de caja no reescribe la historia.
+
 **Marcas** (A2 00:47): Central Lechera, **Lácteos Belgrano**, Ovenac❓ *(declarada como propia)*.
 
 **Variantes** (A2 00:52-01:00): ✅ confirmadas contra el catálogo — **Leche Entera**, **Leche Entera

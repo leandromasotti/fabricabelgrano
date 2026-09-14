@@ -43,7 +43,8 @@ npm run operarios -- lecheria "Juan Pérez" "Carlos Gómez" "Nicolás Ruiz"
 ```
 - [ ] **Lista real de operarios de lechería** ← lo único que bloquea
 - [ ] Confirmar la marca **"Ovenac"** (pregunta A1)
-- [ ] Confirmar si un pallet tiene cantidad fija de unidades o varía
+- [x] ~~Confirmar si un pallet tiene cantidad fija de unidades~~ → **70 cajas × 12 L = 840 litros**
+- [ ] Preguntar si alguna vez se cierra un **pallet incompleto** (hoy el sistema asume que no)
 
 ### 3.2 Backups
 ```bash
