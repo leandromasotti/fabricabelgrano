@@ -148,6 +148,20 @@ muestra y se esconde todo con `hidden`, tiene que ganar siempre — ya causó do
 fechas no repinta los gráficos: si "azul" significara un producto distinto en cada vista, comparar
 dos períodos induciría a error.
 
+## Ponerlo online
+
+Para darle acceso al cliente: [docs/06-despliegue.md](docs/06-despliegue.md).
+
+Lo esencial en tres líneas:
+
+1. **Poné la clave.** `ACCESO_CLAVE="..."` como variable de entorno. Sin ella el sistema no
+   pide nada — correcto en local y en la red de la fábrica, inaceptable en internet.
+2. **El hosting necesita disco persistente.** La base es un archivo SQLite: sin volumen, cada
+   despliegue la borra. Eso descarta Render free, serverless y hosting estático.
+3. **Una sola instancia.** Dos procesos escribiendo el mismo archivo SQLite se corrompen.
+
+Hay `Dockerfile` y `fly.toml` listos. Railway y cualquier VPS con Docker funcionan igual.
+
 ## Próximo paso: el piloto
 
 Hay 12 pantallas construidas y **ningún operario tocó una sola**. Antes de seguir agregando
