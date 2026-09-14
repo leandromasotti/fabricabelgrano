@@ -30,9 +30,11 @@ const qCatalogo = {
     'SELECT id, nombre FROM operarios WHERE activo = 1 AND sector = ? ORDER BY orden, nombre'
   ),
   marcas: db.prepare('SELECT id, nombre FROM marcas WHERE activo = 1 ORDER BY orden, nombre'),
-  productos: db.prepare(
-    'SELECT id, nombre FROM productos WHERE activo = 1 AND familia = ? ORDER BY orden, nombre'
-  ),
+  productos: db.prepare(`
+    SELECT id, nombre, cajas_por_pallet, litros_por_caja,
+           cajas_por_pallet * litros_por_caja AS litros_por_pallet
+      FROM productos WHERE activo = 1 AND familia = ? ORDER BY orden, nombre
+  `),
   quesos: db.prepare(
     'SELECT id, nombre, familia, se_envasa FROM tipos_queso WHERE activo = 1 ORDER BY orden, nombre'
   ),
@@ -54,14 +56,18 @@ app.get('/api/catalogo', (req, res) => {
 
 const qPallet = {
   porClientId: db.prepare('SELECT id FROM registros_pallet WHERE client_id = ?'),
+  // Los litros se calculan y se guardan ACA, con la equivalencia vigente hoy.
+  // Recalcularlos al mostrarlos haria que un cambio futuro de caja reescriba la
+  // historia.
   insertar: db.prepare(`
     INSERT INTO registros_pallet
-      (client_id, fecha_hora, origen, sincronizado, operario_id, marca_id, producto_id)
+      (client_id, fecha_hora, origen, sincronizado, operario_id, marca_id, producto_id, litros)
     VALUES
-      (@client_id, @fecha_hora, @origen, @sincronizado, @operario_id, @marca_id, @producto_id)
+      (@client_id, @fecha_hora, @origen, @sincronizado, @operario_id, @marca_id, @producto_id,
+       (SELECT cajas_por_pallet * litros_por_caja FROM productos WHERE id = @producto_id))
   `),
   detalle: db.prepare(`
-    SELECT r.id, r.client_id, r.fecha_hora, r.origen, r.anulado,
+    SELECT r.id, r.client_id, r.fecha_hora, r.origen, r.anulado, r.litros,
            o.nombre AS operario, m.nombre AS marca, p.nombre AS producto
       FROM registros_pallet r
       JOIN operarios o ON o.id = r.operario_id
@@ -70,7 +76,7 @@ const qPallet = {
      WHERE r.id = ?
   `),
   delDia: db.prepare(`
-    SELECT r.id, r.client_id, r.fecha_hora, r.origen, r.anulado,
+    SELECT r.id, r.client_id, r.fecha_hora, r.origen, r.anulado, r.litros,
            o.nombre AS operario, m.nombre AS marca, p.nombre AS producto
       FROM registros_pallet r
       JOIN operarios o ON o.id = r.operario_id
@@ -113,7 +119,13 @@ app.post('/api/registros', (req, res) => {
 app.get('/api/registros', (req, res) => {
   const fecha = req.query.fecha ?? hoyLocal()
   const registros = qPallet.delDia.all(fecha)
-  res.json({ fecha, total: registros.filter((r) => !r.anulado).length, registros })
+  const vivos = registros.filter((r) => !r.anulado)
+  res.json({
+    fecha,
+    total: vivos.length,
+    litros: vivos.reduce((n, r) => n + (r.litros ?? 0), 0),
+    registros,
+  })
 })
 
 app.post('/api/registros/:id/anular', (req, res) => {
@@ -128,8 +140,10 @@ app.get('/api/registros.csv', (req, res) => {
   const fecha = req.query.fecha ?? hoyLocal()
   const filas = qPallet.delDia.all(fecha).filter((r) => !r.anulado)
   const csv = [
-    'fecha_hora,operario,marca,producto,origen',
-    ...filas.map((r) => [r.fecha_hora, r.operario, r.marca, r.producto, r.origen].join(',')),
+    'fecha_hora,operario,marca,producto,litros,origen',
+    ...filas.map((r) =>
+      [r.fecha_hora, r.operario, r.marca, r.producto, r.litros ?? '', r.origen].join(',')
+    ),
   ].join('\n')
   res.type('text/csv').attachment(`pallets-${fecha}.csv`).send(csv)
 })
@@ -1020,7 +1034,8 @@ app.get('/api/pedidos/:id/remito.csv', (req, res) => {
 
 const qTab = {
   palletsHoy: db.prepare(`
-    SELECT m.nombre AS marca, p.nombre AS producto, COUNT(*) AS pallets
+    SELECT m.nombre AS marca, p.nombre AS producto,
+           COUNT(*) AS pallets, COALESCE(SUM(r.litros), 0) AS litros
       FROM registros_pallet r
       JOIN marcas    m ON m.id = r.marca_id
       JOIN productos p ON p.id = r.producto_id
@@ -1147,10 +1162,14 @@ app.get('/api/tablero', (_req, res) => {
     hora: ahora(),
     fecha: hoy,
 
-    lecheria: {
-      detalle: qTab.palletsHoy.all(hoy),
-      total: qTab.palletsHoy.all(hoy).reduce((n, r) => n + r.pallets, 0),
-    },
+    lecheria: (() => {
+      const detalle = qTab.palletsHoy.all(hoy)
+      return {
+        detalle,
+        total: detalle.reduce((n, r) => n + r.pallets, 0),
+        litros: detalle.reduce((n, r) => n + r.litros, 0),
+      }
+    })(),
 
     // FLUJO del dia
     hoy: {
@@ -1210,7 +1229,8 @@ const qRep = {
      ORDER BY fecha
   `),
   palletsPorDia: db.prepare(`
-    SELECT date(fecha_hora, 'localtime') AS fecha, COUNT(*) AS pallets
+    SELECT date(fecha_hora, 'localtime') AS fecha,
+           COUNT(*) AS pallets, COALESCE(SUM(litros), 0) AS litros
       FROM registros_pallet
      WHERE anulado = 0
        AND date(fecha_hora, 'localtime') BETWEEN ? AND ?
@@ -1234,7 +1254,8 @@ const qRep = {
      ORDER BY piezas DESC
   `),
   lecheria: db.prepare(`
-    SELECT m.nombre AS marca, p.nombre AS producto, COUNT(*) AS pallets
+    SELECT m.nombre AS marca, p.nombre AS producto,
+           COUNT(*) AS pallets, COALESCE(SUM(r.litros), 0) AS litros
       FROM registros_pallet r
       JOIN marcas    m ON m.id = r.marca_id
       JOIN productos p ON p.id = r.producto_id
@@ -1284,7 +1305,7 @@ function rango(req) {
   const hasta = req.query.hasta ?? hoyLocal()
   const desde =
     req.query.desde ??
-    new Date(Date.parse(hasta) - 29 * 864e5).toLocaleDateString('sv-SE')
+    new Date(Date.parse(`${hasta}T00:00:00`) - 29 * 864e5).toLocaleDateString('sv-SE')
   return [desde, hasta]
 }
 
@@ -1297,14 +1318,25 @@ app.get('/api/reportes', (req, res) => {
 
   // Serie continua: los dias sin produccion valen cero, no se saltean. Un hueco en
   // el eje haria parecer que se produjo todos los dias.
+  //
+  // El 'T00:00:00' NO es decorativo. new Date('2026-08-15') se parsea como medianoche
+  // UTC, y toLocaleDateString despues lo pasa a hora local: en UTC-3 eso corre cada
+  // dia uno para atras y deja el ultimo afuera del rango. El resultado era que el
+  // total del reporte no incluia el dia de hoy y no coincidia con los graficos, que
+  // suman por SQL. Con 'T00:00:00' se parsea como medianoche LOCAL y cierra.
   const dias = []
-  for (let d = new Date(desde); d <= new Date(hasta); d.setDate(d.getDate() + 1)) {
+  for (
+    let d = new Date(`${desde}T00:00:00`);
+    d <= new Date(`${hasta}T00:00:00`);
+    d.setDate(d.getDate() + 1)
+  ) {
     const fecha = d.toLocaleDateString('sv-SE')
     dias.push({
       fecha,
       piezas: porDiaTinas.find((x) => x.fecha === fecha)?.piezas ?? 0,
       tinas: porDiaTinas.find((x) => x.fecha === fecha)?.tinas ?? 0,
       pallets: porDiaPallets.find((x) => x.fecha === fecha)?.pallets ?? 0,
+      litros: porDiaPallets.find((x) => x.fecha === fecha)?.litros ?? 0,
     })
   }
 
@@ -1325,6 +1357,7 @@ app.get('/api/reportes', (req, res) => {
       piezas: rendimiento.reduce((n, r) => n + r.piezas, 0),
       tinas: rendimiento.reduce((n, r) => n + r.tinas, 0),
       pallets: dias.reduce((n, d) => n + d.pallets, 0),
+      litros: dias.reduce((n, d) => n + d.litros, 0),
       en_sal: qRep.enSalAhora.get().n,
       minutos_a_sal: mediana,
       muestras_a_sal: tiempos.length,

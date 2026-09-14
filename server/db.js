@@ -232,4 +232,38 @@ agregarColumna('tipos_queso', 'dias_optimos', 'INTEGER')
 agregarColumna('tipos_queso', 'dias_maximos', 'INTEGER')
 agregarColumna('tipos_queso', 'dias_provisorios', 'INTEGER NOT NULL DEFAULT 1')
 
+// Equivalencia de un pallet en litros, confirmada por el cliente (2026-09-13):
+// 70 cajas de 12 litros = 840 litros por pallet.
+//
+// Va por PRODUCTO y no como constante global aunque hoy los tres valores sean
+// iguales: el dia que la Largavida venga en otra caja, es un cambio de dato y no de
+// codigo. Cuesta lo mismo ahora.
+agregarColumna('productos', 'cajas_por_pallet', 'INTEGER NOT NULL DEFAULT 70')
+agregarColumna('productos', 'litros_por_caja', 'INTEGER NOT NULL DEFAULT 12')
+
+// Los litros se CONGELAN en cada registro, no se calculan al mostrarlos.
+//
+// Si el ano que viene cambia el tamano de la caja y el calculo fuera en vivo, todos
+// los pallets historicos se recalcularian con el numero nuevo: los reportes del ano
+// pasado cambiarian solos y dejarian de coincidir con lo que se facturo. El registro
+// guarda la equivalencia que era cierta el dia que se armo.
+agregarColumna('registros_pallet', 'litros', 'INTEGER')
+
+// Los pallets ya cargados quedaron sin litros: se completan una sola vez con la
+// equivalencia vigente de su producto.
+const pendientes = db
+  .prepare('SELECT COUNT(*) n FROM registros_pallet WHERE litros IS NULL')
+  .get().n
+if (pendientes) {
+  db.prepare(`
+    UPDATE registros_pallet
+       SET litros = (
+         SELECT p.cajas_por_pallet * p.litros_por_caja
+           FROM productos p WHERE p.id = registros_pallet.producto_id
+       )
+     WHERE litros IS NULL
+  `).run()
+  console.log(`  ${pendientes} pallets completados con su equivalencia en litros`)
+}
+
 export const ahora = () => new Date().toISOString()

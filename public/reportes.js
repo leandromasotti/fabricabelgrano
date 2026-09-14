@@ -108,7 +108,7 @@ function graficoDias(dias) {
     const f = new Date(d.fecha + 'T00:00')
     conTooltip(hit, `<b>${f.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' })}</b><br>
       ${fmt(d.piezas)} piezas · ${d.tinas} tina${d.tinas === 1 ? '' : 's'}<br>
-      ${fmt(d.pallets)} pallets de leche`)
+      ${fmt(d.pallets)} pallets · ${fmt(d.litros)} L de leche`)
     g.append(hit)
     svg.append(g)
 
@@ -204,6 +204,7 @@ function graficoLecheria(filas, canonicos) {
   const marcas = [...new Set(filas.map((f) => f.marca))].map((marca) => ({
     marca,
     total: filas.filter((f) => f.marca === marca).reduce((n, f) => n + f.pallets, 0),
+    litros: filas.filter((f) => f.marca === marca).reduce((n, f) => n + (f.litros ?? 0), 0),
     partes: productos
       .map((p) => ({ p, n: filas.find((f) => f.marca === marca && f.producto === p)?.pallets ?? 0 }))
       .filter((x) => x.n > 0),
@@ -230,21 +231,28 @@ function graficoLecheria(filas, canonicos) {
     m.partes.forEach(({ p, n }) => {
       const w = (n / max) * ancho
       const seg = el('rect', { x, y: y + 4, width: Math.max(w - 2, 1), height: 22, fill: colorDe(p), rx: 3, ry: 3 })
-      conTooltip(seg, `<b>${m.marca}</b><br>${p}: ${fmt(n)} pallets`)
+      const litrosSeg = filas.find((f) => f.marca === m.marca && f.producto === p)?.litros ?? 0
+      conTooltip(seg, `<b>${m.marca}</b><br>${p}: ${fmt(n)} pallets<br>${fmt(litrosSeg)} litros`)
       svg.append(seg)
       // Etiqueta directa dentro del segmento cuando entra: identidad sin depender del color.
       if (w > 42) {
+        // pointer-events: none, si no el numero tapa el rect y el tooltip no aparece
+        // justo en el centro del segmento, que es donde uno apunta.
         svg.append(el('text', {
           x: x + w / 2 - 1, y: y + 19, 'text-anchor': 'middle',
           fill: '#fff', 'font-size': 11.5, 'font-weight': 600,
+          'pointer-events': 'none',
         }, n))
       }
       x += w
     })
 
     svg.append(el('text', {
-      x: x + 8, y: y + 20, fill: css('--ink-2'), 'font-size': 12.5,
+      x: x + 8, y: y + 15, fill: css('--ink-2'), 'font-size': 12.5,
     }, fmt(m.total)))
+    svg.append(el('text', {
+      x: x + 8, y: y + 29, fill: css('--ink-muted'), 'font-size': 11,
+    }, `${fmt(m.litros)} L`))
   })
   cont.append(svg)
 }
@@ -304,6 +312,8 @@ function pintarKpis(r) {
     { v: fmt(r.tinas), t: 'Tinas' },
     { v: fmt(promedio), t: 'Piezas por tina', n: 'promedio del período' },
     { v: fmt(r.pallets), t: 'Pallets de leche' },
+    // El cliente razona en litros, no en pallets: 1 pallet = 70 cajas x 12 L.
+    { v: fmt(r.litros), t: 'Litros de leche', n: '70 cajas × 12 L por pallet' },
     { v: fmt(r.en_sal), t: 'En sal ahora', n: 'no depende del período' },
     {
       v: horas != null ? `${horas} h` : '—',

@@ -161,6 +161,12 @@ ver, aunque no lo hayan pedido.
 > obviamente es súper precario, pero sería lo más simple de hacer" **[A2 01:01-01:12]**
 
 - Registrar cada **pallet** armado.
+- ✅ **Equivalencia confirmada por el cliente (2026-09-13):** un pallet son **70 cajas de 12 litros
+  = 840 litros**. El cliente razona en litros, no en pallets, así que el equivalente se muestra en
+  el tablero LED, en los reportes y en la consulta del día.
+  - 🔸 La equivalencia se guarda **por producto** (no como constante) y se **congela en cada
+    registro**: si mañana cambia el tamaño de la caja, los pallets históricos conservan la
+    equivalencia que era cierta el día que se armaron, y los reportes viejos no se reescriben solos.
 - Por **marca**: Central Lechera, **Lácteos Belgrano**, y **Ovenac❓ (marca propia)**.
 - Por **tipo**: ✅ **confirmado contra el catálogo web** — **Leche Entera**, **Leche Entera
   Largavida**, **Leche Descremada** **[A2 00:41-01:00]**.

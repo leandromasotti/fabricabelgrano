@@ -45,8 +45,14 @@ function pintarReloj() {
 
 // ---------------------------------------------------------------- lechería
 
+// 1 pallet = 70 cajas x 12 litros = 840 L. La equivalencia la calcula el servidor y
+// viene congelada en cada registro, para que un cambio futuro de caja no reescriba la
+// historia.
+const litros = (n) => `${fmt(n)} L`
+
 function pintarLecheria(lecheria) {
   $('#pallets-total').textContent = fmt(lecheria.total)
+  $('#pallets-litros').textContent = litros(lecheria.litros ?? 0)
 
   const marcas = [...new Set(lecheria.detalle.map((d) => d.marca))]
   const colorDe = (producto) => COLORES_LECHE[ordenLeche.indexOf(producto) % COLORES_LECHE.length]
@@ -74,6 +80,8 @@ function pintarLecheria(lecheria) {
 
     const t = el('div', 'total', fmt(total))
     t.append(el('small', null, 'pallets'))
+    const totalLitros = filas.reduce((n, f) => n + (f.litros ?? 0), 0)
+    if (totalLitros) t.append(el('span', 'litros-marca', litros(totalLitros)))
     caja.append(t)
     return caja
   }))

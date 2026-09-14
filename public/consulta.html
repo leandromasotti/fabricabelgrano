@@ -47,6 +47,7 @@
     th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--borde); }
     th { font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--tenue); background: #fafbfc; }
     td.hora { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
     tr.anulada td { opacity: .45; text-decoration: line-through; }
     .tag { font-size: 11px; padding: 2px 7px; border-radius: 20px; background: #eceff3; color: var(--tenue); }
     .tag.offline { background: #fdf0e8; color: var(--alerta); }
@@ -72,7 +73,7 @@
 
     <table>
       <thead>
-        <tr><th>Hora</th><th>Marca</th><th>Producto</th><th>Operario</th><th></th><th></th></tr>
+        <tr><th>Hora</th><th>Marca</th><th>Producto</th><th class="num">Litros</th><th>Operario</th><th></th><th></th></tr>
       </thead>
       <tbody id="filas"></tbody>
     </table>
@@ -96,8 +97,10 @@
         return acc
       }, {})
 
+      const litros = vivos.reduce((n, r) => n + (r.litros ?? 0), 0)
       $('tarjetas').innerHTML =
         `<div class="tarjeta"><div class="n">${total}</div><div class="t">Pallets</div></div>` +
+        `<div class="tarjeta"><div class="n">${litros.toLocaleString('es-AR')}</div><div class="t">Litros</div></div>` +
         Object.entries(porProducto)
           .map(([p, n]) => `<div class="tarjeta"><div class="n">${n}</div><div class="t">${p}</div></div>`)
           .join('')
@@ -111,6 +114,7 @@
             <td class="hora">${hhmm(r.fecha_hora)}</td>
             <td>${r.marca}</td>
             <td>${r.producto}</td>
+            <td class="num">${(r.litros ?? 0).toLocaleString('es-AR')}</td>
             <td>${r.operario}</td>
             <td>${r.origen === 'offline' ? '<span class="tag offline">offline</span>' : ''}</td>
             <td></td>`

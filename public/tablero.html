@@ -73,6 +73,10 @@
     .gran-total { text-align: center; padding-right: 1.2vw; border-right: 1px solid var(--borde); }
     .gran-total .n { font-size: 8vh; font-weight: 800; line-height: 1; }
     .gran-total .t { font-size: 1.5vh; color: var(--tenue); text-transform: uppercase; letter-spacing: .15vh; }
+    /* El equivalente en litros es lo que el cliente mira: los pallets son la unidad
+       de trabajo, los litros son la unidad de negocio. */
+    .gran-total .litros { font-size: 2.7vh; font-weight: 800; color: var(--leche-1); margin-top: .5vh; }
+    .marca-caja .total .litros-marca { font-size: 1.4vh; color: var(--leche-1); font-weight: 700; margin-left: .5vw; }
 
     .marcas { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 1vw; }
     .marca-caja .nombre { font-size: 1.9vh; font-weight: 700; margin-bottom: .5vh; }
@@ -147,6 +151,7 @@
         <div class="gran-total">
           <div class="n" id="pallets-total">0</div>
           <div class="t">pallets hoy</div>
+          <div class="litros" id="pallets-litros">0 L</div>
         </div>
         <div>
           <div class="marcas" id="marcas"></div>
