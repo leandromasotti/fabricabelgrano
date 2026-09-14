@@ -190,7 +190,19 @@ function pintarPedidos(p) {
 
 // ---------------------------------------------------------------- alertas
 
-const transcurrido = (min) => (min < 60 ? `${min} min` : `${Math.floor(min / 60)} h`)
+// Misma escala que comun.js. No se importa de ahí porque ese módulo registra
+// listeners de red y toca ids que esta pantalla no tiene.
+function transcurrido(minutos) {
+  if (minutos == null) return '—'
+  if (minutos < 60) return `${minutos} min`
+
+  const dias = Math.floor(minutos / 1440)
+  if (dias >= 2) return `${dias} días`
+
+  const h = Math.floor(minutos / 60)
+  const m = minutos % 60
+  return m ? `${h} h ${String(m).padStart(2, '0')}` : `${h} h`
+}
 
 function pintarAlertas(a) {
   const filas = [

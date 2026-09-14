@@ -8,11 +8,22 @@ export const $ = (id) => document.getElementById(id)
 export const hhmm = (d) =>
   new Date(d).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false })
 
-// "hace 2 h 15" se lee mejor que "hace 135 minutos" cuando lo que importa
-// es si ya pasó demasiado tiempo.
+// El tiempo transcurrido escala solo: minutos, horas, días.
+//
+// Sin esto la pantalla decía cosas como "hace 2232 h" y "655 h 42", que obligan a
+// dividir por 24 de cabeza. En el saladero lo que importa son horas (una tina espera
+// un rato); en maduración y en la cámara de desnudo lo que importa son días. Una sola
+// función que cambia de unidad sirve para los dos casos sin decidirlo en cada pantalla.
+//
+// A partir de 2 días se dejan de mostrar las horas: si algo lleva 93 días esperando,
+// que sean 93 días y 4 horas no cambia ninguna decisión.
 export function transcurrido(minutos) {
   if (minutos == null) return '—'
   if (minutos < 60) return `${minutos} min`
+
+  const dias = Math.floor(minutos / 1440)
+  if (dias >= 2) return `${dias} días`
+
   const h = Math.floor(minutos / 60)
   const m = minutos % 60
   return m ? `${h} h ${String(m).padStart(2, '0')}` : `${h} h`
