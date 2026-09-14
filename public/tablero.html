@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tablero de planta</title>
+  <link rel="icon" href="data:,">
+  <style>
+    /* Pantalla LED colgada en planta: se lee de lejos, no se toca nunca y no puede
+       scrollear. Todo se dimensiona en unidades de viewport para que entre completo
+       en cualquier pantalla, de 1080p a 4K, sin tocar una linea.
+
+       Los colores de los tipos de leche son los mismos tres slots categoricos
+       validados que usan los reportes, en su version para fondo oscuro. */
+    :root {
+      --fondo: #07090b;
+      --panel: #11161c;
+      --borde: #1f2833;
+      --texto: #f4f7fa;
+      --tenue: #7d8b9a;
+      --leche-1: #3987e5;
+      --leche-2: #d95926;
+      --leche-3: #199e70;
+      --ok: #37b76a;
+      --alerta: #e0673a;
+      --acento: #3987e5;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; }
+    body {
+      background: var(--fondo);
+      color: var(--texto);
+      font: 500 1vw/1.2 system-ui, -apple-system, 'Segoe UI', sans-serif;
+      font-variant-numeric: tabular-nums;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .tablero {
+      height: 100%;
+      display: grid;
+      grid-template-rows: auto auto 1fr auto;
+      gap: 1.1vh;
+      padding: 1.4vh 1.4vw;
+    }
+
+    /* ------------------------------------------------------ encabezado */
+    header { display: flex; align-items: baseline; gap: 1.4vw; }
+    .marca { font-size: 1.9vh; font-weight: 800; letter-spacing: .18vh; color: var(--tenue); }
+    .titulo { font-size: 1.9vh; color: var(--tenue); }
+    .reloj { margin-left: auto; font-size: 3.4vh; font-weight: 800; }
+    .fecha { font-size: 1.8vh; color: var(--tenue); }
+    .latido {
+      width: 1.1vh; height: 1.1vh; border-radius: 50%; background: var(--ok);
+      margin-left: .8vw;
+    }
+    @keyframes pulso { 50% { opacity: .2 } }
+    .latido.vivo { animation: pulso 2.4s infinite; }
+    .latido.muerto { background: var(--alerta); animation: none; }
+
+    /* ------------------------------------------------------ secciones */
+    .seccion-titulo {
+      font-size: 1.65vh; font-weight: 800; letter-spacing: .2vh;
+      text-transform: uppercase; color: var(--tenue); margin-bottom: .7vh;
+    }
+
+    .panel {
+      background: var(--panel); border: 1px solid var(--borde);
+      border-radius: 1vh; padding: 1.3vh 1.3vw;
+    }
+
+    /* ------------------------------------------------------ lecheria */
+    .lecheria { display: grid; grid-template-columns: auto 1fr; gap: 1.2vw; align-items: center; }
+    .gran-total { text-align: center; padding-right: 1.2vw; border-right: 1px solid var(--borde); }
+    .gran-total .n { font-size: 8vh; font-weight: 800; line-height: 1; }
+    .gran-total .t { font-size: 1.5vh; color: var(--tenue); text-transform: uppercase; letter-spacing: .15vh; }
+
+    .marcas { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 1vw; }
+    .marca-caja .nombre { font-size: 1.9vh; font-weight: 700; margin-bottom: .5vh; }
+    .barra-apilada { display: flex; height: 2.6vh; border-radius: .5vh; overflow: hidden; background: var(--borde); }
+    .barra-apilada div { display: flex; align-items: center; justify-content: center;
+                         font-size: 1.5vh; font-weight: 800; color: #fff; min-width: 0; }
+    .marca-caja .total { font-size: 2.6vh; font-weight: 800; margin-top: .4vh; }
+    .marca-caja .total small { font-size: 1.4vh; color: var(--tenue); font-weight: 600; margin-left: .3vw; }
+
+    .leyenda { display: flex; gap: 1.2vw; font-size: 1.5vh; color: var(--tenue); margin-top: .8vh; }
+    .leyenda span { display: inline-flex; align-items: center; gap: .4vw; }
+    .punto-col { width: 1.1vh; height: 1.1vh; border-radius: .3vh; }
+
+    /* ------------------------------------------------------ circuito */
+    .circuito { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: .9vw; height: 100%; }
+    .etapa {
+      background: var(--panel); border: 1px solid var(--borde); border-radius: 1vh;
+      padding: 1.2vh 1vw; display: flex; flex-direction: column; min-width: 0;
+    }
+    .etapa .cabeza { font-size: 1.55vh; font-weight: 800; text-transform: uppercase;
+                     letter-spacing: .13vh; color: var(--tenue); }
+    .etapa .n { font-size: 7.2vh; font-weight: 800; line-height: 1.05; margin: .3vh 0; }
+    .etapa .u { font-size: 1.45vh; color: var(--tenue); margin-top: -.6vh; }
+        /* El detalle va pegado al numero, no anclado abajo: como todas las tarjetas miden
+       igual (grid), anclarlo al piso dejaba un hueco flotante en las que tienen poco
+       texto. El espacio sobrante queda al final, que se lee mucho mejor. */
+    .etapa .detalle { margin-top: 1vh; font-size: 1.5vh; color: var(--tenue); line-height: 1.55; }
+    .etapa .detalle b { color: var(--texto); font-weight: 700; }
+    .etapa.stock { border-color: #24425f; }
+    .etapa.stock .n { color: #6fb3f5; }
+    .etapa.hay-alerta { border-color: var(--alerta); }
+    .etapa.hay-alerta .n { color: var(--alerta); }
+
+    .tipo-flujo, .tipo-stock {
+      font-size: 1.25vh; letter-spacing: .12vh; text-transform: uppercase;
+      padding: .25vh .5vw; border-radius: .4vh; font-weight: 800; align-self: flex-start;
+    }
+    .tipo-flujo { background: #1d2a1f; color: #6fce90; }
+    .tipo-stock { background: #16283a; color: #6fb3f5; }
+
+    /* ------------------------------------------------------ pie */
+    .pie { display: grid; grid-template-columns: 2fr 3fr; gap: .9vw; }
+    .pedidos { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 1vw; }
+    .ped .n { font-size: 4.4vh; font-weight: 800; line-height: 1; }
+    .ped .t { font-size: 1.4vh; color: var(--tenue); text-transform: uppercase; letter-spacing: .12vh; }
+    .ped.listo .n { color: var(--ok); }
+
+    .alertas { display: flex; flex-direction: column; gap: .5vh; overflow: hidden; }
+    .alerta-fila {
+      display: flex; align-items: center; gap: .8vw; font-size: 1.75vh;
+      padding: .45vh 0; border-bottom: 1px solid var(--borde);
+    }
+    .alerta-fila .q { flex: 1; font-weight: 700; }
+    .alerta-fila .t { color: var(--alerta); font-weight: 800; }
+    .sin-alertas { font-size: 1.75vh; color: var(--tenue); }
+  </style>
+</head>
+<body>
+  <div class="tablero">
+    <header>
+      <span class="marca">LÁCTEOS BELGRANO</span>
+      <span class="titulo">Tablero de planta</span>
+      <span class="reloj" id="reloj">--:--</span>
+      <span class="fecha" id="fecha"></span>
+      <span class="latido vivo" id="latido"></span>
+    </header>
+
+    <!-- LECHERÍA -->
+    <div>
+      <div class="seccion-titulo">Lechería · pallets terminados hoy</div>
+      <div class="panel lecheria">
+        <div class="gran-total">
+          <div class="n" id="pallets-total">0</div>
+          <div class="t">pallets hoy</div>
+        </div>
+        <div>
+          <div class="marcas" id="marcas"></div>
+          <div class="leyenda" id="leyenda-leche"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CIRCUITO DEL QUESO -->
+    <div style="display:flex; flex-direction:column; min-height:0">
+      <div class="seccion-titulo">El queso, etapa por etapa</div>
+      <div class="circuito" id="circuito"></div>
+    </div>
+
+    <!-- PEDIDOS + ALERTAS -->
+    <div class="pie">
+      <div>
+        <div class="seccion-titulo">Pedidos</div>
+        <div class="panel pedidos" id="pedidos"></div>
+      </div>
+      <div style="display:flex; flex-direction:column; min-height:0">
+        <div class="seccion-titulo">Atención</div>
+        <div class="panel alertas" id="alertas"></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/tablero.js"></script>
+</body>
+</html>

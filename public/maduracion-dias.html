@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Días de maduración</title>
+  <link rel="icon" href="data:,">
+  <style>
+    :root {
+      color-scheme: light;
+      --surface: #fcfcfb; --plane: #f9f9f7;
+      --ink: #0b0b0b; --ink-2: #52514e; --ink-muted: #898781;
+      --grid: #e1e0d9; --axis: #c3c2b7; --borde: rgba(11,11,11,.10);
+      --acento: #2a78d6; --ok: #0ca30c; --aviso: #8a6d1f; --aviso-bg: #fdf6e0;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:where(:not([data-theme="light"])) {
+        color-scheme: dark;
+        --surface: #1a1a19; --plane: #0d0d0d;
+        --ink: #fff; --ink-2: #c3c2b7; --ink-muted: #898781;
+        --grid: #2c2c2a; --axis: #383835; --borde: rgba(255,255,255,.10);
+        --acento: #3987e5; --aviso: #e8d49a; --aviso-bg: #33301f;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--plane); color: var(--ink);
+           font: 15px/1.45 system-ui, -apple-system, 'Segoe UI', sans-serif; }
+    .wrap { max-width: 1040px; margin: 0 auto; padding: 26px 20px 70px; }
+    h1 { font-size: 23px; margin: 0 0 4px; }
+    .sub { color: var(--ink-2); font-size: 14px; margin-bottom: 18px; }
+
+    .aviso {
+      background: var(--aviso-bg); color: var(--aviso); border: 1px solid var(--aviso);
+      border-radius: 10px; padding: 13px 16px; margin-bottom: 20px; font-size: 14.5px; line-height: 1.5;
+    }
+    .aviso b { font-weight: 700; }
+
+    table { width: 100%; border-collapse: collapse; background: var(--surface);
+            border: 1px solid var(--borde); border-radius: 10px; overflow: hidden; }
+    th, td { padding: 9px 11px; border-bottom: 1px solid var(--grid); text-align: left; vertical-align: middle; }
+    th { font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--ink-muted);
+         font-weight: 600; background: var(--plane); }
+    th.num, td.num { text-align: right; }
+    tbody tr:hover { background: var(--plane); }
+    tr.no-madura td { opacity: .5; }
+
+    input[type=number] {
+      width: 74px; font: inherit; font-size: 14px; padding: 6px 8px; text-align: right;
+      color: var(--ink); background: var(--surface);
+      border: 1px solid var(--axis); border-radius: 6px;
+    }
+    input[type=number]:disabled { opacity: .35; }
+    input[type=checkbox] { width: 18px; height: 18px; }
+
+    .tag { font-size: 11px; padding: 2px 8px; border-radius: 20px; white-space: nowrap; }
+    .tag.prov { background: var(--aviso-bg); color: var(--aviso); border: 1px solid var(--aviso); }
+    .tag.ok { background: transparent; color: var(--ok); border: 1px solid var(--ok); }
+    .real { font-size: 13px; color: var(--ink-2); }
+    .real b { color: var(--ink); }
+    .difiere { color: #c4562f; font-weight: 700; }
+
+    button {
+      font: 600 13.5px system-ui, sans-serif; padding: 8px 15px; cursor: pointer;
+      background: var(--surface); color: var(--ink); border: 1px solid var(--axis); border-radius: 8px;
+    }
+    button.guardar { background: var(--acento); border-color: var(--acento); color: #fff; }
+    button:disabled { opacity: .35; cursor: default; }
+    .estado-guardado { font-size: 13px; color: var(--ok); margin-left: 8px; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Días de maduración</h1>
+  <div class="sub">Lácteos Belgrano · configuración por tipo de queso</div>
+
+  <div class="aviso">
+    Los días cargados hoy son <b>valores de referencia</b>, no salen de la fábrica.
+    Sirven para que el sistema arranque mostrando algo, pero hasta que el maestro quesero
+    los confirme, todo lo que diga la pantalla de maduración es orientativo.
+    <br><br>
+    Cada fila que guardes deja de ser provisoria. La columna <b>“real medido”</b> muestra
+    lo que efectivamente tardaron los lotes que ya salieron de cámara: después de unas
+    semanas, ese número vale más que cualquier referencia.
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Queso</th>
+        <th>Familia</th>
+        <th style="text-align:center">Madura</th>
+        <th class="num">Mínimo</th>
+        <th class="num">Óptimo</th>
+        <th class="num">Máximo</th>
+        <th>Real medido</th>
+        <th></th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="filas"></tbody>
+  </table>
+</div>
+
+<script type="module" src="/maduracion-dias.js"></script>
+</body>
+</html>

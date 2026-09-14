@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Producción · Reportes</title>
+  <link rel="icon" href="data:,">
+  <style>
+    /* Paleta de datos validada con el validador del skill de dataviz contra estas
+       mismas superficies (#fcfcfb claro / #1a1a19 oscuro). Los tres slots
+       categoricos pasan todos los gates en ambos modos. El unico WARN es el
+       contraste del aqua en claro: se compensa con etiquetas directas visibles y
+       con la tabla de detalle, que es lo que el skill exige como relief. */
+    :root {
+      color-scheme: light;
+      --surface:      #fcfcfb;
+      --plane:        #f9f9f7;
+      --ink:          #0b0b0b;
+      --ink-2:        #52514e;
+      --ink-muted:    #898781;
+      --grid:         #e1e0d9;
+      --axis:         #c3c2b7;
+      --borde:        rgba(11, 11, 11, 0.10);
+      --serie-1:      #2a78d6;  /* azul   */
+      --serie-2:      #eb6834;  /* naranja */
+      --serie-3:      #1baf7a;  /* aqua   */
+      --secuencial:   #2a78d6;
+      --tenue:        #c3c2b7;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:where(:not([data-theme="light"])) {
+        color-scheme: dark;
+        --surface:   #1a1a19;
+        --plane:     #0d0d0d;
+        --ink:       #ffffff;
+        --ink-2:     #c3c2b7;
+        --ink-muted: #898781;
+        --grid:      #2c2c2a;
+        --axis:      #383835;
+        --borde:     rgba(255, 255, 255, 0.10);
+        --serie-1:   #3987e5;
+        --serie-2:   #d95926;
+        --serie-3:   #199e70;
+        --secuencial:#3987e5;
+        --tenue:     #383835;
+      }
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--plane);
+      color: var(--ink);
+      font: 15px/1.45 system-ui, -apple-system, 'Segoe UI', sans-serif;
+    }
+    .wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 80px; }
+
+    header { margin-bottom: 22px; }
+    h1 { font-size: 23px; margin: 0 0 2px; }
+    .sub { color: var(--ink-2); font-size: 14px; }
+
+    /* ------------------------------------------------ filtros: una fila arriba */
+    .filtros {
+      display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+      background: var(--surface); border: 1px solid var(--borde);
+      border-radius: 10px; padding: 12px 14px; margin-bottom: 20px;
+    }
+    .filtros label { font-size: 13px; color: var(--ink-2); }
+    input[type=date], select {
+      font: inherit; font-size: 14px; padding: 7px 9px; color: var(--ink);
+      background: var(--surface); border: 1px solid var(--axis); border-radius: 7px;
+    }
+    .preset {
+      font: 600 13px system-ui, sans-serif; padding: 7px 12px; cursor: pointer;
+      background: transparent; color: var(--ink-2);
+      border: 1px solid var(--axis); border-radius: 7px;
+    }
+    .preset:hover { background: var(--plane); }
+    .preset[aria-pressed=true] { background: var(--serie-1); border-color: var(--serie-1); color: #fff; }
+    .crece { flex: 1; }
+    .btn-csv {
+      font: 600 13px system-ui, sans-serif; padding: 8px 14px; cursor: pointer;
+      background: var(--serie-1); color: #fff; border: 1px solid var(--serie-1); border-radius: 7px;
+    }
+
+    /* ------------------------------------------------ KPIs */
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(168px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .kpi {
+      background: var(--surface); border: 1px solid var(--borde); border-radius: 10px; padding: 15px 17px;
+    }
+    .kpi .v { font-size: 32px; font-weight: 700; line-height: 1.1; letter-spacing: -0.5px; }
+    .kpi .t { font-size: 12px; color: var(--ink-2); text-transform: uppercase; letter-spacing: .7px; margin-top: 3px; }
+    .kpi .n { font-size: 12px; color: var(--ink-muted); margin-top: 5px; }
+
+    /* ------------------------------------------------ paneles de grafico */
+    .fila { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+    @media (max-width: 900px) { .fila { grid-template-columns: 1fr; } }
+
+    .panel {
+      background: var(--surface); border: 1px solid var(--borde);
+      border-radius: 10px; padding: 17px 19px 14px;
+      min-width: 0;
+    }
+    .panel h2 { font-size: 15px; margin: 0 0 2px; font-weight: 650; }
+    .panel .ayuda { font-size: 13px; color: var(--ink-2); margin: 0 0 14px; }
+    .panel.ancho { grid-column: 1 / -1; }
+
+    .scroll-x { overflow-x: auto; }
+    svg { display: block; max-width: 100%; }
+
+    /* ------------------------------------------------ leyenda */
+    .leyenda { display: flex; gap: 16px; flex-wrap: wrap; margin: 0 0 12px; font-size: 13px; color: var(--ink-2); }
+    .leyenda span { display: inline-flex; align-items: center; gap: 6px; }
+    .swatch { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+
+    /* ------------------------------------------------ tablas */
+    table { width: 100%; border-collapse: collapse; font-size: 14px; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--grid); }
+    th { font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--ink-muted); font-weight: 600; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    tbody tr:hover { background: var(--plane); }
+    .tag { font-size: 11px; padding: 1px 7px; border-radius: 20px; background: var(--grid); color: var(--ink-2); }
+
+    .vacio { padding: 34px; text-align: center; color: var(--ink-muted); }
+    .variacion { color: var(--ink-muted); font-size: 13px; }
+
+    /* ------------------------------------------------ tooltip */
+    #tip {
+      position: fixed; pointer-events: none; z-index: 10; opacity: 0;
+      transition: opacity .08s; background: var(--ink); color: var(--surface);
+      font-size: 12.5px; line-height: 1.4; padding: 7px 10px; border-radius: 7px;
+      white-space: nowrap; box-shadow: 0 4px 14px rgba(0,0,0,.18);
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Producción · Reportes</h1>
+    <div class="sub">Lácteos Belgrano · <span id="rango-txt"></span></div>
+  </header>
+
+  <div class="filtros">
+    <label for="desde">Desde</label>
+    <input type="date" id="desde">
+    <label for="hasta">Hasta</label>
+    <input type="date" id="hasta">
+    <button class="preset" data-dias="7">7 días</button>
+    <button class="preset" data-dias="30">30 días</button>
+    <button class="preset" data-dias="90">90 días</button>
+    <label for="queso">Queso</label>
+    <select id="queso"><option value="">Todos</option></select>
+    <span class="crece"></span>
+    <button class="btn-csv" id="btn-csv">Descargar CSV</button>
+  </div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="fila">
+    <div class="panel ancho">
+      <h2>Producción por día</h2>
+      <p class="ayuda">Piezas de queso terminadas por jornada. Los días sin producción figuran en cero.</p>
+      <div class="scroll-x"><svg id="g-dias" role="img" aria-label="Piezas producidas por día"></svg></div>
+    </div>
+  </div>
+
+  <div class="fila">
+    <div class="panel">
+      <h2>Producción por tipo de queso</h2>
+      <p class="ayuda">Total de piezas en el período.</p>
+      <div id="g-quesos"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Lechería · pallets por marca</h2>
+      <p class="ayuda">Cada barra es una marca, dividida por tipo de leche.</p>
+      <div class="leyenda" id="leyenda-leche"></div>
+      <div id="g-lecheria"></div>
+    </div>
+  </div>
+
+  <div class="fila">
+    <div class="panel ancho">
+      <h2>Rendimiento por tina</h2>
+      <p class="ayuda">
+        Cuántas piezas salen de cada tina, en promedio y en el peor y mejor caso.
+        Es el dato que hoy la fábrica no puede ver: la diferencia entre el mínimo y
+        el máximo es cuánto varía el rinde.
+      </p>
+      <div class="scroll-x"><table id="t-rendimiento"></table></div>
+    </div>
+  </div>
+
+  <div class="fila">
+    <div class="panel ancho">
+      <h2>Detalle de tinas</h2>
+      <p class="ayuda">Hasta 500 registros. Usá el filtro de queso para acotar.</p>
+      <div class="scroll-x"><table id="t-detalle"></table></div>
+    </div>
+  </div>
+</div>
+
+<div id="tip"></div>
+
+<script type="module" src="/reportes.js"></script>
+</body>
+</html>

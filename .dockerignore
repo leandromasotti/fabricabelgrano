@@ -1,0 +1,9 @@
+node_modules
+data
+docs
+requerimientos
+proof
+.playwright-cli
+.vscode
+.git
+*.log

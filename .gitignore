@@ -1,0 +1,12 @@
+node_modules/
+# Todo data/ afuera. Ojo: "data/*.db" NO alcanza — SQLite en modo WAL genera
+# fabrica.db-wal y fabrica.db-shm, y el -wal es donde vive lo recién escrito.
+# Con el patrón viejo se subían 2 MB de datos de producción al repo.
+data/
+*.log
+proof/
+.playwright-cli/
+
+# Notas de voz del cliente: se quedan en la máquina, no se versionan.
+# Las transcripciones sí se suben, que son el insumo real de trabajo.
+requerimientos/*.ogg

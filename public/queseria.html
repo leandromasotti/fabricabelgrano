@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101418">
+  <title>Quesería · Producción</title>
+  <link rel="icon" href="data:,">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>QUESERÍA</h1>
+      <div class="migas" id="migas"></div>
+      <button class="btn-txt" id="btn-reiniciar" hidden>Cambiar</button>
+      <div class="estado" id="estado"><span class="punto"></span><span id="estado-txt">En línea</span></div>
+    </header>
+
+    <section class="paso" id="paso-operario">
+      <p class="pregunta">¿Quién sos?</p>
+      <div class="opciones" id="op-operarios"></div>
+    </section>
+
+    <section class="paso" id="paso-queso" hidden>
+      <p class="pregunta">¿Qué queso hiciste?</p>
+      <div style="overflow-y:auto; flex:1; min-height:0" id="op-quesos"></div>
+    </section>
+
+    <section class="paso" id="paso-cantidad" hidden>
+      <p class="pregunta">¿Cuántos salieron?</p>
+      <div class="centrado">
+        <div class="contador">
+          <div class="valor vacio" id="valor">0</div>
+          <div class="unidad" id="unidad">piezas</div>
+        </div>
+        <div class="teclado" id="teclado"></div>
+      </div>
+    </section>
+
+    <section class="paso" id="paso-listo" hidden>
+      <div class="confirmacion">
+        <div class="tilde">✓</div>
+        <div class="titulo">TINA REGISTRADA</div>
+        <div class="hora" id="listo-hora"></div>
+        <div class="detalle" id="listo-detalle"></div>
+        <div class="acciones-confirmacion">
+          <button class="btn-deshacer" id="btn-deshacer">DESHACER · <span id="deshacer-seg">60</span>s</button>
+          <button class="btn-seguir" id="btn-seguir">SEGUIR</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="historial">
+      <div class="historial-titulo">
+        <span>Hoy · <span id="piezas-hoy">0</span> piezas</span>
+        <strong id="total-hoy">0</strong>
+      </div>
+      <div id="lista-hoy"></div>
+    </section>
+  </div>
+
+  <script type="module" src="/queseria.js"></script>
+</body>
+</html>

@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Producción · Consulta</title>
+  <link rel="icon" href="data:,">
+  <style>
+    /* Esta pantalla es para la PC del encargado, no para la tablet:
+       puede scrollear, usar el mouse y mostrar mas densidad. */
+    :root {
+      --bg: #f6f7f9; --panel: #fff; --borde: #dfe3e8;
+      --texto: #1a1f26; --tenue: #6b7684; --acento: #2e9e5b; --alerta: #c4562f;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--texto);
+      font: 15px/1.45 system-ui, -apple-system, 'Segoe UI', sans-serif;
+    }
+    .wrap { max-width: 1000px; margin: 0 auto; padding: 28px 20px 60px; }
+    header { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+    h1 { font-size: 22px; margin: 0; }
+    .sub { color: var(--tenue); }
+    .barra {
+      display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+      background: var(--panel); border: 1px solid var(--borde);
+      border-radius: 10px; padding: 14px 16px; margin-bottom: 18px;
+    }
+    input[type=date] {
+      font: inherit; padding: 8px 10px;
+      border: 1px solid var(--borde); border-radius: 8px; background: #fff;
+    }
+    button {
+      font: 600 14px inherit; padding: 9px 16px; cursor: pointer;
+      border: 1px solid var(--borde); border-radius: 8px; background: #fff; color: var(--texto);
+    }
+    button:hover { background: #f0f2f5; }
+    button.primario { background: var(--acento); border-color: var(--acento); color: #fff; }
+    .tarjetas { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 18px; }
+    .tarjeta {
+      flex: 1; min-width: 150px; background: var(--panel);
+      border: 1px solid var(--borde); border-radius: 10px; padding: 14px 16px;
+    }
+    .tarjeta .n { font-size: 30px; font-weight: 800; line-height: 1.1; }
+    .tarjeta .t { color: var(--tenue); font-size: 13px; text-transform: uppercase; letter-spacing: .6px; }
+    table { width: 100%; border-collapse: collapse; background: var(--panel); border-radius: 10px; overflow: hidden; }
+    th, td { text-align: left; padding: 11px 14px; border-bottom: 1px solid var(--borde); }
+    th { font-size: 12px; text-transform: uppercase; letter-spacing: .6px; color: var(--tenue); background: #fafbfc; }
+    td.hora { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    tr.anulada td { opacity: .45; text-decoration: line-through; }
+    .tag { font-size: 11px; padding: 2px 7px; border-radius: 20px; background: #eceff3; color: var(--tenue); }
+    .tag.offline { background: #fdf0e8; color: var(--alerta); }
+    .vacio { padding: 40px; text-align: center; color: var(--tenue); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Producción · Lechería</h1>
+      <span class="sub">Pallets registrados</span>
+    </header>
+
+    <div class="barra">
+      <label for="fecha">Fecha</label>
+      <input type="date" id="fecha">
+      <button id="btn-hoy">Hoy</button>
+      <span style="flex:1"></span>
+      <button class="primario" id="btn-csv">Descargar CSV</button>
+    </div>
+
+    <div class="tarjetas" id="tarjetas"></div>
+
+    <table>
+      <thead>
+        <tr><th>Hora</th><th>Marca</th><th>Producto</th><th>Operario</th><th></th><th></th></tr>
+      </thead>
+      <tbody id="filas"></tbody>
+    </table>
+    <div class="vacio" id="vacio" hidden>Sin registros para esta fecha.</div>
+  </div>
+
+  <script type="module">
+    const $ = (id) => document.getElementById(id)
+    const hoy = () => new Date().toLocaleDateString('sv-SE')
+    const hhmm = (d) =>
+      new Date(d).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', hour12: false })
+
+    async function cargar() {
+      const fecha = $('fecha').value || hoy()
+      const { registros, total } = await (await fetch(`/api/registros?fecha=${fecha}`)).json()
+      const vivos = registros.filter((r) => !r.anulado)
+
+      // Desglose por producto: es lo primero que el encargado quiere ver del dia.
+      const porProducto = vivos.reduce((acc, r) => {
+        acc[r.producto] = (acc[r.producto] ?? 0) + 1
+        return acc
+      }, {})
+
+      $('tarjetas').innerHTML =
+        `<div class="tarjeta"><div class="n">${total}</div><div class="t">Pallets</div></div>` +
+        Object.entries(porProducto)
+          .map(([p, n]) => `<div class="tarjeta"><div class="n">${n}</div><div class="t">${p}</div></div>`)
+          .join('')
+
+      $('vacio').hidden = registros.length > 0
+      $('filas').replaceChildren(
+        ...registros.map((r) => {
+          const tr = document.createElement('tr')
+          if (r.anulado) tr.className = 'anulada'
+          tr.innerHTML = `
+            <td class="hora">${hhmm(r.fecha_hora)}</td>
+            <td>${r.marca}</td>
+            <td>${r.producto}</td>
+            <td>${r.operario}</td>
+            <td>${r.origen === 'offline' ? '<span class="tag offline">offline</span>' : ''}</td>
+            <td></td>`
+          if (!r.anulado) {
+            const b = document.createElement('button')
+            b.textContent = 'Anular'
+            // Correcciones fuera de la ventana de 60s de la tablet: pasan por aca.
+            b.onclick = async () => {
+              if (!confirm(`¿Anular el pallet de las ${hhmm(r.fecha_hora)}?`)) return
+              await fetch(`/api/registros/${r.id}/anular`, { method: 'POST' })
+              cargar()
+            }
+            tr.lastElementChild.append(b)
+          }
+          return tr
+        })
+      )
+    }
+
+    $('fecha').value = hoy()
+    $('fecha').onchange = cargar
+    $('btn-hoy').onclick = () => { $('fecha').value = hoy(); cargar() }
+    $('btn-csv').onclick = () => {
+      window.location = `/api/registros.csv?fecha=${$('fecha').value || hoy()}`
+    }
+    cargar()
+  </script>
+</body>
+</html>

@@ -1,0 +1,493 @@
+/* Pensado para una tablet amurada a la pared, operarios con guantes.
+   Todo lo que sigue prioriza: legible de lejos, tocable con guantes, sin scroll. */
+
+:root {
+  --bg: #101418;
+  --panel: #1a2029;
+  --panel-alto: #232b36;
+  --borde: #2f3947;
+  --texto: #f2f5f8;
+  --texto-tenue: #9aa7b6;
+  --acento: #2e9e5b;
+  --acento-alto: #37b76a;
+  --alerta: #c4562f;
+  --radio: 14px;
+  --toque-min: 96px; /* alto minimo de cualquier cosa tocable, con guantes */
+}
+
+* { box-sizing: border-box; }
+
+/* El [hidden] del navegador es solo display:none sin !important, asi que cualquier
+   regla de clase con display:flex o display:grid lo anula sin avisar. Como aca se
+   esconde y se muestra todo por hidden, tiene que ganar siempre. */
+[hidden] { display: none !important; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden; /* regla dura: en la tablet no se scrollea nunca */
+}
+
+body {
+  background: var(--bg);
+  color: var(--texto);
+  font: 500 18px/1.35 system-ui, -apple-system, 'Segoe UI', sans-serif;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ------------------------------------------------------------ estructura */
+
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 16px;
+  gap: 14px;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 56px;
+}
+
+h1 {
+  font-size: 20px;
+  margin: 0;
+  letter-spacing: 0.3px;
+}
+
+.migas {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--texto-tenue);
+  min-width: 0;
+}
+
+.miga { color: var(--texto); }
+.miga-sep { color: var(--borde); }
+
+.paso { flex: 1; display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+#paso-listo { justify-content: center; }
+.paso[hidden] { display: none; }
+
+.pregunta {
+  font-size: 26px;
+  font-weight: 700;
+  margin: 0;
+}
+
+/* ------------------------------------------------------------ botones */
+
+.opciones {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 14px;
+  align-content: start;
+  overflow-y: auto; /* si hay 40 operarios, este es el unico lugar que puede scrollear */
+}
+
+.opcion {
+  min-height: var(--toque-min);
+  padding: 18px 20px;
+  font: 700 26px/1.2 inherit;
+  color: var(--texto);
+  background: var(--panel-alto);
+  border: 2px solid var(--borde);
+  border-radius: var(--radio);
+  cursor: pointer;
+  transition: transform 0.06s ease, background 0.12s ease;
+}
+
+.opcion:active {
+  transform: scale(0.97);
+  background: var(--acento);
+  border-color: var(--acento-alto);
+}
+
+.btn-txt {
+  min-height: 56px;
+  padding: 12px 22px;
+  font: 700 17px/1 inherit;
+  color: var(--texto-tenue);
+  background: transparent;
+  border: 2px solid var(--borde);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.btn-txt:active { background: var(--panel-alto); }
+
+/* ------------------------------------------------------------ confirmacion */
+
+.confirmacion {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 28px 20px;
+  background: var(--acento);
+  border-radius: var(--radio);
+  text-align: center;
+}
+
+.confirmacion .tilde { font-size: 56px; line-height: 1; }
+.confirmacion .titulo { font-size: 30px; font-weight: 800; letter-spacing: 0.5px; }
+.confirmacion .hora { font-size: 40px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.confirmacion .detalle { font-size: 18px; opacity: 0.9; }
+
+/* Es el unico boton de correccion del sistema: tiene que ser facil de acertar
+   con guantes y a la primera. */
+.btn-deshacer {
+  margin-top: 16px;
+  min-height: 88px;
+  padding: 0 44px;
+  font: 800 26px/1 inherit;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.28);
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+/* ------------------------------------------------------------ historial */
+
+.historial {
+  background: var(--panel);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  padding: 12px 16px;
+  max-height: 34vh;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.historial-titulo {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 15px;
+  color: var(--texto-tenue);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 8px;
+}
+
+.historial-titulo strong { font-size: 26px; color: var(--texto); }
+
+.fila {
+  display: flex;
+  gap: 14px;
+  padding: 9px 0;
+  border-top: 1px solid var(--borde);
+  font-size: 18px;
+  align-items: center;
+}
+
+.fila .h { font-variant-numeric: tabular-nums; color: var(--texto-tenue); min-width: 58px; }
+.fila .q { flex: 1; font-weight: 600; }
+.fila .op { color: var(--texto-tenue); font-size: 16px; }
+.fila.pendiente .h::after { content: ' ⏳'; }
+.fila.anulada { opacity: 0.4; text-decoration: line-through; }
+
+/* ------------------------------------------------------------ estado de red */
+
+.estado {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 700;
+  background: var(--panel-alto);
+  color: var(--texto-tenue);
+  white-space: nowrap;
+}
+
+.punto { width: 11px; height: 11px; border-radius: 50%; background: var(--acento); }
+.estado.sin-red { background: var(--alerta); color: #fff; }
+.estado.sin-red .punto { background: #fff; }
+
+@media (max-width: 620px) {
+  .opciones { grid-template-columns: 1fr 1fr; }
+  .opcion { font-size: 21px; min-height: 84px; }
+  .pregunta { font-size: 21px; }
+}
+
+/* ------------------------------------------------------------ agrupado de quesos */
+/* 17 tipos de queso no entran como una grilla plana legible: se agrupan por familia
+   para que el quesero encuentre el suyo sin leer los 17. */
+
+.grupo { margin-bottom: 6px; }
+
+.grupo-titulo {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--texto-tenue);
+  margin: 4px 0 8px;
+}
+
+.grupo .opciones { margin-bottom: 14px; }
+
+.opcion.chica { min-height: 78px; font-size: 21px; padding: 12px 14px; }
+
+/* ------------------------------------------------------------ teclado numerico */
+/* El rinde cambia todos los dias (117 / 120 / 124), asi que la cantidad se tipea.
+   Es el unico numero que se carga a mano en todo el sistema. */
+
+.contador {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: var(--panel);
+  border: 2px solid var(--borde);
+  border-radius: var(--radio);
+  padding: 14px 20px;
+}
+
+.contador .valor {
+  font-size: 72px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  min-height: 72px;
+}
+
+.contador .valor.vacio { color: var(--borde); }
+.contador .unidad { font-size: 15px; color: var(--texto-tenue); text-transform: uppercase; letter-spacing: 1px; }
+
+.teclado {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  max-width: 460px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.tecla {
+  min-height: 82px;
+  font: 800 34px/1 inherit;
+  color: var(--texto);
+  background: var(--panel-alto);
+  border: 2px solid var(--borde);
+  border-radius: 12px;
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+
+.tecla:active { transform: scale(0.96); background: var(--acento); }
+.tecla.borrar { font-size: 26px; color: var(--texto-tenue); }
+.tecla.ok { background: var(--acento); border-color: var(--acento-alto); font-size: 24px; }
+.tecla.ok:disabled { opacity: 0.35; background: var(--panel-alto); border-color: var(--borde); cursor: default; }
+
+.centrado { display: flex; flex-direction: column; gap: 14px; align-items: center; justify-content: center; flex: 1; min-height: 0; }
+
+/* ------------------------------------------------------------ tarjetas de tina */
+/* El saladero no elige "una tina" de una lista pelada: elige mirando cuanto hace
+   que esa tina espera, que es el dato del control de pH. */
+
+.tarjeta-tina {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  min-height: var(--toque-min);
+  padding: 14px 20px;
+  text-align: left;
+  background: var(--panel-alto);
+  border: 2px solid var(--borde);
+  border-radius: var(--radio);
+  color: var(--texto);
+  font: inherit;
+  cursor: pointer;
+}
+
+.tarjeta-tina:active { transform: scale(0.99); background: var(--acento); }
+.tarjeta-tina .queso { font-size: 25px; font-weight: 700; flex: 1; }
+.tarjeta-tina .cant { font-size: 25px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.tarjeta-tina .meta { font-size: 15px; color: var(--texto-tenue); text-align: right; min-width: 120px; }
+.tarjeta-tina .meta strong { display: block; font-size: 20px; color: var(--texto); font-weight: 700; }
+
+/* Cuanto mas espera una tina, mas visible se vuelve. */
+.tarjeta-tina.demorada { border-color: var(--alerta); }
+.tarjeta-tina.demorada .meta strong { color: var(--alerta); }
+
+.columna { display: flex; flex-direction: column; gap: 12px; overflow-y: auto; flex: 1; min-height: 0; }
+
+.aviso { padding: 28px; text-align: center; color: var(--texto-tenue); font-size: 19px; }
+
+/* ------------------------------------------------------------ entrada / salida */
+
+.opcion.grande { min-height: 150px; font-size: 34px; }
+.opcion.entrada:active { background: var(--acento); }
+.opcion.salida:active { background: #2f6ea8; border-color: #3d86c6; }
+
+/* Si aun asi algo desborda, que se note: el borde inferior se desvanece en vez de
+   cortar en seco, que es lo que hace pensar que no hay nada mas abajo. */
+.desvanece {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+}
+
+/* ------------------------------------------------------------ pedidos */
+
+.opcion.nuevo { min-height: 78px; font-size: 21px; flex: none; margin-top: 4px; }
+
+/* Tarjeta de pedido en la lista */
+.tarjeta-pedido {
+  display: flex; align-items: center; gap: 16px; width: 100%;
+  min-height: var(--toque-min); padding: 14px 20px; text-align: left;
+  background: var(--panel-alto); border: 2px solid var(--borde);
+  border-radius: var(--radio); color: var(--texto); font: inherit; cursor: pointer;
+}
+.tarjeta-pedido:active { transform: scale(0.99); background: var(--acento); }
+.tarjeta-pedido .cliente { font-size: 25px; font-weight: 700; flex: 1; }
+.tarjeta-pedido .meta { font-size: 15px; color: var(--texto-tenue); text-align: right; min-width: 130px; }
+.tarjeta-pedido .meta strong { display: block; font-size: 20px; color: var(--texto); font-weight: 700; }
+.tarjeta-pedido.en-curso { border-color: var(--acento); }
+
+.chip {
+  font-size: 12px; text-transform: uppercase; letter-spacing: .7px;
+  padding: 3px 9px; border-radius: 20px; background: var(--borde); color: var(--texto-tenue);
+}
+.chip.armando { background: var(--acento); color: #fff; }
+
+/* Linea de pedido: queso + progreso de pesaje */
+.linea {
+  display: flex; align-items: center; gap: 16px; width: 100%;
+  min-height: 86px; padding: 12px 20px; text-align: left;
+  background: var(--panel-alto); border: 2px solid var(--borde);
+  border-radius: var(--radio); color: var(--texto); font: inherit; cursor: pointer;
+}
+.linea:active { transform: scale(0.99); }
+.linea .queso { font-size: 23px; font-weight: 700; flex: 1; }
+.linea .progreso { font-size: 22px; font-weight: 800; font-variant-numeric: tabular-nums; min-width: 90px; text-align: right; }
+.linea .kilos { font-size: 15px; color: var(--texto-tenue); min-width: 92px; text-align: right; }
+.linea.completa { border-color: var(--acento); }
+.linea.completa .progreso { color: var(--acento-alto); }
+/* Si se entregan mas o menos piezas de las pedidas, se ve. No se bloquea: en la
+   camara puede haber 2 cuando pidieron 3, y eso es informacion, no un error. */
+.linea.difiere { border-color: var(--alerta); }
+.linea.difiere .progreso { color: var(--alerta); }
+
+/* Pie con el total del pedido */
+.pie-total {
+  display: flex; align-items: center; gap: 22px; flex: none;
+  padding: 14px 20px; background: var(--panel);
+  border: 1px solid var(--borde); border-radius: var(--radio);
+}
+.pie-dato { display: flex; flex-direction: column; }
+.pie-dato span { font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.pie-dato small { font-size: 12px; color: var(--texto-tenue); text-transform: uppercase; letter-spacing: .8px; }
+.pie-dato.destacado span { font-size: 38px; color: var(--acento-alto); }
+
+.btn-cerrar {
+  margin-left: auto; min-height: 72px; padding: 0 32px;
+  font: 800 21px/1 inherit; color: #fff;
+  background: var(--acento); border: 2px solid var(--acento-alto);
+  border-radius: 12px; cursor: pointer;
+}
+.btn-cerrar:disabled { opacity: .35; background: var(--panel-alto); border-color: var(--borde); color: var(--texto-tenue); cursor: default; }
+
+/* Pantalla de pesaje: teclado a la izquierda, piezas ya pesadas a la derecha */
+.pesaje { display: flex; gap: 18px; flex: 1; min-height: 0; }
+.pesaje-izq { display: flex; flex-direction: column; gap: 12px; flex: 1; min-width: 0; }
+.pesaje-der {
+  width: 290px; flex: none; display: flex; flex-direction: column;
+  background: var(--panel); border: 1px solid var(--borde); border-radius: var(--radio);
+  padding: 12px 14px; min-height: 0;
+}
+@media (max-width: 860px) { .pesaje-der { display: none; } }
+
+.balanza .valor { font-size: 64px; }
+.balanza .valor.cero { color: var(--borde); }
+
+.pesadas-titulo { font-size: 14px; color: var(--texto-tenue); text-transform: uppercase; letter-spacing: .8px; }
+.pesadas-titulo strong { font-size: 22px; color: var(--texto); }
+.pesadas { flex: 1; overflow-y: auto; margin: 8px 0; min-height: 0; }
+.pesada {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 0; border-top: 1px solid var(--borde); font-size: 19px;
+  font-variant-numeric: tabular-nums;
+}
+.pesada .i { color: var(--texto-tenue); font-size: 14px; min-width: 26px; }
+.pesada .kg { flex: 1; font-weight: 600; }
+.pesada button {
+  background: transparent; border: 1px solid var(--borde); color: var(--texto-tenue);
+  border-radius: 8px; min-height: 40px; min-width: 44px; font-size: 17px; cursor: pointer;
+}
+.pesadas-total {
+  font-size: 25px; font-weight: 800; font-variant-numeric: tabular-nums;
+  border-top: 2px solid var(--borde); padding-top: 9px; text-align: right;
+}
+
+.tecla.agregar { background: var(--acento); border-color: var(--acento-alto); font-size: 21px; }
+.tecla.agregar:disabled { opacity: .35; background: var(--panel-alto); border-color: var(--borde); cursor: default; }
+
+/* ------------------------------------------------------------ maduración */
+/* Cuatro estados, no dos: un queso no pasa de "no apto" a "apto" de golpe.
+   El color va acompañado SIEMPRE de la palabra, nunca solo: a cinco metros y con
+   luz de planta, el color se pierde antes que el texto. */
+
+.estado-chip {
+  font-size: 13px; font-weight: 800; text-transform: uppercase; letter-spacing: .9px;
+  padding: 4px 11px; border-radius: 20px; white-space: nowrap;
+}
+.estado-falta  { background: var(--borde);  color: var(--texto-tenue); }
+.estado-apto   { background: #1d4d30; color: #6fce90; }
+.estado-optimo { background: var(--acento); color: #fff; }
+.estado-pasado { background: #5a2a18; color: #f0a184; }
+.estado-sin_dato { background: #3a3320; color: #d9c07a; }
+
+.tarjeta-tina.optimo { border-color: var(--acento); }
+.tarjeta-tina.pasado { border-color: var(--alerta); }
+
+.tarjeta-tina .dias {
+  font-size: 15px; color: var(--texto-tenue); text-align: right; min-width: 118px;
+}
+.tarjeta-tina .dias strong { display: block; font-size: 21px; color: var(--texto); font-weight: 700; }
+
+.resumen-camara {
+  display: flex; gap: 10px; flex-wrap: wrap; flex: none; margin-bottom: 4px;
+}
+.resumen-camara div {
+  flex: 1; min-width: 110px; background: var(--panel); border: 1px solid var(--borde);
+  border-radius: 10px; padding: 9px 13px;
+}
+.resumen-camara .n { font-size: 27px; font-weight: 800; font-variant-numeric: tabular-nums; }
+.resumen-camara .t { font-size: 12px; color: var(--texto-tenue); text-transform: uppercase; letter-spacing: .7px; }
+
+.aviso-provisorio {
+  flex: none; background: #3a3320; color: #e8d49a; border: 1px solid #5c5030;
+  border-radius: 10px; padding: 10px 15px; font-size: 15px; line-height: 1.4;
+}
+
+/* ------------------------------------------------------------ confirmación */
+/* Un operario no puede quedar 60 segundos mirando una pantalla antes de registrar
+   lo siguiente. El DESHACER sigue disponible ese minuto, pero SEGUIR corta la espera. */
+
+.acciones-confirmacion { display: flex; gap: 14px; align-items: center; margin-top: 16px; }
+
+.btn-seguir {
+  min-height: 88px; padding: 0 44px;
+  font: 800 26px/1 inherit; color: #fff;
+  background: rgba(255, 255, 255, 0.16);
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  border-radius: 12px; cursor: pointer;
+}
+.btn-seguir:active { background: rgba(255, 255, 255, 0.3); }

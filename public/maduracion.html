@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101418">
+  <title>Maduración</title>
+  <link rel="icon" href="data:,">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>MADURACIÓN</h1>
+      <div class="migas" id="migas"></div>
+      <button class="btn-txt" id="btn-volver" hidden>Volver</button>
+      <button class="btn-txt" id="btn-reiniciar" hidden>Cambiar</button>
+      <div class="estado" id="estado"><span class="punto"></span><span id="estado-txt">En línea</span></div>
+    </header>
+
+    <section class="paso" id="paso-operario">
+      <p class="pregunta">¿Quién sos?</p>
+      <div class="opciones" id="op-operarios"></div>
+    </section>
+
+    <section class="paso" id="paso-tipo" hidden>
+      <p class="pregunta">¿Qué estás haciendo?</p>
+      <div class="opciones">
+        <button class="opcion grande entrada" id="btn-entrada">ENTRA A CÁMARA</button>
+        <button class="opcion grande salida" id="btn-salida">SALE DE CÁMARA</button>
+      </div>
+    </section>
+
+    <section class="paso" id="paso-tina" hidden>
+      <p class="pregunta" id="pregunta-tina">¿Qué lote?</p>
+      <div class="resumen-camara" id="resumen" hidden></div>
+      <div class="columna" id="lista-tinas"></div>
+    </section>
+
+    <section class="paso" id="paso-cantidad" hidden>
+      <p class="pregunta" id="pregunta-cantidad">¿Cuántas piezas?</p>
+      <div class="centrado">
+        <div class="contador">
+          <div class="valor" id="valor">0</div>
+          <div class="unidad" id="unidad">piezas</div>
+        </div>
+        <div class="teclado" id="teclado"></div>
+      </div>
+    </section>
+
+    <section class="paso" id="paso-listo" hidden>
+      <div class="confirmacion">
+        <div class="tilde">✓</div>
+        <div class="titulo" id="listo-titulo">REGISTRADO</div>
+        <div class="hora" id="listo-hora"></div>
+        <div class="detalle" id="listo-detalle"></div>
+        <div class="acciones-confirmacion">
+          <button class="btn-deshacer" id="btn-deshacer">DESHACER · <span id="deshacer-seg">60</span>s</button>
+          <button class="btn-seguir" id="btn-seguir">SEGUIR</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="historial">
+      <div class="historial-titulo">
+        <span>Hoy · <span id="entradas-hoy">0</span> entraron · <span id="salidas-hoy">0</span> salieron</span>
+        <strong id="en-camara-total">0</strong>
+      </div>
+      <div id="lista-hoy"></div>
+    </section>
+  </div>
+
+  <script type="module" src="/maduracion.js"></script>
+</body>
+</html>

@@ -1,0 +1,28 @@
+# Fly.io. El volumen es lo importante: sin el mount en /data, la base se borra
+# en cada despliegue.
+#
+#   fly launch --no-deploy
+#   fly volumes create datos --size 1
+#   fly secrets set ACCESO_CLAVE="la-clave-que-le-pases-al-cliente"
+#   fly deploy
+
+app = "fabrica-belgrano"
+primary_region = "eze"          # Buenos Aires
+
+[build]
+
+[env]
+  PORT = "3000"
+
+[[mounts]]
+  source = "datos"
+  destination = "/data"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  # Una sola máquina: SQLite es un archivo, dos instancias escribiendo el mismo
+  # volumen se corrompen entre sí.
+  min_machines_running = 1

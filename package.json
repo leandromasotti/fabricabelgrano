@@ -1,0 +1,22 @@
+{
+  "name": "fabrica-belgrano",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Seguimiento de produccion - Lacteos Belgrano. MVP: registro de pallets en lecheria.",
+  "type": "module",
+  "scripts": {
+    "start": "node server/seed.js && node server/index.js",
+    "dev": "node --watch server/index.js",
+    "seed": "node server/seed.js",
+    "demo": "node server/demo.js",
+    "backup": "node server/backup.js",
+    "operarios": "node server/operarios.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.5.0",
+    "express": "^4.21.1"
+  }
+}
