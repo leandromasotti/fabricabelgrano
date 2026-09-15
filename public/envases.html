@@ -43,6 +43,7 @@
     th { font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--ink-muted);
          font-weight: 600; background: var(--plane); }
     th.num, td.num { text-align: right; }
+    th { line-height: 1.3; vertical-align: bottom; }
     tbody tr:hover { background: var(--plane); }
 
     input[type=number] {
@@ -79,7 +80,8 @@
     Solo el formato en caja está confirmado (70 × 12 × 1 L). Los dos de palangana
     esperan los números de la fábrica; mientras tanto <b>los pallets se registran igual</b>
     y sus litros quedan sin calcular. Al completar un formato acá, esos pallets se
-    completan solos — la columna <b>“pallets”</b> muestra cuántos están esperando.
+    completan solos — la columna <b>“pallets ya registrados”</b> muestra cuántos están
+    esperando.
   </div>
 
   <table>
@@ -90,7 +92,7 @@
         <th class="num">Unidades por bulto</th>
         <th class="num">Litros por unidad</th>
         <th class="num">Litros por pallet</th>
-        <th class="num">Pallets</th>
+        <th class="num">Pallets ya<br>registrados</th>
         <th></th>
         <th></th>
       </tr>
@@ -111,6 +113,9 @@
     pero los sachets y los kilos son <b>estimaciones</b>. Por eso en las pantallas
     aparecen con “≈”: un número redondo sin marcar se lee como medido, y alguien
     termina facturando o planificando con él.
+    <br><br>
+    La columna <b>“bins ya registrados”</b> dice cuántos usan esa configuración: son los
+    que se van a recalcular si cambiás los números.
   </div>
 
   <table>
@@ -120,7 +125,7 @@
         <th class="num">Sachets por bin</th>
         <th class="num">Kilos por sachet</th>
         <th class="num">Kilos por bin</th>
-        <th class="num">Bins</th>
+        <th class="num">Bins ya<br>registrados</th>
         <th></th>
         <th></th>
       </tr>
