@@ -69,7 +69,14 @@
     }
 
     /* ------------------------------------------------------ lecheria */
-    .lecheria { display: grid; grid-template-columns: auto 1fr auto; gap: 1.2vw; align-items: center; }
+    .lecheria { display: grid; grid-template-columns: auto auto 1fr auto; gap: 1.2vw; align-items: center; }
+    /* La leche cruda es el INPUT del circuito, no un producto más. Va primero y con su
+       propio color para que no se confunda con los litros envasados, que están al lado. */
+    .recibido { padding-right: 1.2vw; border-right: 1px solid var(--borde); min-width: 10vw; }
+    .recibido .rt { font-size: 1.5vh; color: var(--tenue); text-transform: uppercase; letter-spacing: .15vh; }
+    .recibido .rn { font-size: 5.4vh; font-weight: 800; line-height: 1.05; color: #d8c46a; }
+    .recibido .ru { font-size: 1.4vh; color: var(--tenue); }
+    .recibido .rd { font-size: 1.4vh; color: var(--tenue); margin-top: .4vh; }
     /* Los yogures son el otro producto de lechería: van al lado, no mezclados con los
        pallets, porque la unidad es distinta (cajas de sachets, no litros). */
     .yogur-caja { padding-left: 1.2vw; border-left: 1px solid var(--borde); min-width: 11vw; }
@@ -154,8 +161,14 @@
 
     <!-- LECHERÍA -->
     <div>
-      <div class="seccion-titulo">Lechería · producción de hoy</div>
+      <div class="seccion-titulo">Leche cruda recibida · producción de lechería</div>
       <div class="panel lecheria">
+        <div class="recibido">
+          <div class="rt">Entró hoy</div>
+          <div class="rn" id="recibido-litros">0</div>
+          <div class="ru">litros de leche cruda</div>
+          <div class="rd" id="recibido-detalle"></div>
+        </div>
         <div class="gran-total">
           <div class="n" id="pallets-total">0</div>
           <div class="t">pallets hoy</div>

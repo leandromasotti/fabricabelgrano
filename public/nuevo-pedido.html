@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pedidos · carga e impresión</title>
+  <link rel="icon" href="data:,">
+  <style>
+    :root {
+      color-scheme: light;
+      --surface: #fcfcfb; --plane: #f9f9f7;
+      --ink: #0b0b0b; --ink-2: #52514e; --ink-muted: #898781;
+      --grid: #e1e0d9; --axis: #c3c2b7; --borde: rgba(11,11,11,.10);
+      --acento: #2a78d6; --ok: #0ca30c; --alerta: #c4562f;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:where(:not([data-theme="light"])) {
+        color-scheme: dark;
+        --surface: #1a1a19; --plane: #0d0d0d;
+        --ink: #fff; --ink-2: #c3c2b7; --ink-muted: #898781;
+        --grid: #2c2c2a; --axis: #383835; --borde: rgba(255,255,255,.10);
+        --acento: #3987e5;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--plane); color: var(--ink);
+           font: 15px/1.45 system-ui, -apple-system, 'Segoe UI', sans-serif; }
+    .wrap { max-width: 1100px; margin: 0 auto; padding: 26px 20px 70px; }
+    h1 { font-size: 23px; margin: 0 0 4px; }
+    .sub { color: var(--ink-2); font-size: 14px; margin-bottom: 20px; }
+    h2 { font-size: 15px; margin: 26px 0 10px; font-weight: 650; }
+
+    .columnas { display: grid; grid-template-columns: 380px 1fr; gap: 20px; align-items: start; }
+    @media (max-width: 900px) { .columnas { grid-template-columns: 1fr; } }
+
+    .caja { background: var(--surface); border: 1px solid var(--borde); border-radius: 10px; padding: 16px 18px; }
+    .campo { display: flex; gap: 10px; align-items: center; margin-bottom: 11px; flex-wrap: wrap; }
+    label { font-size: 13px; color: var(--ink-2); min-width: 54px; }
+    select, input[type=number], input[type=text] {
+      font: inherit; font-size: 14px; padding: 8px 10px; color: var(--ink);
+      background: var(--surface); border: 1px solid var(--axis); border-radius: 7px;
+    }
+    select { flex: 1; min-width: 0; }
+    input[type=number] { width: 84px; }
+    input[type=text] { flex: 1; min-width: 0; }
+
+    button {
+      font: 600 13.5px system-ui, sans-serif; padding: 9px 15px; cursor: pointer;
+      background: var(--surface); color: var(--ink); border: 1px solid var(--axis); border-radius: 8px;
+    }
+    button:hover { background: var(--plane); }
+    button.primario { background: var(--acento); border-color: var(--acento); color: #fff; }
+    button.imprimir { background: var(--ok); border-color: var(--ok); color: #fff; }
+    button:disabled { opacity: .35; cursor: default; }
+
+    .lineas { margin: 12px 0; font-size: 14px; }
+    .lineas div { display: flex; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--grid); align-items: center; }
+    .lineas span { flex: 1; }
+    .lineas .n { font-variant-numeric: tabular-nums; font-weight: 700; }
+    .vacio { color: var(--ink-muted); font-size: 14px; padding: 10px 0; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 14px; background: var(--surface);
+            border: 1px solid var(--borde); border-radius: 10px; overflow: hidden; }
+    th, td { padding: 9px 11px; border-bottom: 1px solid var(--grid); text-align: left; }
+    th { font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--ink-muted);
+         font-weight: 600; background: var(--plane); }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+    tbody tr:hover { background: var(--plane); }
+    .chip { font-size: 11px; padding: 2px 8px; border-radius: 20px; background: var(--grid); color: var(--ink-2); }
+    .chip.armando { background: var(--acento); color: #fff; }
+    .chip.listo { background: var(--ok); color: #fff; }
+
+    .barra-impresion {
+      display: flex; gap: 10px; align-items: center; margin: 14px 0;
+      padding: 12px 14px; background: var(--surface);
+      border: 1px solid var(--borde); border-radius: 10px;
+    }
+    .crece { flex: 1; }
+
+    /* ================================================================ IMPRESIÓN
+       Lo que se imprime es la HOJA DE ARMADO que baja al sector: qué cliente, qué
+       quesos y cuántas piezas, con espacio en blanco para que el armador anote a mano
+       mientras camina por la cámara. Las tablets están amuradas: necesita papel. */
+    .hojas { display: none; }
+    @media print {
+      @page { margin: 12mm; }
+      body { background: #fff; color: #000; font-size: 11pt; }
+      .wrap { display: none; }
+      .hojas { display: block; }
+
+      .hoja {
+        border: 1.5px solid #000; border-radius: 0; padding: 8mm;
+        margin-bottom: 6mm;
+        /* Varios pedidos entran en la misma hoja, pero un pedido NUNCA se parte entre
+           dos páginas: el armador quedaría con media lista. */
+        page-break-inside: avoid;
+      }
+      /* Por defecto entran varios pedidos por hoja, que es lo pedido. Con la opción
+         activada cada uno sale en su propia página, para repartir hojas sueltas. */
+      .hojas.separadas .hoja { page-break-after: always; }
+      .hojas.separadas .hoja:last-child { page-break-after: auto; }
+      /* El cliente es lo primero que se lee, caminando y de un vistazo. */
+      .hoja h3 { font-size: 22pt; margin: 0 0 1mm; }
+      .hoja .meta { font-size: 9pt; color: #444; margin-bottom: 4mm; }
+      .hoja table { width: 100%; border-collapse: collapse; font-size: 11pt; border: 0; }
+      .hoja th, .hoja td { border: 1px solid #000; padding: 2.5mm 3mm; background: #fff !important; color: #000; }
+      .hoja th { font-size: 8.5pt; text-transform: uppercase; letter-spacing: .4pt; background: #eee !important; }
+      .hoja td.n { text-align: right; font-weight: 700; width: 22mm; }
+      /* Columnas en blanco a propósito: se completan a mano en la cámara. Altas porque
+         se escribe parado, con frío y a veces con guantes. */
+      .hoja td.anotar { width: 40mm; height: 15mm; }
+      .hoja .pie { display: flex; justify-content: space-between; margin-top: 4mm; font-size: 9pt; color: #444; }
+      .hoja .firma { border-top: 1px solid #000; width: 60mm; padding-top: 1mm; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="wrap">
+  <h1>Pedidos · carga e impresión</h1>
+  <div class="sub">
+    Se carga acá, se imprime y la hoja baja al sector de armado. Los pesos vuelven por
+    la tablet — las tablets están amuradas, así que el armador necesita papel en la mano.
+  </div>
+
+  <div class="columnas">
+    <div>
+      <h2>Nuevo pedido</h2>
+      <div class="caja">
+        <div class="campo">
+          <label for="cliente">Cliente</label>
+          <select id="cliente"></select>
+        </div>
+        <div class="campo">
+          <label for="nota">Nota</label>
+          <input type="text" id="nota" placeholder="opcional, sale en la hoja">
+        </div>
+        <hr style="border:0;border-top:1px solid var(--grid);margin:14px 0">
+        <div class="campo">
+          <label for="queso">Queso</label>
+          <select id="queso"></select>
+        </div>
+        <div class="campo">
+          <label for="cantidad">Piezas</label>
+          <input type="number" id="cantidad" min="1" value="1">
+          <button id="btn-add">Agregar</button>
+        </div>
+        <div class="lineas" id="lineas"></div>
+        <button class="primario" id="btn-crear" disabled>Crear pedido</button>
+      </div>
+    </div>
+
+    <div>
+      <h2>Pedidos pendientes de armar</h2>
+      <div class="barra-impresion">
+        <button id="btn-todos">Seleccionar todos</button>
+        <button id="btn-ninguno">Ninguno</button>
+        <label style="min-width:0;display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" id="una-por-hoja">
+          una hoja por pedido
+        </label>
+        <span class="crece"></span>
+        <span class="sub" id="resumen-seleccion" style="margin:0"></span>
+        <button class="imprimir" id="btn-imprimir" disabled>Imprimir seleccionados</button>
+      </div>
+      <table>
+        <thead>
+          <tr><th style="width:36px"></th><th>Cliente</th><th>Creado</th><th class="num">Líneas</th><th class="num">Piezas</th><th>Estado</th></tr>
+        </thead>
+        <tbody id="filas"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Las hojas de armado se arman acá y solo existen al imprimir -->
+<div class="hojas" id="hojas"></div>
+
+<script type="module" src="/nuevo-pedido.js"></script>
+</body>
+</html>

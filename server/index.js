@@ -1513,6 +1513,14 @@ const qTab = {
     SELECT COUNT(*) AS n FROM registros_pallet
      WHERE anulado = 0 AND litros IS NULL AND date(fecha_hora, 'localtime') = ?
   `),
+  // Leche cruda que entró hoy. Es el INPUT del circuito: no se mezcla con los litros
+  // envasados de lechería, que son producto terminado. Dos "litros" distintos.
+  recibidoHoy: db.prepare(`
+    SELECT COUNT(*) AS entregas, COALESCE(SUM(litros), 0) AS litros,
+           COUNT(DISTINCT tambo_id) AS tambos, MAX(temperatura) AS temp_maxima
+      FROM recepciones
+     WHERE anulado = 0 AND date(fecha_hora, 'localtime') = ?
+  `),
   yogurHoy: db.prepare(`
     SELECT p.nombre AS sabor, COUNT(*) AS bins,
            COALESCE(SUM(y.unidades), 0) AS unidades, SUM(y.kilos) AS kilos
@@ -1641,6 +1649,8 @@ app.get('/api/tablero', (_req, res) => {
   res.json({
     hora: ahora(),
     fecha: hoy,
+
+    recepcion: qTab.recibidoHoy.get(hoy),
 
     lecheria: (() => {
       const detalle = qTab.palletsHoy.all(hoy)

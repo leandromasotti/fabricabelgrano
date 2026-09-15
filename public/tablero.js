@@ -124,6 +124,16 @@ function etapa({ tipo, cabeza, n, u, detalle, clase }) {
 const top = (arr, campo = 'piezas') =>
   arr.slice(0, 3).map((r) => `<b>${fmt(r[campo])}</b> ${r.queso}`).join('<br>')
 
+function pintarRecepcion(r) {
+  $('#recibido-litros').textContent = fmt(r.litros)
+  const partes = []
+  if (r.entregas) partes.push(`${r.entregas} entrega${r.entregas === 1 ? '' : 's'}`)
+  if (r.tambos) partes.push(`${r.tambos} tambo${r.tambos === 1 ? '' : 's'}`)
+  // La máxima, no el promedio: un promedio tibio esconde un camión que llegó caliente.
+  if (r.temp_maxima != null) partes.push(`máx ${r.temp_maxima.toFixed(1).replace('.', ',')} °C`)
+  $('#recibido-detalle').textContent = partes.join(' · ')
+}
+
 function pintarYogur(y) {
   $('#yogur-bins').textContent = fmt(y.bins)
   // El conteo de bins es exacto; los sachets y los kilos salen de multiplicar por un
@@ -258,6 +268,7 @@ async function refrescar() {
 
     ultimoBueno = d
     $('#latido').className = 'latido vivo'
+    pintarRecepcion(d.recepcion)
     pintarLecheria(d.lecheria)
     pintarYogur(d.yogur)
     pintarCircuito(d)
