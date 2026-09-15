@@ -125,11 +125,11 @@ const top = (arr, campo = 'piezas') =>
   arr.slice(0, 3).map((r) => `<b>${fmt(r[campo])}</b> ${r.queso}`).join('<br>')
 
 function pintarYogur(y) {
-  $('#yogur-cajas').textContent = fmt(y.cajas)
+  $('#yogur-bins').textContent = fmt(y.bins)
   $('#yogur-unidades').textContent =
     `${fmt(y.unidades)} sachets` + (y.kilos ? ` · ${fmt(Math.round(y.kilos))} kg` : '')
   $('#yogur-sabores').replaceChildren(
-    ...y.detalle.map((s) => el('div', null, `${fmt(s.cajas)} ${s.sabor}`))
+    ...y.detalle.map((s) => el('div', null, `${fmt(s.bins)} ${s.sabor}`))
   )
 }
 

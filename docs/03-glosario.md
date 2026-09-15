@@ -61,7 +61,14 @@ El **sachet de leche es de 1 litro** en todos los formatos (confirmado 2026-09-1
 **homogéneo**: una marca, un tipo de leche, un envase. La equivalencia se congela en cada registro,
 así un cambio futuro de formato no reescribe la historia.
 
-**Caja de yogur**: ~500 sachets (aproximado, a confirmar). Se registra caja por caja, no por pallet.
+**Bin plástico** (confirmado 2026-09-15): el recipiente del yogur. **500 litros de capacidad**, y
+por eso entran **~500 sachets de 1 litro**. Con 1 kg por sachet, unos **500 kg por bin**.
+
+La capacidad es el dato que explica el número: no son "500 sachets porque sí", son los que entran en
+500 litros. Si mañana cambiara el tamaño del sachet, la cantidad por bin se deduce de ahí.
+
+El yogur se registra **bin por bin**, no por pallet: es otra tablet, en otro sector, con otros
+operarios.
 
 **Marcas** (A2 00:47): Central Lechera, **Lácteos Belgrano**, Ovenac❓ *(declarada como propia)*.
 

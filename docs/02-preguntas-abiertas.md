@@ -168,11 +168,13 @@ Se cargan en `/envases.html` sin tocar código, y los pallets ya registrados con
 completan solos.
 
 **Yogur.**
-- ¿Cuánto pesa un sachet? Sin ese dato los kilos no se pueden calcular, y **"los trabajan por
-  kilos"** era parte del requerimiento.
-- Las cajas, ¿traen **siempre** 500 sachets o varía? El cliente lo dio como aproximado. Si varía,
+- ✅ *El sachet pesa **1 kg** y el recipiente es un **bin plástico de 500 litros**, de ahí los ~500
+  sachets y los ~500 kg por bin (confirmado 2026-09-15). Ya está cargado y es editable desde
+  `/envases.html`.*
+- ❓ Los bins, ¿traen **siempre** 500 sachets o varía? El cliente lo dio como aproximado. Si varía,
   el operario debería cargar la cantidad real en vez de que el sistema multiplique por un número
   que nadie garantiza — es el mismo caso que el rinde de la tina.
+  **Cómo saberlo:** contar los sachets de unos cuantos bins durante el piloto y comparar.
 - ✅ *Los operarios de yogures son **distintos** a los de leches y las tablets van en sectores
   diferentes (confirmado 2026-09-15). El sistema ya los maneja como listas separadas:
   `npm run operarios -- yogures "..."`.*

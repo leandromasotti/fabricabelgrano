@@ -28,6 +28,8 @@
     .wrap { max-width: 980px; margin: 0 auto; padding: 26px 20px 70px; }
     h1 { font-size: 23px; margin: 0 0 4px; }
     .sub { color: var(--ink-2); font-size: 14px; margin-bottom: 18px; }
+    h2 { font-size: 15px; margin: 28px 0 10px; font-weight: 650; }
+    h2:first-of-type { margin-top: 0; }
 
     .aviso {
       background: var(--aviso-bg); color: var(--aviso); border: 1px solid var(--aviso);
@@ -65,8 +67,10 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>Formatos de pallet</h1>
+  <h1>Formatos y equivalencias</h1>
   <div class="sub">Lácteos Belgrano · lechería</div>
+
+  <h2>Pallets de leche</h2>
 
   <div class="aviso">
     Un pallet puede armarse en <b>caja</b> o en <b>palangana</b>, y cada formato da una
@@ -92,6 +96,32 @@
       </tr>
     </thead>
     <tbody id="filas"></tbody>
+  </table>
+
+  <h2>Bins de yogur</h2>
+  <div class="aviso">
+    El yogur se registra <b>bin por bin</b>, no por pallet. El recipiente es un
+    <b>bin plástico de 500 litros</b>: por eso entran unos 500 sachets de 1 litro, y
+    con 1 kg por sachet, unos 500 kg por bin.
+    <br><br>
+    Ese <b>~500</b> es aproximado. Si al contarlos resultara que varían de bin en bin,
+    conviene que el operario cargue la cantidad real en la tablet en vez de que el
+    sistema multiplique — es el mismo caso que el rinde de la tina.
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Sabor</th>
+        <th class="num">Sachets por bin</th>
+        <th class="num">Kilos por sachet</th>
+        <th class="num">Kilos por bin</th>
+        <th class="num">Bins</th>
+        <th></th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="filas-yogur"></tbody>
   </table>
 </div>
 

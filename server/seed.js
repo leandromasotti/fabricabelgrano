@@ -44,9 +44,9 @@ const marcasFamilias = [
 // dejarlo fijo. Queda configurable y marcado como provisorio: si al contarlas resulta
 // que varian, conviene que el operario cargue la cantidad real — igual que el rinde de
 // la tina, que tampoco se asume.
-// kilos_por_unidad queda en NULL: "los trabajan por kilos" pero el peso del sachet no
-// esta confirmado, y un peso inventado ensucia todo lo que se calcule despues.
-const yogurCaja = { unidades_por_caja: 500, kilos_por_unidad: null }
+// kilos_por_unidad = 1 (confirmado 2026-09-15). Los dos numeros se editan desde
+// /envases.html sin tocar codigo.
+const yogurCaja = { unidades_por_bin: 500, kilos_por_unidad: 1 }
 
 // PLACEHOLDER - es el unico dato que bloquea el arranque real (ver 04-plan-mvp.md, seccion 6).
 // Reemplazar por las listas reales antes de instalar en planta.
@@ -207,12 +207,12 @@ const cargar = db.transaction(() => {
   // Datos de la caja de yogur, solo mientras sigan marcados como provisorios.
   const ponerYogur = db.prepare(`
     UPDATE productos
-       SET unidades_por_caja = @unidades_por_caja, kilos_por_unidad = @kilos_por_unidad
+       SET unidades_por_bin = @unidades_por_bin, kilos_por_unidad = @kilos_por_unidad
      WHERE familia = 'yogur' AND datos_provisorios = 1
   `)
   const tocadosYogur = ponerYogur.run(yogurCaja).changes
   if (tocadosYogur) {
-    console.log(`  yogur:     ${tocadosYogur} productos con ${yogurCaja.unidades_por_caja} u/caja (APROXIMADO)`)
+    console.log(`  yogur:     ${tocadosYogur} productos con ${yogurCaja.unidades_por_bin} u/caja (APROXIMADO)`)
   }
 
   // Los pallets viejos no tenian envase: se les asigna el unico formato que existia.

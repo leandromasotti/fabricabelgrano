@@ -109,9 +109,93 @@ function fila(e) {
   return tr
 }
 
+// ---------------------------------------------------------------- yogur
+
+function filaYogur(y) {
+  const tr = document.createElement('tr')
+
+  const unidades = numero(y.unidades_por_bin)
+  const kilos = numero(y.kilos_por_unidad, '0.001')
+
+  const total = el('div', 'resultado')
+  const guardar = document.createElement('button')
+  guardar.textContent = 'Guardar'
+  guardar.disabled = true
+
+  const tag = el('td')
+  const pintarTag = (provisorio) =>
+    tag.replaceChildren(
+      provisorio ? el('span', 'tag prov', 'a confirmar') : el('span', 'tag ok', 'confirmado')
+    )
+  pintarTag(y.datos_provisorios)
+
+  function recalcular() {
+    const u = Number(unidades.value)
+    const k = Number(kilos.value)
+    if (u > 0 && k > 0) {
+      total.textContent = `${fmt(Math.round(u * k * 100) / 100)} kg`
+      total.classList.remove('vacio')
+    } else {
+      total.textContent = 'sin datos'
+      total.classList.add('vacio')
+    }
+    guardar.disabled = false
+  }
+  for (const i of [unidades, kilos]) i.oninput = recalcular
+
+  total.textContent = y.kilos_por_bin ? `${fmt(y.kilos_por_bin)} kg` : 'sin datos'
+  if (!y.kilos_por_bin) total.classList.add('vacio')
+
+  // Si hay cajas registradas sin kilos, se avisa: completar el peso las va a completar.
+  const uso = el('span', 'uso', y.bins ? fmt(y.bins) : '—')
+  if (y.bins_sin_kilos) uso.textContent += ` (${y.bins_sin_kilos} sin kilos)`
+
+  guardar.onclick = async () => {
+    guardar.disabled = true
+    const res = await fetch(`/api/yogur/formato/${y.id}`, {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        unidades_por_bin: unidades.value,
+        kilos_por_unidad: kilos.value,
+      }),
+    })
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}))
+      alert(err.error ?? 'No se pudo guardar')
+      guardar.disabled = false
+      return
+    }
+    const r = await res.json()
+    pintarTag(!(Number(unidades.value) > 0 && Number(kilos.value) > 0))
+    const ok = el('span', 'guardado',
+      r.bins_rellenados ? `guardado · ${r.bins_rellenados} bins completados` : 'guardado')
+    guardar.after(ok)
+    setTimeout(() => ok.remove(), 4000)
+  }
+
+  const celda = (nodo, clase) => {
+    const td = el('td', clase)
+    td.append(nodo)
+    return td
+  }
+
+  tr.append(
+    el('td', null, y.nombre),
+    celda(unidades, 'num'),
+    celda(kilos, 'num'),
+    celda(total, 'num'),
+    celda(uso, 'num'),
+    tag,
+    celda(guardar)
+  )
+  return tr
+}
+
 async function cargar() {
-  const envases = await (await fetch('/api/envases')).json()
-  $('#filas').replaceChildren(...envases.map(fila))
+  const { pallets, yogur } = await (await fetch('/api/envases')).json()
+  $('#filas').replaceChildren(...pallets.map(fila))
+  $('#filas-yogur').replaceChildren(...yogur.map(filaYogur))
 }
 
 cargar()

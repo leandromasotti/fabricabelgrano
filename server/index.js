@@ -38,7 +38,7 @@ const qCatalogo = {
      ORDER BY m.orden, m.nombre
   `),
   productos: db.prepare(`
-    SELECT id, nombre, unidades_por_caja, kilos_por_unidad, datos_provisorios
+    SELECT id, nombre, unidades_por_bin, kilos_por_unidad, datos_provisorios
       FROM productos WHERE activo = 1 AND familia = ? ORDER BY orden, nombre
   `),
   envases: db.prepare(`
@@ -188,10 +188,12 @@ app.get('/api/registros.csv', (req, res) => {
 
 // ---------------------------------------------------------------- yogur
 
-// Otra tablet y otro flujo: el yogur se registra CAJA POR CAJA, no por pallet.
-// Cada caja lleva ~500 sachets (el cliente lo dio como aproximado y eligio dejarlo
-// fijo). Los kilos salen del peso del sachet, que todavia no esta confirmado: mientras
-// no lo este quedan en NULL y la pantalla dice "sin dato" en vez de inventar.
+// Otra tablet y otro flujo: el yogur se registra BIN POR BIN, no por pallet.
+//
+// El recipiente es un BIN PLASTICO de 500 litros de capacidad, y por eso entran ~500
+// sachets de 1 litro. Ese "500 litros" es el dato que explica el numero: si manana
+// cambiara el tamano del sachet, la cantidad por bin se deduce de la capacidad.
+// Los kilos salen del peso del sachet (1 kg), configurable desde /envases.html.
 
 const qYogur = {
   porClientId: db.prepare('SELECT id FROM registros_yogur WHERE client_id = ?'),
@@ -228,7 +230,7 @@ const qYogur = {
   anular: db.prepare(
     'UPDATE registros_yogur SET anulado = 1, anulado_en = ? WHERE id = ? AND anulado = 0'
   ),
-  unidadesDe: db.prepare('SELECT unidades_por_caja FROM productos WHERE id = ?'),
+  unidadesDe: db.prepare('SELECT unidades_por_bin FROM productos WHERE id = ?'),
 }
 
 app.post('/api/yogur', (req, res) => {
@@ -247,7 +249,7 @@ app.post('/api/yogur', (req, res) => {
   if (!existe('productos', producto_id)) return res.status(400).json({ error: 'producto inexistente' })
 
   // Si la tablet no manda unidades, se usa la cantidad configurada de la caja.
-  const porDefecto = qYogur.unidadesDe.get(producto_id)?.unidades_por_caja
+  const porDefecto = qYogur.unidadesDe.get(producto_id)?.unidades_por_bin
   const n = unidades ?? porDefecto
   if (!Number.isInteger(n) || n < 1) {
     return res.status(400).json({ error: 'unidades debe ser un entero mayor a cero' })
@@ -270,7 +272,7 @@ app.get('/api/yogur', (req, res) => {
   const vivos = registros.filter((r) => !r.anulado)
   res.json({
     fecha,
-    cajas: vivos.length,
+    bins: vivos.length,
     unidades: vivos.reduce((n, r) => n + r.unidades, 0),
     kilos: vivos.reduce((n, r) => n + (r.kilos ?? 0), 0),
     registros,
@@ -309,9 +311,32 @@ const qEnvases = {
   usos: db.prepare('SELECT COUNT(*) n FROM registros_pallet WHERE envase_id = ? AND anulado = 0'),
 }
 
+// Formato de la caja de yogur. Vive en `productos` y no en `envases` porque no es un
+// formato de pallet: el yogur se registra caja por caja. Se sirve junto con los
+// envases para que haya UNA sola pantalla donde se cargan las equivalencias.
+const qYogurFormato = {
+  todos: db.prepare(`
+    SELECT id, nombre, unidades_por_bin, kilos_por_unidad, datos_provisorios
+      FROM productos WHERE familia = 'yogur' AND activo = 1 ORDER BY orden, nombre
+  `),
+  actualizar: db.prepare(`
+    UPDATE productos
+       SET unidades_por_bin = @unidades, kilos_por_unidad = @kilos,
+           datos_provisorios = CASE
+             WHEN @unidades IS NOT NULL AND @kilos IS NOT NULL THEN 0 ELSE 1
+           END
+     WHERE id = @id AND familia = 'yogur'
+  `),
+  usos: db.prepare('SELECT COUNT(*) n FROM registros_yogur WHERE producto_id = ? AND anulado = 0'),
+  sinKilos: db.prepare(`
+    SELECT COUNT(*) n FROM registros_yogur
+     WHERE producto_id = ? AND anulado = 0 AND kilos IS NULL
+  `),
+}
+
 app.get('/api/envases', (_req, res) => {
-  res.json(
-    qEnvases.todos.all().map((e) => ({
+  res.json({
+    pallets: qEnvases.todos.all().map((e) => ({
       ...e,
       litros_por_pallet:
         e.bultos_por_pallet && e.unidades_por_bulto && e.litros_por_unidad
@@ -320,8 +345,50 @@ app.get('/api/envases', (_req, res) => {
       // Cuantos pallets se registraron con este formato. Si un envase provisorio ya
       // tiene pallets encima, completarlo no alcanza: hay que recalcular esos litros.
       pallets: qEnvases.usos.get(e.id).n,
-    }))
-  )
+    })),
+    yogur: qYogurFormato.todos.all().map((y) => ({
+      ...y,
+      kilos_por_bin:
+        y.unidades_por_bin && y.kilos_por_unidad
+          ? Math.round(y.unidades_por_bin * y.kilos_por_unidad * 100) / 100
+          : null,
+      bins: qYogurFormato.usos.get(y.id).n,
+      bins_sin_kilos: qYogurFormato.sinKilos.get(y.id).n,
+    })),
+  })
+})
+
+app.put('/api/yogur/formato/:id', (req, res) => {
+  const id = Number(req.params.id)
+  if (!qYogurFormato.todos.all().some((y) => y.id === id)) {
+    return res.status(404).json({ error: 'producto de yogur inexistente' })
+  }
+
+  const limpio = (v) => (v === null || v === undefined || v === '' ? null : Number(v))
+  const unidades = limpio(req.body?.unidades_por_bin)
+  const kilos = limpio(req.body?.kilos_por_unidad)
+
+  if (unidades !== null && (!Number.isInteger(unidades) || unidades < 1 || unidades > 100000)) {
+    return res.status(400).json({ error: 'unidades por caja: valor inválido' })
+  }
+  if (kilos !== null && !(kilos > 0 && kilos <= 100)) {
+    return res.status(400).json({ error: 'kilos por sachet: valor inválido' })
+  }
+
+  qYogurFormato.actualizar.run({ id, unidades, kilos })
+
+  // Las cajas ya registradas sin kilos se completan, igual que los pallets al cargar
+  // un formato: esos kilos nunca se supieron, no es que hayan cambiado.
+  let rellenadas = 0
+  if (kilos !== null) {
+    rellenadas = db.prepare(`
+      UPDATE registros_yogur
+         SET kilos = unidades * ?
+       WHERE producto_id = ? AND kilos IS NULL AND anulado = 0
+    `).run(kilos, id).changes
+  }
+
+  res.json({ ok: true, bins_rellenados: rellenadas })
 })
 
 app.put('/api/envases/:id', (req, res) => {
@@ -1264,7 +1331,7 @@ const qTab = {
      WHERE anulado = 0 AND litros IS NULL AND date(fecha_hora, 'localtime') = ?
   `),
   yogurHoy: db.prepare(`
-    SELECT p.nombre AS sabor, COUNT(*) AS cajas,
+    SELECT p.nombre AS sabor, COUNT(*) AS bins,
            COALESCE(SUM(y.unidades), 0) AS unidades, SUM(y.kilos) AS kilos
       FROM registros_yogur y
       JOIN productos p ON p.id = y.producto_id
@@ -1408,7 +1475,7 @@ app.get('/api/tablero', (_req, res) => {
       const detalle = qTab.yogurHoy.all(hoy)
       return {
         detalle,
-        cajas: detalle.reduce((n, r) => n + r.cajas, 0),
+        bins: detalle.reduce((n, r) => n + r.bins, 0),
         unidades: detalle.reduce((n, r) => n + r.unidades, 0),
         kilos: detalle.reduce((n, r) => n + (r.kilos ?? 0), 0),
       }
@@ -1498,7 +1565,7 @@ const qRep = {
   `),
   yogur: db.prepare(`
     SELECT m.nombre AS marca, p.nombre AS sabor,
-           COUNT(*) AS cajas, COALESCE(SUM(y.unidades), 0) AS unidades, SUM(y.kilos) AS kilos
+           COUNT(*) AS bins, COALESCE(SUM(y.unidades), 0) AS unidades, SUM(y.kilos) AS kilos
       FROM registros_yogur y
       JOIN marcas    m ON m.id = y.marca_id
       JOIN productos p ON p.id = y.producto_id
@@ -1612,7 +1679,7 @@ app.get('/api/reportes', (req, res) => {
       tinas: rendimiento.reduce((n, r) => n + r.tinas, 0),
       pallets: dias.reduce((n, d) => n + d.pallets, 0),
       litros: dias.reduce((n, d) => n + d.litros, 0),
-      yogur_cajas: qRep.yogur.all(desde, hasta).reduce((n, r) => n + r.cajas, 0),
+      yogur_bins: qRep.yogur.all(desde, hasta).reduce((n, r) => n + r.bins, 0),
       yogur_unidades: qRep.yogur.all(desde, hasta).reduce((n, r) => n + r.unidades, 0),
       en_sal: qRep.enSalAhora.get().n,
       minutos_a_sal: mediana,

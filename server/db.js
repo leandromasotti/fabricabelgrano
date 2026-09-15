@@ -298,7 +298,19 @@ agregarColumna('productos', 'litros_por_caja', 'INTEGER NOT NULL DEFAULT 12')
 // Yogur: el sachet se trabaja por kilos. El peso queda en NULL hasta que la fabrica
 // lo confirme; mostrar un peso inventado seria peor que no mostrar nada.
 agregarColumna('productos', 'kilos_por_unidad', 'REAL')
-agregarColumna('productos', 'unidades_por_caja', 'INTEGER')
+agregarColumna('productos', 'unidades_por_bin', 'INTEGER')
+
+// El recipiente del yogur se llama BIN PLASTICO y tiene 500 litros de capacidad: por
+// eso entran ~500 sachets de 1 litro. Se llamaba "caja" por una lectura mia del
+// primer relevamiento; usar el nombre real importa porque es lo que el operario ve en
+// la tablet y lo que dice cuando algo no cuadra.
+if (columnasDe('productos').includes('unidades_por_caja')) {
+  const viejos = db.prepare('SELECT id, unidades_por_caja FROM productos WHERE unidades_por_caja IS NOT NULL').all()
+  const pasar = db.prepare('UPDATE productos SET unidades_por_bin = ? WHERE id = ? AND unidades_por_bin IS NULL')
+  for (const f of viejos) pasar.run(f.unidades_por_caja, f.id)
+  db.exec('ALTER TABLE productos DROP COLUMN unidades_por_caja')
+  console.log('  columna unidades_por_caja renombrada a unidades_por_bin')
+}
 agregarColumna('productos', 'datos_provisorios', 'INTEGER NOT NULL DEFAULT 1')
 
 // Los litros se CONGELAN en cada registro, no se calculan al mostrarlos.

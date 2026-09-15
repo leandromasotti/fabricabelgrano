@@ -2,9 +2,9 @@
 // cliente: son dos puestos distintos y mezclarlos obligaría a elegir "leche o yogur"
 // en cada registro, un toque de más todo el día para nada.
 //
-// Se registra CAJA POR CAJA. Cada caja lleva la cantidad configurada de sachets
-// —hoy 500, dada por el cliente como aproximada— así que el operario solo elige marca
-// y sabor: dos toques y listo.
+// Se registra BIN POR BIN. El recipiente es un bin plástico de 500 litros, así que
+// entran ~500 sachets de 1 litro; esa cantidad está configurada, y el operario solo
+// elige marca y sabor: dos toques y listo.
 //
 // Solo dos sabores (vainilla y frutilla) y dos marcas: Ovenac no hace yogur. El
 // catálogo ya viene filtrado por el servidor, así que acá no hay ninguna regla escrita
@@ -44,7 +44,7 @@ async function registrar() {
     marca_id: est.marca.id,
     producto_id: est.producto.id,
   }
-  const unidades = est.producto.unidades_por_caja ?? 0
+  const unidades = est.producto.unidades_por_bin ?? 0
   const kilos = est.producto.kilos_por_unidad ? est.producto.kilos_por_unidad * unidades : null
 
   const local = {
@@ -113,7 +113,7 @@ function fila(r, pendiente = false) {
 
 function agregarFila(r, pendiente) {
   $('lista-hoy').prepend(fila(r, pendiente))
-  $('cajas-hoy').textContent = Number($('cajas-hoy').textContent) + 1
+  $('bins-hoy').textContent = Number($('bins-hoy').textContent) + 1
   $('unidades-hoy').textContent =
     (Number($('unidades-hoy').textContent.replace(/\./g, '')) + r.unidades).toLocaleString('es-AR')
 }
@@ -121,8 +121,8 @@ function agregarFila(r, pendiente) {
 async function refrescarHoy() {
   if (!red.hay) return
   try {
-    const { registros, cajas, unidades, kilos } = await (await fetch('/api/yogur')).json()
-    $('cajas-hoy').textContent = cajas
+    const { registros, bins, unidades, kilos } = await (await fetch('/api/yogur')).json()
+    $('bins-hoy').textContent = bins
     $('unidades-hoy').textContent = unidades.toLocaleString('es-AR')
     $('kilos-hoy').textContent = kilos ? ` · ${kilos.toLocaleString('es-AR')} kg` : ''
     $('lista-hoy').replaceChildren(...registros.slice(0, 20).map((r) => fila(r)))
