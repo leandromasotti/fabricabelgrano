@@ -12,6 +12,7 @@ Sistema de seguimiento de producción para fábrica de lácteos y quesos, con ta
 | [04-plan-mvp.md](04-plan-mvp.md) | Plan de fases, alcance del MVP y diseño de la primera pantalla |
 | [05-piloto.md](05-piloto.md) | **Qué instalar, qué mirar y qué decidir en la semana de piloto** |
 | [06-despliegue.md](06-despliegue.md) | Cómo ponerlo online para que lo vea el cliente |
+| [07-laboratorio.md](07-laboratorio.md) | Análisis del material de laboratorio y qué conviene sumar al MVP |
 
 ## Fuente
 
