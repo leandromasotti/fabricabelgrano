@@ -205,6 +205,24 @@ ambiente". ❓ Puede haber dos ensayos distintos, o ser el mismo con otro nombre
 
 ## 5. Qué propongo agregar al MVP, y en qué orden
 
+> ## ✅ CONSTRUIDO (2026-09-15)
+>
+> **Respuestas del cliente que definieron el diseño:**
+> - El caudalímetro **no tiene salida de datos** todavía — están trabajando en automatizarlo.
+>   Por eso la carga es manual, y la pantalla se hizo para copiar el ticket rápido: los pasos van
+>   en el mismo orden en que salen impresos (tambo → litros → temperatura).
+> - **El pago al tambo se hace hoy sumando las cantidades a mano.** Eso cambió cuál era la parte
+>   valiosa: la pantalla de carga solo mueve el tipeo de lugar; **el reporte por tambo es lo que
+>   hace desaparecer la suma**.
+> - Los análisis siguen sin definirse, así que **no se construyeron**. Nada inventado.
+>
+> **Qué quedó:** `/recepcion.html` (tablet) y `/leche-cruda.html` (reporte imprimible por tambo,
+> con filtro por fecha y por tambo, export CSV y vista de impresión sin filtros ni botones).
+>
+> La temperatura se carga como la balanza de pedidos: dígitos desde la derecha, sin tecla de coma.
+> Teclear 1-2-3 da 12,3 °C. Y las entregas por encima de 8 °C se resaltan — umbral provisorio, falta
+> el límite real de la fábrica.
+
 ### Primero: recepción de leche cruda con sus análisis
 **Por qué:** el cliente dijo que es lo que más le interesa, y es el sector que cierra el circuito.
 Reemplaza la hoja manuscrita y habilita el rendimiento real litros → queso.

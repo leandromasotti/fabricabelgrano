@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101418">
+  <title>Recepción de leche cruda</title>
+  <link rel="icon" href="data:,">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>RECEPCIÓN</h1>
+      <div class="migas" id="migas"></div>
+      <button class="btn-txt" id="btn-volver" hidden>Volver</button>
+      <button class="btn-txt" id="btn-reiniciar" hidden>Cambiar</button>
+      <div class="estado" id="estado"><span class="punto"></span><span id="estado-txt">En línea</span></div>
+    </header>
+
+    <section class="paso" id="paso-operario">
+      <p class="pregunta">¿Quién sos?</p>
+      <div class="opciones" id="op-operarios"></div>
+    </section>
+
+    <!-- El orden de los pasos es el mismo en que salen los datos en el ticket del
+         caudalímetro: tambo, litros, temperatura. Así se copia de arriba a abajo
+         sin tener que buscar. -->
+    <section class="paso" id="paso-tambo" hidden>
+      <p class="pregunta">¿Qué tambo?</p>
+      <div class="opciones" id="op-tambos"></div>
+    </section>
+
+    <section class="paso" id="paso-litros" hidden>
+      <p class="pregunta">¿Cuántos litros?</p>
+      <div class="centrado">
+        <div class="contador">
+          <div class="valor vacio" id="litros-valor">0</div>
+          <div class="unidad">litros</div>
+        </div>
+        <div class="teclado" id="teclado-litros"></div>
+      </div>
+    </section>
+
+    <section class="paso" id="paso-temperatura" hidden>
+      <p class="pregunta">¿Qué temperatura?</p>
+      <div class="centrado">
+        <div class="contador">
+          <div class="valor vacio" id="temp-valor">0,0</div>
+          <div class="unidad">grados</div>
+        </div>
+        <div class="teclado" id="teclado-temp"></div>
+      </div>
+    </section>
+
+    <section class="paso" id="paso-listo" hidden>
+      <div class="confirmacion">
+        <div class="tilde">✓</div>
+        <div class="titulo">RECEPCIÓN REGISTRADA</div>
+        <div class="hora" id="listo-litros"></div>
+        <div class="detalle" id="listo-detalle"></div>
+        <div class="acciones-confirmacion">
+          <button class="btn-deshacer" id="btn-deshacer">DESHACER · <span id="deshacer-seg">60</span>s</button>
+          <button class="btn-seguir" id="btn-seguir">SEGUIR</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="historial">
+      <div class="historial-titulo">
+        <span>Hoy · <span id="litros-hoy">0</span> litros</span>
+        <strong id="entregas-hoy">0</strong>
+      </div>
+      <div id="lista-hoy"></div>
+    </section>
+  </div>
+
+  <script type="module" src="/recepcion.js"></script>
+</body>
+</html>

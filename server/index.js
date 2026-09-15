@@ -72,6 +72,189 @@ app.get('/api/catalogo', (req, res) => {
   })
 })
 
+// ---------------------------------------------------------------- recepcion
+
+// Recepcion de leche cruda: el inicio real del circuito.
+//
+// El caudalimetro imprime un ticket y alguien lo tipea. No tiene salida de datos
+// todavia — la fabrica esta trabajando en automatizarlo — asi que la pantalla se
+// disena para copiar el ticket rapido, con los campos en el mismo orden en que salen
+// impresos: tambo, litros, temperatura.
+//
+// LO QUE REEMPLAZA TRABAJO NO ES LA CARGA, ES EL REPORTE. Hoy el pago a cada tambo se
+// calcula sumando las cantidades a mano. La pantalla de carga solo mueve el tipeo de
+// lugar; el reporte por tambo es lo que hace desaparecer la suma.
+
+const qRec = {
+  tambos: db.prepare('SELECT id, numero, nombre FROM tambos WHERE activo = 1 ORDER BY orden, numero'),
+  porClientId: db.prepare('SELECT id FROM recepciones WHERE client_id = ?'),
+  insertar: db.prepare(`
+    INSERT INTO recepciones
+      (client_id, fecha_hora, registrado_en, origen, sincronizado, operario_id, tambo_id,
+       litros, temperatura, remito)
+    VALUES
+      (@client_id, @fecha_hora, @registrado_en, @origen, @sincronizado, @operario_id, @tambo_id,
+       @litros, @temperatura, @remito)
+  `),
+  detalle: db.prepare(`
+    SELECT r.id, r.client_id, r.fecha_hora, r.origen, r.litros, r.temperatura, r.remito,
+           r.anulado, o.nombre AS operario, t.numero AS tambo
+      FROM recepciones r
+      JOIN operarios o ON o.id = r.operario_id
+      JOIN tambos    t ON t.id = r.tambo_id
+     WHERE r.id = ?
+  `),
+  delDia: db.prepare(`
+    SELECT r.id, r.fecha_hora, r.origen, r.litros, r.temperatura, r.remito, r.anulado,
+           o.nombre AS operario, t.numero AS tambo
+      FROM recepciones r
+      JOIN operarios o ON o.id = r.operario_id
+      JOIN tambos    t ON t.id = r.tambo_id
+     WHERE date(r.fecha_hora, 'localtime') = ?
+     ORDER BY r.fecha_hora DESC
+  `),
+  anular: db.prepare(
+    'UPDATE recepciones SET anulado = 1, anulado_en = ? WHERE id = ? AND anulado = 0'
+  ),
+  // El reporte que reemplaza la suma manual.
+  //
+  // El filtro de tambo se aplica a las TRES consultas, no solo al detalle: si la tabla
+  // y los totales siguieran mostrando todos los tambos mientras el detalle muestra uno,
+  // los numeros de la misma pantalla se contradicen.
+  porTambo: db.prepare(`
+    SELECT t.numero AS tambo, t.nombre,
+           COUNT(*) AS entregas,
+           SUM(r.litros) AS litros,
+           ROUND(AVG(r.temperatura), 1) AS temp_promedio,
+           MAX(r.temperatura) AS temp_maxima,
+           MIN(date(r.fecha_hora, 'localtime')) AS primera,
+           MAX(date(r.fecha_hora, 'localtime')) AS ultima
+      FROM recepciones r
+      JOIN tambos t ON t.id = r.tambo_id
+     WHERE r.anulado = 0
+       AND date(r.fecha_hora, 'localtime') BETWEEN ? AND ?
+       AND (? = '' OR t.numero = ?)
+     GROUP BY t.id
+     ORDER BY litros DESC
+  `),
+  porDia: db.prepare(`
+    SELECT date(r.fecha_hora, 'localtime') AS fecha,
+           COUNT(*) AS entregas, SUM(r.litros) AS litros
+      FROM recepciones r
+      JOIN tambos t ON t.id = r.tambo_id
+     WHERE r.anulado = 0
+       AND date(r.fecha_hora, 'localtime') BETWEEN ? AND ?
+       AND (? = '' OR t.numero = ?)
+     GROUP BY fecha
+     ORDER BY fecha
+  `),
+  detallePeriodo: db.prepare(`
+    SELECT r.fecha_hora, t.numero AS tambo, r.litros, r.temperatura, r.remito,
+           o.nombre AS operario
+      FROM recepciones r
+      JOIN tambos    t ON t.id = r.tambo_id
+      JOIN operarios o ON o.id = r.operario_id
+     WHERE r.anulado = 0
+       AND date(r.fecha_hora, 'localtime') BETWEEN ? AND ?
+       AND (? = '' OR t.numero = ?)
+     ORDER BY r.fecha_hora
+  `),
+}
+
+app.get('/api/tambos', (_req, res) => res.json(qRec.tambos.all()))
+
+app.post('/api/recepciones', (req, res) => {
+  const { client_id, operario_id, tambo_id, litros, temperatura, remito, fecha_hora_cliente } =
+    req.body ?? {}
+
+  if (!client_id || !operario_id || !tambo_id) {
+    return res.status(400).json({ error: 'faltan campos obligatorios' })
+  }
+  // Un camion no trae 12 litros ni 200.000. El rango no es una validacion de tipo:
+  // atrapa el cero de mas o de menos antes de que entre en una liquidacion.
+  if (!Number.isInteger(litros) || litros < 50 || litros > 60000) {
+    return res.status(400).json({ error: 'litros fuera de rango (50 a 60.000)' })
+  }
+  if (temperatura !== null && temperatura !== undefined) {
+    if (!(temperatura >= 0 && temperatura <= 40)) {
+      return res.status(400).json({ error: 'temperatura fuera de rango (0 a 40 °C)' })
+    }
+  }
+
+  const previo = qRec.porClientId.get(client_id)
+  if (previo) return res.json({ ...qRec.detalle.get(previo.id), duplicado: true })
+
+  if (!existe('operarios', operario_id)) return res.status(400).json({ error: 'operario inexistente' })
+  if (!existe('tambos', tambo_id)) return res.status(400).json({ error: 'tambo inexistente' })
+
+  const marca = marcaDeTiempo(fecha_hora_cliente)
+  const info = qRec.insertar.run({
+    client_id,
+    ...marca,
+    registrado_en: ahora(),
+    operario_id,
+    tambo_id,
+    litros,
+    temperatura: temperatura ?? null,
+    remito: remito ?? null,
+  })
+  res.status(201).json(qRec.detalle.get(info.lastInsertRowid))
+})
+
+app.get('/api/recepciones', (req, res) => {
+  const fecha = req.query.fecha ?? hoyLocal()
+  const recepciones = qRec.delDia.all(fecha)
+  const vivas = recepciones.filter((r) => !r.anulado)
+  res.json({
+    fecha,
+    entregas: vivas.length,
+    litros: vivas.reduce((n, r) => n + r.litros, 0),
+    recepciones,
+  })
+})
+
+app.post('/api/recepciones/:id/anular', (req, res) => {
+  const id = Number(req.params.id)
+  if (qRec.anular.run(ahora(), id).changes === 0) {
+    return res.status(404).json({ error: 'no existe o ya estaba anulada' })
+  }
+  res.json(qRec.detalle.get(id))
+})
+
+// El reporte por tambo: lo que hoy se hace sumando a mano.
+app.get('/api/recepciones/reporte', (req, res) => {
+  const [desde, hasta] = rango(req)
+  const tambo = req.query.tambo ?? ''
+
+  const porTambo = qRec.porTambo.all(desde, hasta, tambo, tambo)
+  res.json({
+    desde,
+    hasta,
+    por_tambo: porTambo,
+    por_dia: qRec.porDia.all(desde, hasta, tambo, tambo),
+    detalle: qRec.detallePeriodo.all(desde, hasta, tambo, tambo),
+    total: {
+      litros: porTambo.reduce((n, r) => n + r.litros, 0),
+      entregas: porTambo.reduce((n, r) => n + r.entregas, 0),
+      tambos: porTambo.length,
+    },
+  })
+})
+
+app.get('/api/recepciones.csv', (req, res) => {
+  const [desde, hasta] = rango(req)
+  const tambo = req.query.tambo ?? ''
+  const filas = qRec.porTambo.all(desde, hasta, tambo, tambo)
+  const csv = [
+    'tambo,entregas,litros,temp_promedio,temp_maxima,primera,ultima',
+    ...filas.map((r) =>
+      [r.tambo, r.entregas, r.litros, r.temp_promedio ?? '', r.temp_maxima ?? '', r.primera, r.ultima].join(',')
+    ),
+    ['TOTAL', filas.reduce((n, r) => n + r.entregas, 0), filas.reduce((n, r) => n + r.litros, 0), '', '', desde, hasta].join(','),
+  ].join('\n')
+  res.type('text/csv').attachment(`leche-cruda-${desde}_${hasta}.csv`).send(csv)
+})
+
 // ---------------------------------------------------------------- lecheria
 
 const qPallet = {
@@ -1621,7 +1804,8 @@ const qRep = {
   `),
 }
 
-// Rango por defecto: ultimos 30 dias.
+// Rango por defecto: ultimos 30 dias. (Definida con `function` a proposito: se usa
+// tambien en recepcion, que esta mas arriba en el archivo.)
 function rango(req) {
   const hasta = req.query.hasta ?? hoyLocal()
   const desde =

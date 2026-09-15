@@ -37,7 +37,7 @@ if (!sector) {
   process.exit(0)
 }
 
-const SECTORES = ['lecheria', 'yogures', 'queseria', 'saladero', 'maduracion', 'envasado', 'pedidos']
+const SECTORES = ['lecheria', 'yogures', 'recepcion', 'queseria', 'saladero', 'maduracion', 'envasado', 'pedidos']
 if (!SECTORES.includes(sector)) {
   console.error(`Sector desconocido: "${sector}"`)
   console.error(`Tiene que ser uno de: ${SECTORES.join(', ')}`)

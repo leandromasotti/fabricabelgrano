@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Leche cruda · litros por tambo</title>
+  <link rel="icon" href="data:,">
+  <style>
+    :root {
+      color-scheme: light;
+      --surface: #fcfcfb; --plane: #f9f9f7;
+      --ink: #0b0b0b; --ink-2: #52514e; --ink-muted: #898781;
+      --grid: #e1e0d9; --axis: #c3c2b7; --borde: rgba(11,11,11,.10);
+      --acento: #2a78d6; --alerta: #c4562f;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root:where(:not([data-theme="light"])) {
+        color-scheme: dark;
+        --surface: #1a1a19; --plane: #0d0d0d;
+        --ink: #fff; --ink-2: #c3c2b7; --ink-muted: #898781;
+        --grid: #2c2c2a; --axis: #383835; --borde: rgba(255,255,255,.10);
+        --acento: #3987e5;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--plane); color: var(--ink);
+           font: 15px/1.45 system-ui, -apple-system, 'Segoe UI', sans-serif; }
+    .wrap { max-width: 1000px; margin: 0 auto; padding: 26px 20px 70px; }
+
+    header { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 4px; }
+    h1 { font-size: 23px; margin: 0; }
+    .sub { color: var(--ink-2); font-size: 14px; margin-bottom: 18px; }
+
+    .filtros {
+      display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+      background: var(--surface); border: 1px solid var(--borde);
+      border-radius: 10px; padding: 12px 14px; margin-bottom: 20px;
+    }
+    label { font-size: 13px; color: var(--ink-2); }
+    input[type=date], select {
+      font: inherit; font-size: 14px; padding: 7px 9px; color: var(--ink);
+      background: var(--surface); border: 1px solid var(--axis); border-radius: 7px;
+    }
+    button {
+      font: 600 13px system-ui, sans-serif; padding: 8px 14px; cursor: pointer;
+      background: transparent; color: var(--ink-2);
+      border: 1px solid var(--axis); border-radius: 7px;
+    }
+    button:hover { background: var(--plane); }
+    button.primario { background: var(--acento); border-color: var(--acento); color: #fff; }
+    .crece { flex: 1; }
+
+    .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+    .kpi { background: var(--surface); border: 1px solid var(--borde); border-radius: 10px; padding: 15px 17px; }
+    .kpi .v { font-size: 30px; font-weight: 700; line-height: 1.1; }
+    .kpi .t { font-size: 12px; color: var(--ink-2); text-transform: uppercase; letter-spacing: .7px; margin-top: 3px; }
+
+    h2 { font-size: 15px; margin: 24px 0 10px; font-weight: 650; }
+    table { width: 100%; border-collapse: collapse; background: var(--surface);
+            border: 1px solid var(--borde); border-radius: 10px; overflow: hidden; font-size: 14px; }
+    th, td { padding: 9px 11px; border-bottom: 1px solid var(--grid); text-align: left; }
+    th { font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--ink-muted);
+         font-weight: 600; background: var(--plane); }
+    th.num, td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    tfoot td { font-weight: 800; border-top: 2px solid var(--axis); background: var(--plane); }
+    .caliente { color: var(--alerta); font-weight: 700; }
+    .vacio { padding: 34px; text-align: center; color: var(--ink-muted); }
+
+    /* ------------------------------------------------ impresión
+       El cliente pidió "largar un reporte, imprimirlo y guardarme uno semanal o del
+       día". Lo que se imprime es la tabla y los totales: los filtros, los botones y
+       los colores de pantalla no van al papel. */
+    .solo-impresion { display: none; }
+    @media print {
+      @page { margin: 14mm; }
+      body { background: #fff; color: #000; font-size: 11pt; }
+      .wrap { max-width: none; padding: 0; }
+      .filtros, .no-imprimir { display: none !important; }
+      .solo-impresion { display: block; }
+      .kpis { grid-template-columns: repeat(4, 1fr); gap: 8px; }
+      .kpi { border: 1px solid #999; border-radius: 0; padding: 8px 10px; }
+      .kpi .v { font-size: 18pt; }
+      table { border: 1px solid #999; font-size: 10pt; page-break-inside: auto; }
+      thead { display: table-header-group; }   /* el encabezado se repite en cada hoja */
+      tr { page-break-inside: avoid; }
+      th { background: #eee !important; color: #000; }
+      td, th { border-bottom: 1px solid #ccc; }
+      .caliente { color: #000; font-weight: 700; }
+      .caliente::after { content: " (!)"; }     /* en blanco y negro el color no se ve */
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Leche cruda · litros por tambo</h1>
+    <span class="sub" id="rango-txt"></span>
+  </header>
+  <div class="sub no-imprimir">
+    Reemplaza la suma manual para el pago a los tambos.
+  </div>
+  <div class="solo-impresion sub" id="pie-impresion"></div>
+
+  <div class="filtros">
+    <label for="desde">Desde</label>
+    <input type="date" id="desde">
+    <label for="hasta">Hasta</label>
+    <input type="date" id="hasta">
+    <button class="preset" data-dias="7">7 días</button>
+    <button class="preset" data-dias="30">30 días</button>
+    <label for="tambo">Tambo</label>
+    <select id="tambo"><option value="">Todos</option></select>
+    <span class="crece"></span>
+    <button id="btn-csv">CSV</button>
+    <button class="primario" id="btn-imprimir">Imprimir</button>
+  </div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <h2>Por tambo</h2>
+  <table id="t-tambos"></table>
+
+  <h2 class="no-imprimir">Detalle de entregas</h2>
+  <div class="no-imprimir"><table id="t-detalle"></table></div>
+</div>
+
+<script type="module" src="/leche-cruda.js"></script>
+</body>
+</html>

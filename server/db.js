@@ -229,6 +229,47 @@ db.exec(`
   -- Va como tabla y no como un flag "hace_yogur" porque la regla real es "esta marca
   -- hace estas familias": si manana Ovenac arranca con yogur, o aparece una cuarta
   -- marca que solo hace yogur, es una fila y no un cambio de codigo.
+  -- Tambos: los proveedores de leche cruda. La fabrica los identifica por numero
+  -- (se ven el 2, 4, 5, 6, 14 y 15 en la planilla).
+  CREATE TABLE IF NOT EXISTS tambos (
+    id     INTEGER PRIMARY KEY,
+    numero INTEGER NOT NULL UNIQUE,
+    nombre TEXT,
+    activo INTEGER NOT NULL DEFAULT 1,
+    orden  INTEGER NOT NULL DEFAULT 0
+  );
+
+  -- Recepcion de leche cruda. Es el inicio real del circuito: hasta ahora el sistema
+  -- sabia cuantas piezas salian, pero no de cuanta leche.
+  --
+  -- Hoy el caudalimetro imprime un ticket y alguien lo tipea (no tiene salida de datos
+  -- todavia; la fabrica esta trabajando en automatizarlo). Cuando la tenga, esta misma
+  -- tabla recibe los datos sin cambios y la pantalla queda como respaldo.
+  CREATE TABLE IF NOT EXISTS recepciones (
+    id           INTEGER PRIMARY KEY,
+    client_id    TEXT NOT NULL UNIQUE,
+    -- Cuando ENTRO la leche. Es lo que importa para el pago y para el reporte diario.
+    fecha_hora   TEXT NOT NULL,
+    -- Cuando se cargo al sistema. Hoy suelen coincidir, pero si algun dia se cargan
+    -- tickets atrasados la diferencia deja de ser cero y conviene poder verla.
+    registrado_en TEXT NOT NULL,
+    origen       TEXT NOT NULL DEFAULT 'online',
+    sincronizado TEXT,
+    operario_id  INTEGER NOT NULL REFERENCES operarios(id),
+    tambo_id     INTEGER NOT NULL REFERENCES tambos(id),
+    litros       INTEGER NOT NULL,
+    -- La leche tiene que llegar fria: es un control de calidad, no un adorno.
+    temperatura  REAL,
+    -- Numero de remito del ticket. Opcional: los papelitos se guardan igual, y pedirlo
+    -- en la tablet agregaria tipeo al unico momento en que hay que ser rapido.
+    remito       TEXT,
+    anulado      INTEGER NOT NULL DEFAULT 0,
+    anulado_en   TEXT
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_recepciones_fecha ON recepciones(fecha_hora);
+  CREATE INDEX IF NOT EXISTS idx_recepciones_tambo ON recepciones(tambo_id);
+
   CREATE TABLE IF NOT EXISTS marcas_familias (
     marca_id INTEGER NOT NULL REFERENCES marcas(id),
     familia  TEXT NOT NULL,

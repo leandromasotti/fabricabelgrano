@@ -56,6 +56,8 @@ const operarios = [
   { nombre: 'Operario 3', sector: 'lecheria', orden: 3 },
   { nombre: 'Yogurtero 1', sector: 'yogures', orden: 1 },
   { nombre: 'Yogurtero 2', sector: 'yogures', orden: 2 },
+  { nombre: 'Recepción 1', sector: 'recepcion', orden: 1 },
+  { nombre: 'Recepción 2', sector: 'recepcion', orden: 2 },
   { nombre: 'Quesero 1', sector: 'queseria', orden: 1 },
   { nombre: 'Quesero 2', sector: 'queseria', orden: 2 },
   { nombre: 'Salador 1', sector: 'saladero', orden: 1 },
@@ -139,6 +141,10 @@ const insertProducto = db.prepare(
 const insertOperario = db.prepare(
   'INSERT INTO operarios (nombre, sector, orden) VALUES (@nombre, @sector, @orden)'
 )
+// Tambos vistos en la planilla del 05.09.26. PLACEHOLDER: la lista real la tiene la
+// fabrica, y seguramente son mas. Se cargan con `npm run tambos`.
+const tambos = [2, 4, 5, 6, 14, 15].map((n, i) => ({ numero: n, orden: i + 1 }))
+
 // PLACEHOLDER - la lista real de clientes la tiene el encargado.
 const clientes = [
   { nombre: 'Cliente 1', orden: 1 },
@@ -148,6 +154,9 @@ const clientes = [
   { nombre: 'Cliente 5', orden: 5 },
 ]
 
+const insertTambo = db.prepare(
+  'INSERT INTO tambos (numero, orden) VALUES (@numero, @orden)'
+)
 const insertEnvase = db.prepare(`
   INSERT INTO envases (nombre, bultos_por_pallet, unidades_por_bulto, litros_por_unidad, provisorio, orden)
   VALUES (@nombre, @bultos, @unidades, @litros, @provisorio, @orden)
@@ -187,6 +196,11 @@ const cargar = db.transaction(() => {
     clientes.forEach((c) => insertCliente.run(c))
     console.log(`  clientes:  ${clientes.length}  <-- PLACEHOLDER, reemplazar`)
   }
+
+  const existeTambo = db.prepare('SELECT 1 FROM tambos WHERE numero = ?')
+  const nuevosTambos = tambos.filter((x) => !existeTambo.get(x.numero))
+  nuevosTambos.forEach((x) => insertTambo.run(x))
+  if (nuevosTambos.length) console.log(`  tambos:    +${nuevosTambos.length}  <-- PLACEHOLDER, revisar`)
 
   // Idempotente por nombre, igual que los quesos.
   const existeEnvase = db.prepare('SELECT 1 FROM envases WHERE nombre = ?')
