@@ -293,10 +293,17 @@ const qEnvases = {
            provisorio, activo
       FROM envases ORDER BY orden, nombre
   `),
+  // provisorio = 0 SOLO si los tres valores estan. Marcarlo confirmado con datos a
+  // medias dejaria un formato que dice "confirmado" pero sigue sin poder calcular
+  // litros, que es la peor combinacion: el tag miente y nadie vuelve a completarlo.
   actualizar: db.prepare(`
     UPDATE envases
        SET bultos_por_pallet = @bultos, unidades_por_bulto = @unidades,
-           litros_por_unidad = @litros, provisorio = 0
+           litros_por_unidad = @litros,
+           provisorio = CASE
+             WHEN @bultos IS NOT NULL AND @unidades IS NOT NULL AND @litros IS NOT NULL
+             THEN 0 ELSE 1
+           END
      WHERE id = @id
   `),
   usos: db.prepare('SELECT COUNT(*) n FROM registros_pallet WHERE envase_id = ? AND anulado = 0'),

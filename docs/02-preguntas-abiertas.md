@@ -156,10 +156,13 @@ avisar. Sin él, es solo una lista ordenada.
 
 ### B7. Lechería — lo que falta para cerrar el sector (2026-09-14)
 
-**Formatos de pallet.** Solo el de caja está confirmado. Faltan, para cada tipo de palangana:
+**Formatos de pallet.** Solo el de caja está confirmado. Faltan **dos números** por cada tipo
+de palangana:
 - ¿Cuántas palanganas entran en un pallet?
 - ¿Cuántos sachets entran en una palangana?
-- ¿De cuántos litros es el sachet? (¿siempre 1 L, o hay de ½ L / 900 cc?)
+
+✅ *El sachet de leche es de **1 litro** en todos los formatos (confirmado 2026-09-15), así que ya
+está cargado y no hace falta preguntarlo.*
 
 Se cargan en `/envases.html` sin tocar código, y los pallets ya registrados con ese formato se
 completan solos.
@@ -170,8 +173,9 @@ completan solos.
 - Las cajas, ¿traen **siempre** 500 sachets o varía? El cliente lo dio como aproximado. Si varía,
   el operario debería cargar la cantidad real en vez de que el sistema multiplique por un número
   que nadie garantiza — es el mismo caso que el rinde de la tina.
-- ¿Los operarios de yogures son **los mismos** que los de leches? Hoy son listas separadas porque
-  son dos tablets; si es la misma gente, se cargan en los dos sectores.
+- ✅ *Los operarios de yogures son **distintos** a los de leches y las tablets van en sectores
+  diferentes (confirmado 2026-09-15). El sistema ya los maneja como listas separadas:
+  `npm run operarios -- yogures "..."`.*
 
 ### B4. Correcciones y errores
 Nadie lo mencionó, y es lo primero que va a pasar en producción:

@@ -24,10 +24,12 @@ const productos = [
 // Los dos tipos de palangana quedan marcados como PROVISORIOS porque el cliente
 // todavia no tiene los numeros. La pantalla lo dice, y se corrigen desde
 // /envases.html sin tocar codigo.
+// El sachet de leche es de 1 litro en todos los formatos (confirmado 2026-09-15), asi
+// que de las palanganas solo faltan las dos cantidades.
 const envases = [
   { nombre: 'Caja 12 × 1 L', bultos: 70, unidades: 12, litros: 1, provisorio: 0, orden: 1 },
-  { nombre: 'Palangana', bultos: null, unidades: null, litros: null, provisorio: 1, orden: 2 },
-  { nombre: 'Palangana 2', bultos: null, unidades: null, litros: null, provisorio: 1, orden: 3 },
+  { nombre: 'Palangana', bultos: null, unidades: null, litros: 1, provisorio: 1, orden: 2 },
+  { nombre: 'Palangana 2', bultos: null, unidades: null, litros: 1, provisorio: 1, orden: 3 },
 ]
 
 // Que familia hace cada marca. El yogur va en dos marcas: Ovenac NO hace yogur

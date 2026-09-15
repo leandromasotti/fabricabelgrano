@@ -48,9 +48,20 @@ barra*, y el cremoso.
 
 ## Leche (sector lechería)
 
-**Pallet** (confirmado 2026-09-13): **70 cajas × 12 litros = 840 litros**. Es la unidad de trabajo
-del operario; los litros son la unidad de negocio del cliente. La equivalencia se guarda por
-producto y se congela en cada registro, así un cambio futuro de caja no reescribe la historia.
+**Pallet**: unidad de trabajo del operario; los litros son la unidad de negocio del cliente.
+**Los litros no son fijos**: dependen del formato en que se armó.
+
+| Formato | Composición | Litros |
+|---|---|---|
+| Caja 12 × 1 L | 70 cajas × 12 sachets × 1 L | **840** ✅ confirmado |
+| Palangana | ? palanganas × ? sachets × 1 L | a confirmar |
+| Palangana 2 | ? palanganas × ? sachets × 1 L | a confirmar |
+
+El **sachet de leche es de 1 litro** en todos los formatos (confirmado 2026-09-15). Un pallet es
+**homogéneo**: una marca, un tipo de leche, un envase. La equivalencia se congela en cada registro,
+así un cambio futuro de formato no reescribe la historia.
+
+**Caja de yogur**: ~500 sachets (aproximado, a confirmar). Se registra caja por caja, no por pallet.
 
 **Marcas** (A2 00:47): Central Lechera, **Lácteos Belgrano**, Ovenac❓ *(declarada como propia)*.
 
