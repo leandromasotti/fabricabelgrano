@@ -171,10 +171,16 @@ completan solos.
 - ✅ *El sachet pesa **1 kg** y el recipiente es un **bin plástico de 500 litros**, de ahí los ~500
   sachets y los ~500 kg por bin (confirmado 2026-09-15). Ya está cargado y es editable desde
   `/envases.html`.*
-- ❓ Los bins, ¿traen **siempre** 500 sachets o varía? El cliente lo dio como aproximado. Si varía,
-  el operario debería cargar la cantidad real en vez de que el sistema multiplique por un número
-  que nadie garantiza — es el mismo caso que el rinde de la tina.
-  **Cómo saberlo:** contar los sachets de unos cuantos bins durante el piloto y comparar.
+- ✅ **Decidido (2026-09-15):** la cantidad por bin **varía**, y se acordó usar **500 como valor de
+  trabajo** hasta tener una medición más precisa. Se ajusta desde `/envases.html` cuando la haya.
+
+  **Consecuencia que el sistema refleja:** la cantidad de **bins es exacta** —cada bin es un
+  registro real— pero los **sachets y los kilos son estimaciones**. Por eso aparecen con “≈” en la
+  tablet, el tablero y los reportes: un número redondo sin marcar se lee como medido, y termina
+  usándose para facturar o planificar.
+
+  Si en algún momento la precisión importa de verdad, la salida es la misma que con el rinde de la
+  tina: que el operario cargue la cantidad real del bin en vez de que el sistema multiplique.
 - ✅ *Los operarios de yogures son **distintos** a los de leches y las tablets van en sectores
   diferentes (confirmado 2026-09-15). El sistema ya los maneja como listas separadas:
   `npm run operarios -- yogures "..."`.*

@@ -67,6 +67,10 @@ por eso entran **~500 sachets de 1 litro**. Con 1 kg por sachet, unos **500 kg p
 La capacidad es el dato que explica el número: no son "500 sachets porque sí", son los que entran en
 500 litros. Si mañana cambiara el tamaño del sachet, la cantidad por bin se deduce de ahí.
 
+⚠️ **La cantidad real por bin varía** (confirmado 2026-09-15); 500 es el valor de trabajo acordado.
+Por eso en el sistema **los bins son un dato exacto y los sachets y kilos son estimaciones**, y se
+muestran con “≈”.
+
 El yogur se registra **bin por bin**, no por pallet: es otra tablet, en otro sector, con otros
 operarios.
 

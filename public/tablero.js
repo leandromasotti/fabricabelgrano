@@ -126,8 +126,11 @@ const top = (arr, campo = 'piezas') =>
 
 function pintarYogur(y) {
   $('#yogur-bins').textContent = fmt(y.bins)
+  // El conteo de bins es exacto; los sachets y los kilos salen de multiplicar por un
+  // valor que el cliente confirmo que varia. El "≈" evita que un numero de pared se
+  // lea como medido.
   $('#yogur-unidades').textContent =
-    `${fmt(y.unidades)} sachets` + (y.kilos ? ` · ${fmt(Math.round(y.kilos))} kg` : '')
+    `≈ ${fmt(y.unidades)} sachets` + (y.kilos ? ` · ≈ ${fmt(Math.round(y.kilos))} kg` : '')
   $('#yogur-sabores').replaceChildren(
     ...y.detalle.map((s) => el('div', null, `${fmt(s.bins)} ${s.sabor}`))
   )

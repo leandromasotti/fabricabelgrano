@@ -6,6 +6,11 @@
 // entran ~500 sachets de 1 litro; esa cantidad está configurada, y el operario solo
 // elige marca y sabor: dos toques y listo.
 //
+// EL BIN ES UN HECHO, LOS SACHETS Y LOS KILOS SON ESTIMACIONES. El cliente confirmó
+// que la cantidad por bin varía y decidió usar 500 como valor de trabajo hasta tener
+// precisión. Por eso los derivados se muestran con "≈": un número redondo sin marcar
+// se lee como medido, y alguien va a terminar facturando o planificando con él.
+//
 // Solo dos sabores (vainilla y frutilla) y dos marcas: Ovenac no hace yogur. El
 // catálogo ya viene filtrado por el servidor, así que acá no hay ninguna regla escrita
 // a mano.
@@ -62,8 +67,8 @@ async function registrar() {
   // Los kilos solo se muestran si el peso del sachet está confirmado. Mientras no lo
   // esté, mostrar un número redondo sería peor que no mostrar ninguno.
   $('listo-detalle').textContent =
-    `${local.marca} · ${local.producto} · ${unidades} sachets` +
-    (kilos ? ` · ${kilos.toLocaleString('es-AR')} kg` : '')
+    `${local.marca} · ${local.producto} · ≈ ${unidades} sachets` +
+    (kilos ? ` · ≈ ${kilos.toLocaleString('es-AR')} kg` : '')
   irA('listo')
   clearInterval(est.timer)
   est.timer = cuentaRegresiva(VENTANA_DESHACER, $('deshacer-seg'), reiniciar)
@@ -124,7 +129,7 @@ async function refrescarHoy() {
     const { registros, bins, unidades, kilos } = await (await fetch('/api/yogur')).json()
     $('bins-hoy').textContent = bins
     $('unidades-hoy').textContent = unidades.toLocaleString('es-AR')
-    $('kilos-hoy').textContent = kilos ? ` · ${kilos.toLocaleString('es-AR')} kg` : ''
+    $('kilos-hoy').textContent = kilos ? ` · ≈ ${kilos.toLocaleString('es-AR')} kg` : ''
     $('lista-hoy').replaceChildren(...registros.slice(0, 20).map((r) => fila(r)))
   } catch {
     red.hay = false

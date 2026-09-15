@@ -314,7 +314,7 @@ function pintarKpis(r) {
     { v: fmt(r.pallets), t: 'Pallets de leche' },
     // El cliente razona en litros, no en pallets: 1 pallet = 70 cajas x 12 L.
     { v: fmt(r.litros), t: 'Litros de leche', n: 'según el formato de cada pallet' },
-    { v: fmt(r.yogur_bins), t: 'Bins de yogur', n: `${fmt(r.yogur_unidades)} sachets` },
+    { v: fmt(r.yogur_bins), t: 'Bins de yogur', n: `≈ ${fmt(r.yogur_unidades)} sachets · estimado` },
     { v: fmt(r.en_sal), t: 'En sal ahora', n: 'no depende del período' },
     {
       v: horas != null ? `${horas} h` : '—',
