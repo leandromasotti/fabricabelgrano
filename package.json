@@ -10,7 +10,8 @@
     "seed": "node server/seed.js",
     "demo": "node server/demo.js",
     "backup": "node server/backup.js",
-    "operarios": "node server/operarios.js"
+    "operarios": "node server/operarios.js",
+    "migrar": "node migraciones/migrar-desde-sqlite.js"
   },
   "engines": {
     "node": ">=20"

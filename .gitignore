@@ -10,3 +10,4 @@ proof/
 # Notas de voz del cliente: se quedan en la máquina, no se versionan.
 # Las transcripciones sí se suben, que son el insumo real de trabajo.
 requerimientos/*.ogg
+migraciones/datos.sql

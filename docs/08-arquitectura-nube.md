@@ -107,9 +107,26 @@ Las dos versiones conviven en el mismo dominio sin problema: son rutas distintas
 
 ## 4. Orden propuesto
 
-**1. Esquema en Postgres** ← *hecho:* [`migraciones/001-esquema.sql`](../migraciones/001-esquema.sql)
+**1. Esquema en Postgres** ← *hecho y **probado contra PostgreSQL 16***:
+[`migraciones/001-esquema.sql`](../migraciones/001-esquema.sql)
 
-**2. Migrar los datos y apuntar el servidor actual a Postgres.**
+**2. Migrar los datos** ← *hecho y **probado con los datos reales***:
+[`migraciones/migrar-desde-sqlite.js`](../migraciones/migrar-desde-sqlite.js) (`npm run migrar`)
+
+Las 893 filas entran sin violar un solo CHECK, y los totales del negocio —litros de leche
+cruda, litros envasados, piezas de queso, gramos pesados— coinciden exactamente con
+SQLite.
+
+> **La migración encontró un problema que no se veía:** el esquema nuevo exige que un
+> queso aparezca una sola vez por pedido, y en los datos había un pedido con Cremoso
+> cargado dos veces (100 y 20 piezas). La primera versión del script lo descartaba **en
+> silencio** con `ON CONFLICT DO NOTHING` — se perdían 20 piezas pedidas. Ahora las
+> **suma**, que es lo mismo que hace la pantalla nueva, y repunta las pesadas de la línea
+> fusionada para que no queden huérfanas.
+>
+> Es exactamente el tipo de cosa que aparece al migrar de verdad y no al planificar.
+
+**2b. Apuntar el servidor actual a Postgres.**
 El sistema que ya existe sigue funcionando igual, pero contra Postgres en vez de SQLite.
 Valor inmediato: backups administrados y datos accesibles desde afuera. **Sin tocar una
 sola pantalla.**
@@ -158,6 +175,21 @@ navegador. El esquema la activa en todas las tablas y **sin políticas**, que es
 seguro: nadie entra con la clave anónima hasta que se decida quién debe poder qué.
 
 Se abre a propósito, no por olvido.
+
+### Probado en local, falta Supabase
+
+El esquema y la migración corren contra **PostgreSQL 16 en Docker**. Supabase usa 15 y
+todo lo que se usa existe en ambas —columnas generadas, identity, enums, RLS— pero el
+primer `supabase db push` es el que lo confirma de verdad.
+
+Para reproducirlo:
+
+```bash
+docker exec postgres psql -U postgres -c "CREATE DATABASE fabrica_belgrano"
+docker exec -i postgres psql -U postgres -d fabrica_belgrano < migraciones/001-esquema.sql
+npm run migrar > migraciones/datos.sql
+docker exec -i postgres psql -U postgres -d fabrica_belgrano < migraciones/datos.sql
+```
 
 ### Nada de esto fue usado por un operario todavía
 
