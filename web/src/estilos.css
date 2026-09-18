@@ -1,0 +1,214 @@
+@import 'tailwindcss';
+
+/* La paleta de datos viene tal cual de reportes.html, donde ya pasó el validador del
+   skill de dataviz contra estas mismas superficies (#fcfcfb claro / #1a1a19 oscuro).
+   No se re-eligen colores acá: los tres slots categóricos pasan todos los gates en
+   ambos modos, y volver a tocarlos obliga a volver a correr el validador.
+
+   Los tokens se declaran en @theme para que Tailwind genere las utilidades
+   (bg-superficie, text-tinta-2, ...) y al mismo tiempo queden como variables CSS,
+   que es como los leen los SVG de los gráficos. */
+@theme {
+  --color-superficie: #fcfcfb;
+  --color-plano: #f9f9f7;
+  --color-tinta: #0b0b0b;
+  --color-tinta-2: #52514e;
+  --color-tinta-suave: #898781;
+  --color-grilla: #e1e0d9;
+  --color-eje: #c3c2b7;
+  --color-borde: rgb(11 11 11 / 0.1);
+  --color-tenue: #c3c2b7;
+
+  --color-serie-1: #2a78d6; /* azul    */
+  --color-serie-2: #eb6834; /* naranja */
+  --color-serie-3: #1baf7a; /* aqua    */
+  --color-secuencial: #2a78d6;
+
+  /* Estados. Reservados: nunca se usan como "serie 4". */
+  --color-bien: #1baf7a;
+  --color-atencion: #c98a00;
+  --color-alerta: #d14343;
+
+  --font-sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+/* El modo oscuro se elige, no se invierte: cada token se vuelve a declarar contra la
+   superficie oscura. Un flip automático rompería justo los tres colores validados. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-tema='claro']) {
+    color-scheme: dark;
+    --color-superficie: #1a1a19;
+    --color-plano: #0d0d0d;
+    --color-tinta: #ffffff;
+    --color-tinta-2: #c3c2b7;
+    --color-tinta-suave: #898781;
+    --color-grilla: #2c2c2a;
+    --color-eje: #383835;
+    --color-borde: rgb(255 255 255 / 0.1);
+    --color-tenue: #383835;
+    --color-serie-1: #3987e5;
+    --color-serie-2: #d95926;
+    --color-serie-3: #199e70;
+    --color-secuencial: #3987e5;
+    --color-bien: #199e70;
+    --color-atencion: #d69e00;
+    --color-alerta: #e05a5a;
+  }
+}
+
+:root[data-tema='oscuro'] {
+  color-scheme: dark;
+  --color-superficie: #1a1a19;
+  --color-plano: #0d0d0d;
+  --color-tinta: #ffffff;
+  --color-tinta-2: #c3c2b7;
+  --color-tinta-suave: #898781;
+  --color-grilla: #2c2c2a;
+  --color-eje: #383835;
+  --color-borde: rgb(255 255 255 / 0.1);
+  --color-tenue: #383835;
+  --color-serie-1: #3987e5;
+  --color-serie-2: #d95926;
+  --color-serie-3: #199e70;
+  --color-secuencial: #3987e5;
+  --color-bien: #199e70;
+  --color-atencion: #d69e00;
+  --color-alerta: #e05a5a;
+}
+
+html,
+body,
+#raiz {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-plano);
+  color: var(--color-tinta);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.45;
+}
+
+/* Los números de una tabla se comparan en vertical: sin cifras de ancho fijo, "1.480"
+   y "999" no alinean y hay que leer cada uno en vez de barrer la columna. */
+.cifras {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------- impresión
+
+   POR QUÉ HAY PAPEL SI YA HAY TABLET: las tablets están amuradas a la pared. El armador
+   camina por la cámara juntando piezas, así que necesita la lista en la mano. La orden
+   baja en papel, los pesos suben por la tablet — y esa vuelta digital es donde estaba la
+   ganancia: el encargado factura sin esperar que suba ningún papel.
+
+   Va en CSS plano y no en utilidades: son milímetros, saltos de página y reglas que sólo
+   existen en papel. Escrito con clases quedaría ilegible y nadie se animaría a tocarlo.  */
+
+.hojas {
+  display: none;
+}
+
+@media print {
+  @page {
+    margin: 12mm;
+  }
+
+  body {
+    background: #fff;
+    color: #000;
+    font-size: 11pt;
+  }
+
+  /* Sólo se imprimen las hojas: ni el menú, ni los filtros, ni la tabla de la pantalla. */
+  .no-imprimir {
+    display: none !important;
+  }
+
+  .hojas {
+    display: block;
+  }
+
+  /* El contenedor de la pantalla aporta márgenes y un ancho máximo que en papel sólo
+     achican el área útil. En impresión manda @page. */
+  main,
+  main > div {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
+  }
+
+  .hoja {
+    border: 1.5px solid #000;
+    padding: 8mm;
+    margin-bottom: 6mm;
+    /* Varios pedidos entran en la misma hoja, pero un pedido NUNCA se parte entre dos
+       páginas: el armador quedaría con media lista. */
+    page-break-inside: avoid;
+  }
+
+  /* Por defecto entran varios pedidos por hoja, que es lo que se pidió. Con la opción
+     activada cada uno sale en su propia página, para repartir hojas sueltas. */
+  .hojas.separadas .hoja {
+    page-break-after: always;
+  }
+  .hojas.separadas .hoja:last-child {
+    page-break-after: auto;
+  }
+
+  /* El cliente es lo primero que se lee, caminando y de un vistazo. */
+  .hoja h3 {
+    font-size: 22pt;
+    margin: 0 0 1mm;
+  }
+  .hoja .meta {
+    font-size: 9pt;
+    color: #444;
+    margin-bottom: 4mm;
+  }
+  .hoja table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11pt;
+  }
+  .hoja th,
+  .hoja td {
+    border: 1px solid #000;
+    padding: 2.5mm 3mm;
+    background: #fff !important;
+    color: #000;
+    text-align: left;
+  }
+  .hoja th {
+    font-size: 8.5pt;
+    text-transform: uppercase;
+    letter-spacing: 0.4pt;
+    background: #eee !important;
+  }
+  .hoja td.n,
+  .hoja th.n {
+    text-align: right;
+    font-weight: 700;
+    width: 22mm;
+  }
+  /* Columnas en blanco a propósito: se completan a mano en la cámara. Altas porque se
+     escribe parado, con frío y a veces con guantes. */
+  .hoja td.anotar {
+    width: 40mm;
+    height: 15mm;
+  }
+  .hoja .pie {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 4mm;
+    font-size: 9pt;
+    color: #444;
+  }
+  .hoja .firma {
+    border-top: 1px solid #000;
+    width: 60mm;
+    padding-top: 1mm;
+  }
+}
