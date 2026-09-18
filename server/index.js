@@ -1,5 +1,5 @@
 import express from 'express'
-import { join, dirname } from 'node:path'
+import { join, dirname, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { db, ahora, avisarMotor } from './db.js'
 import { programarBackups } from './backup.js'
@@ -2209,14 +2209,34 @@ app.get('/api/reportes.csv', async (req, res) => {
 
 // ---------------------------------------------------------------- estatico
 
-app.use(express.static(join(root, 'public')))
+app.use(
+  express.static(join(root, 'public'), {
+    setHeaders(res, ruta) {
+      // Los assets del escritorio llevan el hash del contenido en el nombre, así que un
+      // archivo con ese nombre nunca cambia: se puede cachear para siempre. Es lo que
+      // evita que el navegador vuelva a bajar 350 KB de JS en cada visita.
+      if (ruta.includes(`${sep}app${sep}assets${sep}`)) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable')
+      }
+    },
+  })
+)
 
 // El escritorio nuevo (React) es una SPA: sus rutas —/app/reportes y las que vengan—
 // solo existen en el navegador. Si alguien las abre directo o recarga, el estático no
 // encuentra archivo y contesta 404; hay que devolverle el index y dejar que el router
 // resuelva. Se limita a /app para no tocar nada de lo que ya funciona: las tablets y
 // el tablero siguen siendo archivos de verdad en la raíz.
-app.get('/app/*', (_req, res) => {   // Express 4: comodin '*', no ':splat'
+app.get('/app/*', (req, res, next) => {   // Express 4: comodin '*', no ':splat'
+  // Una ruta CON extensión que llegó hasta acá es un archivo que no existe, y tiene que
+  // dar 404. Contestarla con el index devuelve HTML donde el navegador espera JS, y el
+  // error que muestra es "MIME type" — que no dice nada de la causa real: un index viejo
+  // en caché pidiendo un asset que el build nuevo ya borró.
+  if (/\.[a-z0-9]+$/i.test(req.path)) return next()
+
+  // El shell NO se cachea. Sus assets llevan hash y sí, pero si el shell se guarda, tras
+  // cada despliegue el navegador sigue pidiendo los archivos de la versión anterior.
+  res.setHeader('Cache-Control', 'no-cache')
   res.sendFile(join(root, 'public', 'app', 'index.html'), (err) => {
     if (!err) return
     // Todavia no se corrio el build del escritorio. Es lo PRIMERO que pasa en una

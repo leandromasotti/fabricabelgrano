@@ -13,7 +13,7 @@
 // en 2,5 s (planta con WiFi al limite, o camara frigorifica sin senal) se sirve el
 // cache en vez de dejar la pantalla colgada esperando.
 
-const CACHE = 'fb-v8'
+const CACHE = 'fb-v9'
 const TIMEOUT = 2500
 
 const SHELL = [
@@ -62,6 +62,17 @@ self.addEventListener('fetch', (e) => {
 
   const url = new URL(request.url)
   if (url.origin !== location.origin) return
+
+  // El escritorio en /app NO pasa por aca.
+  //
+  // Sus archivos llevan el hash del contenido en el nombre y se renuevan enteros en
+  // cada despliegue. Guardarlos aca producia el peor de los dos mundos: con un
+  // arranque en frio del servidor pasando los 2,5 s del timeout, se servia el index
+  // VIEJO desde el cache, y ese index pedia archivos que el build nuevo ya borro.
+  //
+  // Ademas no lo necesita: el escritorio se usa en una computadora con internet. El
+  // que tiene que andar sin red es la tablet de planta, y para eso esta este cache.
+  if (url.pathname === '/app' || url.pathname.startsWith('/app/')) return
 
   // La API nunca se cachea: datos viejos servidos como frescos serian peor que un
   // error visible. La app ya sabe manejar el 503 y encolar lo que haga falta.
