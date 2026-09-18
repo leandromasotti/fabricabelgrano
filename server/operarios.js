@@ -13,8 +13,8 @@ import { db } from './db.js'
 
 const [, , sector, ...nombres] = process.argv
 
-const listar = () => {
-  const filas = db
+const listar = async () => {
+  const filas = await db
     .prepare('SELECT sector, nombre, activo FROM operarios ORDER BY sector, orden, nombre')
     .all()
   let actual = null
@@ -30,7 +30,7 @@ const listar = () => {
 
 if (!sector) {
   console.log('Operarios cargados:')
-  listar()
+  await listar()
   console.log('Para reemplazar los de un sector:')
   console.log('  npm run operarios -- lecheria "Juan Pérez" "Carlos Gómez"\n')
   console.log('Sectores: lecheria · queseria · saladero · maduracion · envasado · pedidos\n')
@@ -49,12 +49,12 @@ if (!nombres.length) {
   process.exit(1)
 }
 
-const reemplazar = db.transaction(() => {
+async function reemplazar() {
   // Baja, no borrado: los registros históricos tienen que seguir mostrando el nombre
   // de quien los hizo, aunque esa persona ya no trabaje más ahí.
-  const bajas = db
+  const bajas = (await db
     .prepare('UPDATE operarios SET activo = 0 WHERE sector = ? AND activo = 1')
-    .run(sector).changes
+    .run(sector)).changes
 
   const reactivar = db.prepare(
     'UPDATE operarios SET activo = 1, orden = ? WHERE sector = ? AND nombre = ?'
@@ -65,21 +65,23 @@ const reemplazar = db.transaction(() => {
 
   let nuevos = 0
   let vueltos = 0
-  nombres.forEach((nombre, i) => {
+  // for y no forEach: el callback de forEach no se puede esperar, y con el motor
+  // asincronico las altas terminarian despues de que la funcion ya devolvio.
+  for (const [i, nombre] of nombres.entries()) {
     // Si alguien vuelve, se reactiva el mismo registro: sus movimientos viejos siguen
     // atados a la misma persona y no aparece duplicado en los reportes.
-    if (reactivar.run(i + 1, sector, nombre).changes === 0) {
-      insertar.run(nombre, sector, i + 1)
+    if ((await reactivar.run(i + 1, sector, nombre)).changes === 0) {
+      await insertar.run(nombre, sector, i + 1)
       nuevos++
     } else {
       vueltos++
     }
-  })
+  }
   return { bajas, nuevos, vueltos }
-})
+}
 
-const r = reemplazar()
+const r = await reemplazar()
 console.log(`Sector "${sector}" actualizado:`)
 console.log(`  ${nombres.length} operarios activos (${r.nuevos} nuevos, ${r.vueltos} reactivados)`)
 if (r.bajas) console.log(`  ${r.bajas} dados de baja (sus registros históricos se conservan)`)
-listar()
+await listar()

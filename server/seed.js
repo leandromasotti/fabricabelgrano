@@ -26,6 +26,20 @@ const productos = [
 // /envases.html sin tocar codigo.
 // El sachet de leche es de 1 litro en todos los formatos (confirmado 2026-09-15), asi
 // que de las palanganas solo faltan las dos cantidades.
+// Secciones del tablero LED.
+//
+// Arrancan TODAS visibles porque es lo que el tablero mostraba hasta hoy, y un seed no
+// puede cambiarle la pantalla a nadie por sorpresa. Se apagan las que sobren desde
+// /app/tablero-led, que es donde vive la decision.
+const seccionesTablero = [
+  { orden: 1, clave: 'recepcion', nombre: 'Leche cruda recibida',  descripcion: 'Litros que entraron hoy, entregas y temperatura máxima' },
+  { orden: 2, clave: 'lecheria',  nombre: 'Pallets de lechería',   descripcion: 'Pallets del día por marca y tipo de leche' },
+  { orden: 3, clave: 'yogur',     nombre: 'Yogures',               descripcion: 'Bins del día y su equivalencia aproximada' },
+  { orden: 4, clave: 'queso',     nombre: 'Circuito del queso',    descripcion: 'Producido, esperando sal, en saladero, para envasar y envasado' },
+  { orden: 5, clave: 'pedidos',   nombre: 'Pedidos',               descripcion: 'Pendientes, en armado y listos para facturar' },
+  { orden: 6, clave: 'alertas',   nombre: 'Atención',              descripcion: 'Tinas demoradas y quesos desnudos hace mucho' },
+]
+
 const envases = [
   { nombre: 'Caja 12 × 1 L', bultos: 70, unidades: 12, litros: 1, provisorio: 0, orden: 1 },
   { nombre: 'Palangana', bultos: null, unidades: null, litros: 1, provisorio: 1, orden: 2 },
@@ -157,6 +171,9 @@ const clientes = [
 const insertTambo = db.prepare(
   'INSERT INTO tambos (numero, orden) VALUES (@numero, @orden)'
 )
+const insertSeccion = db.prepare(
+  'INSERT INTO tablero_secciones (clave, nombre, descripcion, visible, orden) VALUES (@clave, @nombre, @descripcion, true, @orden)'
+)
 const insertEnvase = db.prepare(`
   INSERT INTO envases (nombre, bultos_por_pallet, unidades_por_bulto, litros_por_unidad, provisorio, orden)
   VALUES (@nombre, @bultos, @unidades, @litros, @provisorio, @orden)
@@ -172,49 +189,62 @@ const insertTipoQueso = db.prepare(
    VALUES (@nombre, @familia, @se_envasa, @orden)`
 )
 
-const cargar = db.transaction(() => {
-  if (db.prepare('SELECT COUNT(*) n FROM marcas').get().n === 0) {
-    marcas.forEach((m) => insertMarca.run(m))
+async function cargar() {
+  if ((await db.prepare('SELECT COUNT(*) n FROM marcas').get()).n === 0) {
+    for (const m of marcas) await insertMarca.run(m)
     console.log(`  marcas:    ${marcas.length}`)
   }
   const existeProducto = db.prepare('SELECT 1 FROM productos WHERE nombre = ? AND familia = ?')
-  const nuevosProductos = productos.filter((p) => !existeProducto.get(p.nombre, p.familia))
-  nuevosProductos.forEach((p) => insertProducto.run(p))
+  const nuevosProductos = []
+  for (const p of productos) if (!(await existeProducto.get(p.nombre, p.familia))) nuevosProductos.push(p)
+  for (const p of nuevosProductos) await insertProducto.run(p)
   if (nuevosProductos.length) console.log(`  productos: +${nuevosProductos.length}`)
   // Idempotente por nombre+sector: agregar un operario nuevo no obliga a borrar la base.
   const existeOperario = db.prepare('SELECT 1 FROM operarios WHERE nombre = ? AND sector = ?')
-  const nuevos = operarios.filter((o) => !existeOperario.get(o.nombre, o.sector))
-  nuevos.forEach((o) => insertOperario.run(o))
+  const nuevos = []
+  for (const o of operarios) if (!(await existeOperario.get(o.nombre, o.sector))) nuevos.push(o)
+  for (const o of nuevos) await insertOperario.run(o)
   if (nuevos.length) console.log(`  operarios: +${nuevos.length}  <-- PLACEHOLDER, reemplazar`)
   // Idempotente por nombre: agregar un queso nuevo al catálogo no obliga a borrar la
   // base ni pisa los que ya están cargados.
   const existeQueso = db.prepare('SELECT 1 FROM tipos_queso WHERE nombre = ?')
-  const nuevosQuesos = tiposQueso.filter((q) => !existeQueso.get(q.nombre))
-  nuevosQuesos.forEach((q) => insertTipoQueso.run(q))
+  const nuevosQuesos = []
+  for (const q of tiposQueso) if (!(await existeQueso.get(q.nombre))) nuevosQuesos.push(q)
+  for (const q of nuevosQuesos) await insertTipoQueso.run(q)
   if (nuevosQuesos.length) console.log(`  quesos:    +${nuevosQuesos.length}`)
-  if (db.prepare('SELECT COUNT(*) n FROM clientes').get().n === 0) {
-    clientes.forEach((c) => insertCliente.run(c))
+  if ((await db.prepare('SELECT COUNT(*) n FROM clientes').get()).n === 0) {
+    for (const c of clientes) await insertCliente.run(c)
     console.log(`  clientes:  ${clientes.length}  <-- PLACEHOLDER, reemplazar`)
   }
 
   const existeTambo = db.prepare('SELECT 1 FROM tambos WHERE numero = ?')
-  const nuevosTambos = tambos.filter((x) => !existeTambo.get(x.numero))
-  nuevosTambos.forEach((x) => insertTambo.run(x))
+  const nuevosTambos = []
+  for (const x of tambos) if (!(await existeTambo.get(x.numero))) nuevosTambos.push(x)
+  for (const x of nuevosTambos) await insertTambo.run(x)
   if (nuevosTambos.length) console.log(`  tambos:    +${nuevosTambos.length}  <-- PLACEHOLDER, revisar`)
 
   // Idempotente por nombre, igual que los quesos.
   const existeEnvase = db.prepare('SELECT 1 FROM envases WHERE nombre = ?')
-  const nuevosEnvases = envases.filter((e) => !existeEnvase.get(e.nombre))
-  nuevosEnvases.forEach((e) => insertEnvase.run(e))
+  const nuevosEnvases = []
+  for (const e of envases) if (!(await existeEnvase.get(e.nombre))) nuevosEnvases.push(e)
+  for (const e of nuevosEnvases) await insertEnvase.run(e)
   if (nuevosEnvases.length) console.log(`  envases:   +${nuevosEnvases.length}`)
+
+  // Idempotente por clave: agregar una seccion nueva al tablero no pisa lo que el
+  // encargado ya decidio mostrar u ocultar.
+  const existeSeccion = db.prepare('SELECT 1 FROM tablero_secciones WHERE clave = ?')
+  const nuevasSecciones = []
+  for (const s of seccionesTablero) if (!(await existeSeccion.get(s.clave))) nuevasSecciones.push(s)
+  for (const s of nuevasSecciones) await insertSeccion.run(s)
+  if (nuevasSecciones.length) console.log(`  tablero:   +${nuevasSecciones.length} secciones`)
 
   // Que familia hace cada marca. INSERT OR IGNORE: no pisa lo que ya este.
   const marcaPorNombre = db.prepare('SELECT id FROM marcas WHERE nombre = ?')
   let relaciones = 0
   for (const { marca, familias } of marcasFamilias) {
-    const m = marcaPorNombre.get(marca)
+    const m = await marcaPorNombre.get(marca)
     if (!m) continue
-    for (const f of familias) relaciones += insertMarcaFamilia.run(m.id, f).changes
+    for (const f of familias) relaciones += (await insertMarcaFamilia.run(m.id, f)).changes
   }
   if (relaciones) console.log(`  marcas×familias: +${relaciones}`)
 
@@ -224,17 +254,17 @@ const cargar = db.transaction(() => {
        SET unidades_por_bin = @unidades_por_bin, kilos_por_unidad = @kilos_por_unidad
      WHERE familia = 'yogur' AND datos_provisorios = 1
   `)
-  const tocadosYogur = ponerYogur.run(yogurCaja).changes
+  const tocadosYogur = (await ponerYogur.run(yogurCaja)).changes
   if (tocadosYogur) {
     console.log(`  yogur:     ${tocadosYogur} productos con ${yogurCaja.unidades_por_bin} u/caja (APROXIMADO)`)
   }
 
   // Los pallets viejos no tenian envase: se les asigna el unico formato que existia.
-  const sinEnvase = db.prepare('SELECT COUNT(*) n FROM registros_pallet WHERE envase_id IS NULL').get().n
+  const sinEnvase = (await db.prepare('SELECT COUNT(*) n FROM registros_pallet WHERE envase_id IS NULL').get()).n
   if (sinEnvase) {
-    const caja = db.prepare("SELECT id FROM envases WHERE nombre = 'Caja 12 × 1 L'").get()
+    const caja = await db.prepare("SELECT id FROM envases WHERE nombre = 'Caja 12 × 1 L'").get()
     if (caja) {
-      db.prepare('UPDATE registros_pallet SET envase_id = ? WHERE envase_id IS NULL').run(caja.id)
+      await db.prepare('UPDATE registros_pallet SET envase_id = ? WHERE envase_id IS NULL').run(caja.id)
       console.log(`  ${sinEnvase} pallets viejos asignados al formato en caja`)
     }
   }
@@ -249,16 +279,16 @@ const cargar = db.transaction(() => {
   `)
   let tocados = 0
   for (const [nombre, m] of Object.entries(maduracion)) {
-    tocados += ponerDias.run({
+    tocados += (await ponerDias.run({
       nombre,
       madura: m.madura,
       min: m.min ?? null,
       opt: m.opt ?? null,
       max: m.max ?? null,
-    }).changes
+    })).changes
   }
   if (tocados) console.log(`  maduración: ${tocados} quesos con días DE REFERENCIA (a confirmar)`)
-})
+}
 
-cargar()
+await cargar()
 console.log('Seed listo.')

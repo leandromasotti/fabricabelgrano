@@ -8,11 +8,11 @@ import { randomUUID } from 'node:crypto'
 
 const DIAS = Number(process.argv[2] ?? 30)
 
-const operarios = db.prepare('SELECT id, sector FROM operarios').all()
+const operarios = await db.prepare('SELECT id, sector FROM operarios').all()
 const porSector = (s) => operarios.filter((o) => o.sector === s)
-const quesos = db.prepare('SELECT id, nombre FROM tipos_queso').all()
-const marcas = db.prepare('SELECT id FROM marcas').all()
-const productos = db.prepare('SELECT id FROM productos').all()
+const quesos = await db.prepare('SELECT id, nombre FROM tipos_queso').all()
+const marcas = await db.prepare('SELECT id FROM marcas').all()
+const productos = await db.prepare('SELECT id FROM productos').all()
 
 if (!quesos.length || !porSector('queseria').length) {
   console.error('Falta el seed. Corré: npm run seed')
@@ -41,7 +41,7 @@ const insPallet = db.prepare(`
 
 const iso = (d) => d.toISOString()
 
-const generar = db.transaction(() => {
+async function generar() {
   let tinas = 0
   let piezas = 0
   let pallets = 0
@@ -59,19 +59,19 @@ const generar = db.transaction(() => {
       const prod = new Date(dia)
       prod.setHours(entre(6, 13), entre(0, 59), 0, 0)
 
-      const info = insTina.run(randomUUID(), iso(prod), azar(porSector('queseria')).id, queso.id, cantidad)
+      const info = await insTina.run(randomUUID(), iso(prod), azar(porSector('queseria')).id, queso.id, cantidad)
       tinas++
       piezas += cantidad
 
       // --- saladero: casi todas entran el mismo dia, 2 a 6 h despues ---
       if (Math.random() < 0.9) {
         const entrada = new Date(prod.getTime() + entre(120, 360) * 60000)
-        insMov.run(randomUUID(), iso(entrada), azar(porSector('saladero')).id, info.lastInsertRowid, 'entrada', cantidad)
+        await insMov.run(randomUUID(), iso(entrada), azar(porSector('saladero')).id, info.lastInsertRowid, 'entrada', cantidad)
 
         // y salen uno a tres dias despues, salvo las que siguen adentro
         if (d > 3 && Math.random() < 0.85) {
           const salida = new Date(entrada.getTime() + entre(1, 3) * 864e5)
-          insMov.run(randomUUID(), iso(salida), azar(porSector('saladero')).id, info.lastInsertRowid, 'salida', cantidad)
+          await insMov.run(randomUUID(), iso(salida), azar(porSector('saladero')).id, info.lastInsertRowid, 'salida', cantidad)
         }
       }
     }
@@ -80,14 +80,14 @@ const generar = db.transaction(() => {
     for (let i = 0; i < entre(8, 20); i++) {
       const p = new Date(dia)
       p.setHours(entre(5, 17), entre(0, 59), 0, 0)
-      insPallet.run(randomUUID(), iso(p), azar(porSector('lecheria')).id, azar(marcas).id, azar(productos).id)
+      await insPallet.run(randomUUID(), iso(p), azar(porSector('lecheria')).id, azar(marcas).id, azar(productos).id)
       pallets++
     }
   }
   return { tinas, piezas, pallets }
-})
+}
 
-const r = generar()
+const r = await generar()
 console.log(`Demo generada sobre ${DIAS} días:`)
 console.log(`  tinas:   ${r.tinas}`)
 console.log(`  piezas:  ${r.piezas}`)

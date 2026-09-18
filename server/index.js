@@ -1,19 +1,48 @@
 import express from 'express'
 import { join, dirname } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { db, ahora } from './db.js'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+import { db, ahora, avisarMotor } from './db.js'
 import { programarBackups } from './backup.js'
 import { acceso, avisarAcceso } from './acceso.js'
+import { montarMaestros } from './maestros.js'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const app = express()
+
+// Express 4 NO atrapa el rechazo de un handler `async`: se vuelve una promesa sin
+// manejar y, en Node 20, eso mata el proceso. Con handlers sincrónicos un error de
+// consulta devolvía un 500; ahora tumbaría el servidor entero de la fábrica.
+//
+// Se envuelven todos los handlers una sola vez, acá, en lugar de poner un try/catch en
+// cada uno de los 51 — que es justo la clase de cosa que uno se olvida en el que falla.
+for (const metodo of ['get', 'post', 'put', 'delete']) {
+  const original = app[metodo].bind(app)
+  app[metodo] = (ruta, ...handlers) =>
+    original(
+      ruta,
+      ...handlers.map((h) =>
+        h.length === 4 ? h : (req, res, next) => Promise.resolve(h(req, res, next)).catch(next)
+      )
+    )
+}
 // La clave va ANTES de todo: estático, API y lo que venga después.
 app.use(acceso)
 app.use(express.json())
 
 const hoyLocal = () => new Date().toLocaleDateString('sv-SE') // YYYY-MM-DD local
-const existe = (tabla, id) =>
-  db.prepare(`SELECT 1 FROM ${tabla} WHERE id = ? AND activo = 1`).get(id) !== undefined
+// Existe de verdad, sin mirar `activo`.
+//
+// La diferencia importa. `activo` significa "no lo ofrezcas más", no "rechazá lo que ya
+// pasó": es un filtro del CATÁLOGO, y ahí es donde se aplica. Si acá también filtrara,
+// dar de baja un formato de cajón un martes a la mañana descartaría —en silencio, porque
+// la cola borra lo que el servidor rechaza como inválido— los pallets que una tablet
+// cargó sin red media hora antes en ese mismo formato. El operario vio "PALLET
+// REGISTRADO" y el registro no existiría en ningún lado.
+//
+// Un id inactivo solo puede llegar de un registro viejo en camino, y eso es legítimo:
+// el pallet se armó de verdad.
+const existe = async (tabla, id) =>
+  (await db.prepare(`SELECT 1 FROM ${tabla} WHERE id = ?`).get(id)) !== undefined
 
 // Toda escritura de los sectores comparte estas dos reglas:
 //  - client_id repetido = reenvio de la cola offline, se devuelve el original
@@ -22,6 +51,10 @@ const marcaDeTiempo = (fechaCliente) =>
   fechaCliente
     ? { fecha_hora: fechaCliente, origen: 'offline', sincronizado: ahora() }
     : { fecha_hora: ahora(), origen: 'online', sincronizado: null }
+
+// ABM de datos maestros. Vive en su propio módulo: son cuatro recursos con la misma
+// forma y meterlos acá sumaría 300 líneas repetidas a un archivo que ya tiene 2.200.
+montarMaestros(app, db)
 
 // ---------------------------------------------------------------- catalogo
 
@@ -55,17 +88,17 @@ const qCatalogo = {
   ),
 }
 
-app.get('/api/catalogo', (req, res) => {
+app.get('/api/catalogo', async (req, res) => {
   const sector = req.query.sector ?? 'lecheria'
   // El sector de la tablet decide la familia: la de yogures no tiene por que ver
   // marcas ni productos de leche.
   const familia = sector === 'yogures' ? 'yogur' : 'leche'
   res.json({
-    operarios: qCatalogo.operarios.all(sector),
-    marcas: qCatalogo.marcas.all(familia),
-    productos: qCatalogo.productos.all(familia),
-    envases: qCatalogo.envases.all(),
-    quesos: qCatalogo.quesos.all(),
+    operarios: await qCatalogo.operarios.all(sector),
+    marcas: await qCatalogo.marcas.all(familia),
+    productos: await qCatalogo.productos.all(familia),
+    envases: await qCatalogo.envases.all(),
+    quesos: await qCatalogo.quesos.all(),
     // La tablet usa esto para calcular su desfasaje de reloj. Las tablets amuradas
     // se desconfiguran y nadie las mira, y la hora aca es un dato de proceso.
     serverTime: ahora(),
@@ -86,7 +119,7 @@ app.get('/api/catalogo', (req, res) => {
 // lugar; el reporte por tambo es lo que hace desaparecer la suma.
 
 const qRec = {
-  tambos: db.prepare('SELECT id, numero, nombre FROM tambos WHERE activo = 1 ORDER BY orden, numero'),
+  tambos: await db.prepare('SELECT id, numero, nombre FROM tambos WHERE activo = 1 ORDER BY orden, numero'),
   porClientId: db.prepare('SELECT id FROM recepciones WHERE client_id = ?'),
   insertar: db.prepare(`
     INSERT INTO recepciones
@@ -161,9 +194,9 @@ const qRec = {
   `),
 }
 
-app.get('/api/tambos', (_req, res) => res.json(qRec.tambos.all()))
+app.get('/api/tambos', async (_req, res) => res.json(await qRec.tambos.all()))
 
-app.post('/api/recepciones', (req, res) => {
+app.post('/api/recepciones', async (req, res) => {
   const { client_id, operario_id, tambo_id, litros, temperatura, remito, fecha_hora_cliente } =
     req.body ?? {}
 
@@ -181,14 +214,14 @@ app.post('/api/recepciones', (req, res) => {
     }
   }
 
-  const previo = qRec.porClientId.get(client_id)
-  if (previo) return res.json({ ...qRec.detalle.get(previo.id), duplicado: true })
+  const previo = await qRec.porClientId.get(client_id)
+  if (previo) return res.json({ ...(await qRec.detalle.get(previo.id)), duplicado: true })
 
-  if (!existe('operarios', operario_id)) return res.status(400).json({ error: 'operario inexistente' })
-  if (!existe('tambos', tambo_id)) return res.status(400).json({ error: 'tambo inexistente' })
+  if (!(await existe('operarios', operario_id))) return res.status(400).json({ error: 'operario inexistente' })
+  if (!(await existe('tambos', tambo_id))) return res.status(400).json({ error: 'tambo inexistente' })
 
   const marca = marcaDeTiempo(fecha_hora_cliente)
-  const info = qRec.insertar.run({
+  const info = await qRec.insertar.run({
     client_id,
     ...marca,
     registrado_en: ahora(),
@@ -198,12 +231,12 @@ app.post('/api/recepciones', (req, res) => {
     temperatura: temperatura ?? null,
     remito: remito ?? null,
   })
-  res.status(201).json(qRec.detalle.get(info.lastInsertRowid))
+  res.status(201).json(await qRec.detalle.get(info.lastInsertRowid))
 })
 
-app.get('/api/recepciones', (req, res) => {
+app.get('/api/recepciones', async (req, res) => {
   const fecha = req.query.fecha ?? hoyLocal()
-  const recepciones = qRec.delDia.all(fecha)
+  const recepciones = await qRec.delDia.all(fecha)
   const vivas = recepciones.filter((r) => !r.anulado)
   res.json({
     fecha,
@@ -213,26 +246,26 @@ app.get('/api/recepciones', (req, res) => {
   })
 })
 
-app.post('/api/recepciones/:id/anular', (req, res) => {
+app.post('/api/recepciones/:id/anular', async (req, res) => {
   const id = Number(req.params.id)
-  if (qRec.anular.run(ahora(), id).changes === 0) {
+  if ((await qRec.anular.run(ahora(), id)).changes === 0) {
     return res.status(404).json({ error: 'no existe o ya estaba anulada' })
   }
-  res.json(qRec.detalle.get(id))
+  res.json(await qRec.detalle.get(id))
 })
 
 // El reporte por tambo: lo que hoy se hace sumando a mano.
-app.get('/api/recepciones/reporte', (req, res) => {
+app.get('/api/recepciones/reporte', async (req, res) => {
   const [desde, hasta] = rango(req)
   const tambo = req.query.tambo ?? ''
 
-  const porTambo = qRec.porTambo.all(desde, hasta, tambo, tambo)
+  const porTambo = await qRec.porTambo.all(desde, hasta, tambo, tambo)
   res.json({
     desde,
     hasta,
     por_tambo: porTambo,
-    por_dia: qRec.porDia.all(desde, hasta, tambo, tambo),
-    detalle: qRec.detallePeriodo.all(desde, hasta, tambo, tambo),
+    por_dia: await qRec.porDia.all(desde, hasta, tambo, tambo),
+    detalle: await qRec.detallePeriodo.all(desde, hasta, tambo, tambo),
     total: {
       litros: porTambo.reduce((n, r) => n + r.litros, 0),
       entregas: porTambo.reduce((n, r) => n + r.entregas, 0),
@@ -241,10 +274,10 @@ app.get('/api/recepciones/reporte', (req, res) => {
   })
 })
 
-app.get('/api/recepciones.csv', (req, res) => {
+app.get('/api/recepciones.csv', async (req, res) => {
   const [desde, hasta] = rango(req)
   const tambo = req.query.tambo ?? ''
-  const filas = qRec.porTambo.all(desde, hasta, tambo, tambo)
+  const filas = await qRec.porTambo.all(desde, hasta, tambo, tambo)
   const csv = [
     'tambo,entregas,litros,temp_promedio,temp_maxima,primera,ultima',
     ...filas.map((r) =>
@@ -259,6 +292,10 @@ app.get('/api/recepciones.csv', (req, res) => {
 
 const qPallet = {
   porClientId: db.prepare('SELECT id FROM registros_pallet WHERE client_id = ?'),
+  porClientIdCompleto: db.prepare(`
+    SELECT id, envase_id, bultos, unidades_por_bulto
+      FROM registros_pallet WHERE client_id = ? AND anulado = 0
+  `),
   // Los litros salen del ENVASE, no del producto: el mismo tipo de leche puede armarse
   // en caja o en palangana y dar litros distintos.
   //
@@ -266,24 +303,32 @@ const qPallet = {
   // (las palanganas), quedan en NULL y el pallet se guarda igual: no registrar
   // produccion real por no saber una equivalencia seria mucho peor que un dato
   // incompleto que despues se puede completar.
+  // Los litros ya no se calculan en el INSERT con un subselect al formato: ahora un
+  // pallet puede tener MENOS bultos que el formato (los 20 cajones sueltos del final
+  // del dia) o bultos con otra cantidad de unidades (los clientes que piden por 20 en
+  // vez de por 18). Las tres cifras se resuelven arriba, en JS, y entran congeladas.
   insertar: db.prepare(`
     INSERT INTO registros_pallet
       (client_id, fecha_hora, origen, sincronizado, operario_id, marca_id, producto_id,
-       envase_id, litros)
+       envase_id, bultos, unidades_por_bulto, litros)
     VALUES
       (@client_id, @fecha_hora, @origen, @sincronizado, @operario_id, @marca_id, @producto_id,
-       @envase_id,
-       (SELECT CASE
-                 WHEN bultos_por_pallet IS NULL OR unidades_por_bulto IS NULL
-                      OR litros_por_unidad IS NULL THEN NULL
-                 ELSE CAST(bultos_por_pallet * unidades_por_bulto * litros_por_unidad AS INTEGER)
-               END
-          FROM envases WHERE id = @envase_id))
+       @envase_id, @bultos, @unidades_por_bulto, @litros)
+  `),
+  // Correccion dentro de la ventana de la tablet. Va por client_id y no por id porque
+  // el pallet puede estar todavia en la cola offline, sin id del servidor.
+  corregirCantidades: db.prepare(`
+    UPDATE registros_pallet
+       SET bultos = @bultos, unidades_por_bulto = @unidades_por_bulto, litros = @litros
+     WHERE client_id = @client_id AND anulado = 0
   `),
   detalle: db.prepare(`
     SELECT r.id, r.client_id, r.fecha_hora, r.origen, r.anulado, r.litros,
+           -- Lo que realmente se armo, congelado en el alta. bultos_formato viene del
+           -- envase y sirve para una sola cosa: saber si el pallet fue completo o no.
+           r.bultos, r.unidades_por_bulto,
            o.nombre AS operario, m.nombre AS marca, p.nombre AS producto,
-           e.nombre AS envase
+           e.nombre AS envase, e.bultos_por_pallet AS bultos_formato
       FROM registros_pallet r
       JOIN operarios o ON o.id = r.operario_id
       JOIN marcas    m ON m.id = r.marca_id
@@ -293,8 +338,11 @@ const qPallet = {
   `),
   delDia: db.prepare(`
     SELECT r.id, r.client_id, r.fecha_hora, r.origen, r.anulado, r.litros,
+           -- Lo que realmente se armo, congelado en el alta. bultos_formato viene del
+           -- envase y sirve para una sola cosa: saber si el pallet fue completo o no.
+           r.bultos, r.unidades_por_bulto,
            o.nombre AS operario, m.nombre AS marca, p.nombre AS producto,
-           e.nombre AS envase
+           e.nombre AS envase, e.bultos_por_pallet AS bultos_formato
       FROM registros_pallet r
       JOIN operarios o ON o.id = r.operario_id
       JOIN marcas    m ON m.id = r.marca_id
@@ -308,7 +356,16 @@ const qPallet = {
   ),
 }
 
-app.post('/api/registros', (req, res) => {
+// Valida una cantidad opcional que viene del cuerpo. Devuelve undefined si no vino,
+// null si es invalida. Los topes son generosos a proposito: sirven para atajar un
+// dedazo (un 4 de mas), no para modelar la operatoria, que todavia no conocemos.
+function cantidadOpcional(v, max) {
+  if (v === undefined || v === null || v === '') return undefined
+  const n = Number(v)
+  return Number.isInteger(n) && n >= 1 && n <= max ? n : null
+}
+
+app.post('/api/registros', async (req, res) => {
   const { client_id, operario_id, marca_id, producto_id, envase_id, fecha_hora_cliente } =
     req.body ?? {}
 
@@ -318,28 +375,72 @@ app.post('/api/registros', (req, res) => {
 
   // Reenvio de la cola offline: ya lo teniamos, devolvemos el que existe.
   // Sin esto, cada reintento de sincronizacion duplicaria el pallet.
-  const previo = qPallet.porClientId.get(client_id)
-  if (previo) return res.json({ ...qPallet.detalle.get(previo.id), duplicado: true })
+  const previo = await qPallet.porClientId.get(client_id)
+  if (previo) return res.json({ ...(await qPallet.detalle.get(previo.id)), duplicado: true })
 
-  if (!existe('operarios', operario_id)) return res.status(400).json({ error: 'operario inexistente' })
-  if (!existe('marcas', marca_id)) return res.status(400).json({ error: 'marca inexistente' })
-  if (!existe('productos', producto_id)) return res.status(400).json({ error: 'producto inexistente' })
-  if (!existe('envases', envase_id)) return res.status(400).json({ error: 'envase inexistente' })
+  if (!(await existe('operarios', operario_id))) return res.status(400).json({ error: 'operario inexistente' })
+  if (!(await existe('marcas', marca_id))) return res.status(400).json({ error: 'marca inexistente' })
+  if (!(await existe('productos', producto_id))) return res.status(400).json({ error: 'producto inexistente' })
+  if (!(await existe('envases', envase_id))) return res.status(400).json({ error: 'envase inexistente' })
 
-  const info = qPallet.insertar.run({
+  const bultos = cantidadOpcional(req.body?.bultos, 999)
+  const unidades = cantidadOpcional(req.body?.unidades_por_bulto, 999)
+  if (bultos === null) return res.status(400).json({ error: 'cantidad de bultos inválida' })
+  if (unidades === null) return res.status(400).json({ error: 'unidades por bulto inválidas' })
+
+  // Lo que no viene se toma del formato, y se GUARDA: el registro queda diciendo
+  // "40 × 18" para siempre, aunque alguien edite el formato el mes que viene.
+  const formato = await qEnvases.uno.get(envase_id)
+  const b = bultos ?? formato.bultos_por_pallet
+  const u = unidades ?? formato.unidades_por_bulto
+
+  const info = await qPallet.insertar.run({
     client_id,
     ...marcaDeTiempo(fecha_hora_cliente),
     operario_id,
     marca_id,
     producto_id,
     envase_id,
+    bultos: b ?? null,
+    unidades_por_bulto: u ?? null,
+    litros: litrosDePallet(formato, b, u),
   })
-  res.status(201).json(qPallet.detalle.get(info.lastInsertRowid))
+  res.status(201).json(await qPallet.detalle.get(info.lastInsertRowid))
 })
 
-app.get('/api/registros', (req, res) => {
+// Corregir las cantidades de un pallet recien registrado.
+//
+// Va por client_id y no por id: el pallet puede seguir en la cola offline y todavia no
+// tener id del servidor. Es la misma clave que hace idempotente la sincronizacion, asi
+// que la correccion llega bien haya viajado el alta o no.
+app.put('/api/registros/cantidades', async (req, res) => {
+  const { client_id } = req.body ?? {}
+  if (!client_id) return res.status(400).json({ error: 'falta client_id' })
+
+  const bultos = cantidadOpcional(req.body?.bultos, 999)
+  const unidades = cantidadOpcional(req.body?.unidades_por_bulto, 999)
+  if (bultos === null) return res.status(400).json({ error: 'cantidad de bultos inválida' })
+  if (unidades === null) return res.status(400).json({ error: 'unidades por bulto inválidas' })
+
+  const actual = await qPallet.porClientIdCompleto.get(client_id)
+  if (!actual) return res.status(404).json({ error: 'no existe o ya estaba anulado' })
+
+  const formato = await qEnvases.uno.get(actual.envase_id)
+  const b = bultos ?? actual.bultos ?? formato?.bultos_por_pallet
+  const u = unidades ?? actual.unidades_por_bulto ?? formato?.unidades_por_bulto
+
+  await qPallet.corregirCantidades.run({
+    client_id,
+    bultos: b ?? null,
+    unidades_por_bulto: u ?? null,
+    litros: litrosDePallet(formato, b, u),
+  })
+  res.json(await qPallet.detalle.get(actual.id))
+})
+
+app.get('/api/registros', async (req, res) => {
   const fecha = req.query.fecha ?? hoyLocal()
-  const registros = qPallet.delDia.all(fecha)
+  const registros = await qPallet.delDia.all(fecha)
   const vivos = registros.filter((r) => !r.anulado)
   res.json({
     fecha,
@@ -349,17 +450,17 @@ app.get('/api/registros', (req, res) => {
   })
 })
 
-app.post('/api/registros/:id/anular', (req, res) => {
+app.post('/api/registros/:id/anular', async (req, res) => {
   const id = Number(req.params.id)
-  if (qPallet.anular.run(ahora(), id).changes === 0) {
+  if ((await qPallet.anular.run(ahora(), id)).changes === 0) {
     return res.status(404).json({ error: 'no existe o ya estaba anulado' })
   }
-  res.json(qPallet.detalle.get(id))
+  res.json(await qPallet.detalle.get(id))
 })
 
-app.get('/api/registros.csv', (req, res) => {
+app.get('/api/registros.csv', async (req, res) => {
   const fecha = req.query.fecha ?? hoyLocal()
-  const filas = qPallet.delDia.all(fecha).filter((r) => !r.anulado)
+  const filas = (await qPallet.delDia.all(fecha)).filter((r) => !r.anulado)
   const csv = [
     'fecha_hora,operario,marca,producto,envase,litros,origen',
     ...filas.map((r) =>
@@ -416,7 +517,7 @@ const qYogur = {
   unidadesDe: db.prepare('SELECT unidades_por_bin FROM productos WHERE id = ?'),
 }
 
-app.post('/api/yogur', (req, res) => {
+app.post('/api/yogur', async (req, res) => {
   const { client_id, operario_id, marca_id, producto_id, unidades, fecha_hora_cliente } =
     req.body ?? {}
 
@@ -424,21 +525,21 @@ app.post('/api/yogur', (req, res) => {
     return res.status(400).json({ error: 'faltan campos obligatorios' })
   }
 
-  const previo = qYogur.porClientId.get(client_id)
-  if (previo) return res.json({ ...qYogur.detalle.get(previo.id), duplicado: true })
+  const previo = await qYogur.porClientId.get(client_id)
+  if (previo) return res.json({ ...(await qYogur.detalle.get(previo.id)), duplicado: true })
 
-  if (!existe('operarios', operario_id)) return res.status(400).json({ error: 'operario inexistente' })
-  if (!existe('marcas', marca_id)) return res.status(400).json({ error: 'marca inexistente' })
-  if (!existe('productos', producto_id)) return res.status(400).json({ error: 'producto inexistente' })
+  if (!(await existe('operarios', operario_id))) return res.status(400).json({ error: 'operario inexistente' })
+  if (!(await existe('marcas', marca_id))) return res.status(400).json({ error: 'marca inexistente' })
+  if (!(await existe('productos', producto_id))) return res.status(400).json({ error: 'producto inexistente' })
 
   // Si la tablet no manda unidades, se usa la cantidad configurada de la caja.
-  const porDefecto = qYogur.unidadesDe.get(producto_id)?.unidades_por_bin
+  const porDefecto = (await qYogur.unidadesDe.get(producto_id))?.unidades_por_bin
   const n = unidades ?? porDefecto
   if (!Number.isInteger(n) || n < 1) {
     return res.status(400).json({ error: 'unidades debe ser un entero mayor a cero' })
   }
 
-  const info = qYogur.insertar.run({
+  const info = await qYogur.insertar.run({
     client_id,
     ...marcaDeTiempo(fecha_hora_cliente),
     operario_id,
@@ -446,12 +547,12 @@ app.post('/api/yogur', (req, res) => {
     producto_id,
     unidades: n,
   })
-  res.status(201).json(qYogur.detalle.get(info.lastInsertRowid))
+  res.status(201).json(await qYogur.detalle.get(info.lastInsertRowid))
 })
 
-app.get('/api/yogur', (req, res) => {
+app.get('/api/yogur', async (req, res) => {
   const fecha = req.query.fecha ?? hoyLocal()
-  const registros = qYogur.delDia.all(fecha)
+  const registros = await qYogur.delDia.all(fecha)
   const vivos = registros.filter((r) => !r.anulado)
   res.json({
     fecha,
@@ -462,12 +563,12 @@ app.get('/api/yogur', (req, res) => {
   })
 })
 
-app.post('/api/yogur/:id/anular', (req, res) => {
+app.post('/api/yogur/:id/anular', async (req, res) => {
   const id = Number(req.params.id)
-  if (qYogur.anular.run(ahora(), id).changes === 0) {
+  if ((await qYogur.anular.run(ahora(), id)).changes === 0) {
     return res.status(404).json({ error: 'no existe o ya estaba anulado' })
   }
-  res.json(qYogur.detalle.get(id))
+  res.json(await qYogur.detalle.get(id))
 })
 
 // ---------------------------------------------------------------- envases (config)
@@ -475,23 +576,50 @@ app.post('/api/yogur/:id/anular', (req, res) => {
 const qEnvases = {
   todos: db.prepare(`
     SELECT id, nombre, bultos_por_pallet, unidades_por_bulto, litros_por_unidad,
-           provisorio, activo
+           provisorio, activo, orden
       FROM envases ORDER BY orden, nombre
   `),
-  // provisorio = 0 SOLO si los tres valores estan. Marcarlo confirmado con datos a
+  // provisorio = false SOLO si los tres valores estan. Marcarlo confirmado con datos a
   // medias dejaria un formato que dice "confirmado" pero sigue sin poder calcular
   // litros, que es la peor combinacion: el tag miente y nadie vuelve a completarlo.
+  // La condicion se evalua en JS (ver mas abajo) y no con un CASE: los valores ya
+  // estan ahi, y un parametro que solo aparece dentro de un IS NOT NULL no tiene tipo
+  // deducible para Postgres.
   actualizar: db.prepare(`
     UPDATE envases
        SET bultos_por_pallet = @bultos, unidades_por_bulto = @unidades,
-           litros_por_unidad = @litros,
-           provisorio = CASE
-             WHEN @bultos IS NOT NULL AND @unidades IS NOT NULL AND @litros IS NOT NULL
-             THEN 0 ELSE 1
-           END
+           litros_por_unidad = @litros, provisorio = @provisorio
      WHERE id = @id
   `),
   usos: db.prepare('SELECT COUNT(*) n FROM registros_pallet WHERE envase_id = ? AND anulado = 0'),
+  uno: db.prepare(`
+    SELECT id, nombre, bultos_por_pallet, unidades_por_bulto, litros_por_unidad, activo, orden
+      FROM envases WHERE id = ?
+  `),
+  crear: db.prepare(`
+    INSERT INTO envases (nombre, bultos_por_pallet, unidades_por_bulto, litros_por_unidad,
+                         provisorio, activo, orden)
+    -- true y no 1: el traductor a Postgres convierte las COMPARACIONES booleanas,
+    -- no los literales de un VALUES. SQLite acepta la palabra desde la 3.23.
+    VALUES (@nombre, @bultos, @unidades, @litros, @provisorio, true, @orden)
+  `),
+  // Se reordena y se da de baja sin tocar los numeros: son dos decisiones distintas y
+  // mezclarlas obliga a reescribir el formato entero para moverlo de lugar.
+  visibilidad: db.prepare('UPDATE envases SET activo = @activo, orden = @orden WHERE id = @id'),
+  ordenMaximo: db.prepare('SELECT COALESCE(MAX(orden), 0) AS n FROM envases'),
+  porNombre: db.prepare('SELECT id FROM envases WHERE nombre = ?'),
+}
+
+/**
+ * Litros de un pallet, a partir del formato y de lo que realmente se armó.
+ *
+ * Devuelve null y no 0 cuando falta un dato: un pallet sin equivalencia conocida no
+ * aporta cero litros al total, aporta "no sabemos". Un cero se sumaría en silencio.
+ */
+function litrosDePallet(formato, bultos, unidades) {
+  const l = formato?.litros_por_unidad
+  if (!bultos || !unidades || !l) return null
+  return Math.round(bultos * unidades * l)
 }
 
 // Formato de la caja de yogur. Vive en `productos` y no en `envases` porque no es un
@@ -505,9 +633,7 @@ const qYogurFormato = {
   actualizar: db.prepare(`
     UPDATE productos
        SET unidades_por_bin = @unidades, kilos_por_unidad = @kilos,
-           datos_provisorios = CASE
-             WHEN @unidades IS NOT NULL AND @kilos IS NOT NULL THEN 0 ELSE 1
-           END
+           datos_provisorios = @provisorios
      WHERE id = @id AND familia = 'yogur'
   `),
   usos: db.prepare('SELECT COUNT(*) n FROM registros_yogur WHERE producto_id = ? AND anulado = 0'),
@@ -517,33 +643,42 @@ const qYogurFormato = {
   `),
 }
 
-app.get('/api/envases', (_req, res) => {
-  res.json({
-    pallets: qEnvases.todos.all().map((e) => ({
+// Un formato incompleto no tiene equivalencia en litros: devuelve null, no 0. Un cero
+// se sumaria en los totales como si el pallet estuviera vacio.
+const litrosPorPallet = (e) =>
+  e && e.bultos_por_pallet && e.unidades_por_bulto && e.litros_por_unidad
+    ? Math.round(e.bultos_por_pallet * e.unidades_por_bulto * e.litros_por_unidad)
+    : null
+
+app.get('/api/envases', async (_req, res) => {
+  // Promise.all y no un for: las consultas por fila salen en paralelo, que con una
+  // base en red es la diferencia entre una ida y vuelta y N.
+  const pallets = await Promise.all(
+    (await qEnvases.todos.all()).map(async (e) => ({
       ...e,
-      litros_por_pallet:
-        e.bultos_por_pallet && e.unidades_por_bulto && e.litros_por_unidad
-          ? Math.round(e.bultos_por_pallet * e.unidades_por_bulto * e.litros_por_unidad)
-          : null,
+      litros_por_pallet: litrosPorPallet(e),
       // Cuantos pallets se registraron con este formato. Si un envase provisorio ya
       // tiene pallets encima, completarlo no alcanza: hay que recalcular esos litros.
-      pallets: qEnvases.usos.get(e.id).n,
-    })),
-    yogur: qYogurFormato.todos.all().map((y) => ({
+      pallets: (await qEnvases.usos.get(e.id)).n,
+    }))
+  )
+  const yogur = await Promise.all(
+    (await qYogurFormato.todos.all()).map(async (y) => ({
       ...y,
       kilos_por_bin:
         y.unidades_por_bin && y.kilos_por_unidad
           ? Math.round(y.unidades_por_bin * y.kilos_por_unidad * 100) / 100
           : null,
-      bins: qYogurFormato.usos.get(y.id).n,
-      bins_sin_kilos: qYogurFormato.sinKilos.get(y.id).n,
-    })),
-  })
+      bins: (await qYogurFormato.usos.get(y.id)).n,
+      bins_sin_kilos: (await qYogurFormato.sinKilos.get(y.id)).n,
+    }))
+  )
+  res.json({ pallets, yogur })
 })
 
-app.put('/api/yogur/formato/:id', (req, res) => {
+app.put('/api/yogur/formato/:id', async (req, res) => {
   const id = Number(req.params.id)
-  if (!qYogurFormato.todos.all().some((y) => y.id === id)) {
+  if (!(await qYogurFormato.todos.all()).some((y) => y.id === id)) {
     return res.status(404).json({ error: 'producto de yogur inexistente' })
   }
 
@@ -558,25 +693,28 @@ app.put('/api/yogur/formato/:id', (req, res) => {
     return res.status(400).json({ error: 'kilos por sachet: valor inválido' })
   }
 
-  qYogurFormato.actualizar.run({ id, unidades, kilos })
+  await qYogurFormato.actualizar.run({
+    id, unidades, kilos,
+    provisorios: unidades === null || kilos === null,
+  })
 
   // Las cajas ya registradas sin kilos se completan, igual que los pallets al cargar
   // un formato: esos kilos nunca se supieron, no es que hayan cambiado.
   let rellenadas = 0
   if (kilos !== null) {
-    rellenadas = db.prepare(`
+    rellenadas = (await db.prepare(`
       UPDATE registros_yogur
          SET kilos = unidades * ?
        WHERE producto_id = ? AND kilos IS NULL AND anulado = 0
-    `).run(kilos, id).changes
+    `).run(kilos, id)).changes
   }
 
   res.json({ ok: true, bins_rellenados: rellenadas })
 })
 
-app.put('/api/envases/:id', (req, res) => {
+app.put('/api/envases/:id', async (req, res) => {
   const id = Number(req.params.id)
-  if (!existe('envases', id)) return res.status(404).json({ error: 'envase inexistente' })
+  if (!(await existe('envases', id))) return res.status(404).json({ error: 'envase inexistente' })
 
   const limpio = (v) => (v === null || v === undefined || v === '' ? null : Number(v))
   const bultos = limpio(req.body?.bultos_por_pallet)
@@ -594,22 +732,90 @@ app.put('/api/envases/:id', (req, res) => {
     }
   }
 
-  qEnvases.actualizar.run({ id, bultos, unidades, litros })
+  await qEnvases.actualizar.run({
+    id, bultos, unidades, litros,
+    provisorio: bultos === null || unidades === null || litros === null,
+  })
 
   // Al completar un envase que ya tenia pallets registrados sin litros, se rellenan.
   // Es el unico caso en que se toca un registro historico, y es correcto: esos litros
   // nunca se supieron, no es que hayan cambiado.
-  const rellenados = db.prepare(`
+  const rellenados = (await db.prepare(`
     UPDATE registros_pallet
        SET litros = (
          SELECT CAST(bultos_por_pallet * unidades_por_bulto * litros_por_unidad AS INTEGER)
            FROM envases WHERE id = ?
        )
      WHERE envase_id = ? AND litros IS NULL
-  `).run(id, id).changes
+  `).run(id, id)).changes
 
-  const actualizado = qEnvases.todos.all().find((e) => e.id === id)
-  res.json({ ...actualizado, pallets_rellenados: rellenados })
+  const actualizado = (await qEnvases.todos.all()).find((e) => e.id === id)
+  res.json({ ...actualizado, litros_por_pallet: litrosPorPallet(actualizado), pallets_rellenados: rellenados })
+})
+
+// Alta de un formato.
+//
+// Hasta ahora agregar un cajón nuevo necesitaba un desarrollador, y la planta tiene al
+// menos cinco tipos —lácteos, Sancor, La Serenísima, palanganas, bandejones— que además
+// están en camino de desaparecer conforme pasan todo a cajas. Que lo cargue y lo dé de
+// baja el encargado es la diferencia entre acompañar ese cambio o quedar atrás de él.
+app.post('/api/envases', async (req, res) => {
+  const nombre = String(req.body?.nombre ?? '').trim()
+  if (!nombre) return res.status(400).json({ error: 'falta el nombre' })
+  if (nombre.length > 60) return res.status(400).json({ error: 'nombre demasiado largo' })
+  if (await qEnvases.porNombre.get(nombre)) {
+    return res.status(409).json({ error: 'ya existe un formato con ese nombre' })
+  }
+
+  const limpio = (v) => (v === null || v === undefined || v === '' ? null : Number(v))
+  const bultos = limpio(req.body?.bultos_por_pallet)
+  const unidades = limpio(req.body?.unidades_por_bulto)
+  const litros = limpio(req.body?.litros_por_unidad)
+
+  for (const [n, v, entero] of [
+    ['bultos por pallet', bultos, true],
+    ['unidades por bulto', unidades, true],
+    ['litros por unidad', litros, false],
+  ]) {
+    if (v === null) continue
+    if (entero ? !Number.isInteger(v) || v < 1 : !(v > 0)) {
+      return res.status(400).json({ error: `${n}: valor inválido` })
+    }
+  }
+
+  // Se puede crear incompleto: es preferible tener el formato listado y marcado "a
+  // confirmar" a que el operario no encuentre dónde registrar el pallet que ya armó.
+  const provisorio = bultos === null || unidades === null || litros === null
+  const orden = ((await qEnvases.ordenMaximo.get()).n ?? 0) + 1
+
+  const info = await qEnvases.crear.run({ nombre, bultos, unidades, litros, provisorio, orden })
+  const creado = (await qEnvases.todos.all()).find((e) => e.id === info.lastInsertRowid)
+  res.status(201).json({ ...creado, litros_por_pallet: litrosPorPallet(creado) })
+})
+
+// Activar, desactivar y reordenar. Separado del PUT de los números porque son dos
+// decisiones distintas: mover un formato de lugar no debería obligar a reescribir sus
+// equivalencias.
+app.put('/api/envases/:id/visibilidad', async (req, res) => {
+  const id = Number(req.params.id)
+  const actual = await qEnvases.uno.get(id)
+  if (!actual) return res.status(404).json({ error: 'envase inexistente' })
+
+  const activo = req.body?.activo === undefined ? Boolean(actual.activo) : Boolean(req.body.activo)
+  const orden = Number(req.body?.orden)
+  if (req.body?.orden !== undefined && (!Number.isInteger(orden) || orden < 0 || orden > 999)) {
+    return res.status(400).json({ error: 'orden inválido' })
+  }
+
+  // Lo que no viene se deja como está. Pasar undefined haría que el adaptador lo ligue
+  // como NULL, y `orden` es NOT NULL: el UPDATE fallaría por omitir un campo.
+  await qEnvases.visibilidad.run({
+    id,
+    activo,
+    orden: req.body?.orden === undefined ? actual.orden : orden,
+  })
+  const r = (await qEnvases.todos.all()).find((e) => e.id === id)
+  res.json({ ...r, litros_por_pallet: litrosPorPallet(r) })
 })
 
 // ---------------------------------------------------------------- queseria
@@ -642,7 +848,7 @@ const qTina = {
   anular: db.prepare('UPDATE tinas SET anulado = 1, anulado_en = ? WHERE id = ? AND anulado = 0'),
 }
 
-app.post('/api/tinas', (req, res) => {
+app.post('/api/tinas', async (req, res) => {
   const { client_id, operario_id, tipo_queso_id, cantidad, fecha_hora_cliente } = req.body ?? {}
 
   if (!client_id || !operario_id || !tipo_queso_id) {
@@ -654,25 +860,25 @@ app.post('/api/tinas', (req, res) => {
     return res.status(400).json({ error: 'cantidad debe ser un entero mayor a cero' })
   }
 
-  const previo = qTina.porClientId.get(client_id)
-  if (previo) return res.json({ ...qTina.detalle.get(previo.id), duplicado: true })
+  const previo = await qTina.porClientId.get(client_id)
+  if (previo) return res.json({ ...(await qTina.detalle.get(previo.id)), duplicado: true })
 
-  if (!existe('operarios', operario_id)) return res.status(400).json({ error: 'operario inexistente' })
-  if (!existe('tipos_queso', tipo_queso_id)) return res.status(400).json({ error: 'queso inexistente' })
+  if (!(await existe('operarios', operario_id))) return res.status(400).json({ error: 'operario inexistente' })
+  if (!(await existe('tipos_queso', tipo_queso_id))) return res.status(400).json({ error: 'queso inexistente' })
 
-  const info = qTina.insertar.run({
+  const info = await qTina.insertar.run({
     client_id,
     ...marcaDeTiempo(fecha_hora_cliente),
     operario_id,
     tipo_queso_id,
     cantidad,
   })
-  res.status(201).json(qTina.detalle.get(info.lastInsertRowid))
+  res.status(201).json(await qTina.detalle.get(info.lastInsertRowid))
 })
 
-app.get('/api/tinas', (req, res) => {
+app.get('/api/tinas', async (req, res) => {
   const fecha = req.query.fecha ?? hoyLocal()
-  const tinas = qTina.delDia.all(fecha)
+  const tinas = await qTina.delDia.all(fecha)
   const vivas = tinas.filter((t) => !t.anulado)
   res.json({
     fecha,
@@ -682,12 +888,12 @@ app.get('/api/tinas', (req, res) => {
   })
 })
 
-app.post('/api/tinas/:id/anular', (req, res) => {
+app.post('/api/tinas/:id/anular', async (req, res) => {
   const id = Number(req.params.id)
-  if (qTina.anular.run(ahora(), id).changes === 0) {
+  if ((await qTina.anular.run(ahora(), id)).changes === 0) {
     return res.status(404).json({ error: 'no existe o ya estaba anulada' })
   }
-  res.json(qTina.detalle.get(id))
+  res.json(await qTina.detalle.get(id))
 })
 
 // ---------------------------------------------------------------- saladero
@@ -703,13 +909,16 @@ const SALDOS = `
     JOIN tipos_queso q ON q.id = t.tipo_queso_id
     LEFT JOIN movimientos_saladero m ON m.tina_id = t.id AND m.anulado = 0
    WHERE t.anulado = 0
-   GROUP BY t.id
+   -- q.id va en el GROUP BY porque Postgres solo deja proyectar columnas no agregadas
+   -- si dependen de una PK agrupada: q.nombre depende de q.id, no de t.id. SQLite lo
+   -- dejaba pasar eligiendo un valor cualquiera.
+   GROUP BY t.id, q.id
 `
 
 const qSal = {
-  pendientes: db.prepare(`SELECT * FROM (${SALDOS}) WHERE entrada < cantidad ORDER BY fecha_hora`),
-  enSal: db.prepare(`SELECT * FROM (${SALDOS}) WHERE entrada > salida ORDER BY primera_entrada`),
-  saldoDe: db.prepare(`SELECT * FROM (${SALDOS}) WHERE id = ?`),
+  pendientes: db.prepare(`SELECT * FROM (${SALDOS}) s WHERE entrada < cantidad ORDER BY fecha_hora`),
+  enSal: db.prepare(`SELECT * FROM (${SALDOS}) s WHERE entrada > salida ORDER BY primera_entrada`),
+  saldoDe: db.prepare(`SELECT * FROM (${SALDOS}) s WHERE id = ?`),
   porClientId: db.prepare('SELECT id FROM movimientos_saladero WHERE client_id = ?'),
   insertar: db.prepare(`
     INSERT INTO movimientos_saladero
@@ -746,9 +955,9 @@ const minutosDesde = (iso) => Math.round((Date.now() - Date.parse(iso)) / 60000)
 // minutos_desde_produccion es el dato del control de pH: "eso te da un tiempo, entre
 // que el pH llega donde tiene que llegar" [A3 01:08]. Por eso el saladero no muestra
 // una lista de tinas a secas, sino cuanto hace que esperan.
-app.get('/api/saladero/pendientes', (_req, res) => {
+app.get('/api/saladero/pendientes', async (_req, res) => {
   res.json(
-    qSal.pendientes.all().map((t) => ({
+    (await qSal.pendientes.all()).map((t) => ({
       ...t,
       falta: t.cantidad - t.entrada,
       minutos_desde_produccion: minutosDesde(t.fecha_hora),
@@ -756,9 +965,9 @@ app.get('/api/saladero/pendientes', (_req, res) => {
   )
 })
 
-app.get('/api/saladero/en-sal', (_req, res) => {
+app.get('/api/saladero/en-sal', async (_req, res) => {
   res.json(
-    qSal.enSal.all().map((t) => ({
+    (await qSal.enSal.all()).map((t) => ({
       ...t,
       en_sal: t.entrada - t.salida,
       minutos_en_sal: t.primera_entrada ? minutosDesde(t.primera_entrada) : null,
@@ -766,7 +975,7 @@ app.get('/api/saladero/en-sal', (_req, res) => {
   )
 })
 
-app.post('/api/saladero', (req, res) => {
+app.post('/api/saladero', async (req, res) => {
   const { client_id, operario_id, tina_id, tipo, cantidad, fecha_hora_cliente } = req.body ?? {}
 
   if (!client_id || !operario_id || !tina_id || !tipo) {
@@ -779,12 +988,12 @@ app.post('/api/saladero', (req, res) => {
     return res.status(400).json({ error: 'cantidad debe ser un entero mayor a cero' })
   }
 
-  const previo = qSal.porClientId.get(client_id)
-  if (previo) return res.json({ ...qSal.detalle.get(previo.id), duplicado: true })
+  const previo = await qSal.porClientId.get(client_id)
+  if (previo) return res.json({ ...(await qSal.detalle.get(previo.id)), duplicado: true })
 
-  if (!existe('operarios', operario_id)) return res.status(400).json({ error: 'operario inexistente' })
+  if (!(await existe('operarios', operario_id))) return res.status(400).json({ error: 'operario inexistente' })
 
-  const saldo = qSal.saldoDe.get(tina_id)
+  const saldo = await qSal.saldoDe.get(tina_id)
   if (!saldo) return res.status(400).json({ error: 'tina inexistente o anulada' })
 
   // No se puede salar mas de lo que se produjo, ni sacar mas de lo que hay adentro.
@@ -796,7 +1005,7 @@ app.post('/api/saladero', (req, res) => {
     })
   }
 
-  const info = qSal.insertar.run({
+  const info = await qSal.insertar.run({
     client_id,
     ...marcaDeTiempo(fecha_hora_cliente),
     operario_id,
@@ -804,24 +1013,24 @@ app.post('/api/saladero', (req, res) => {
     tipo,
     cantidad,
   })
-  res.status(201).json(qSal.detalle.get(info.lastInsertRowid))
+  res.status(201).json(await qSal.detalle.get(info.lastInsertRowid))
 })
 
-app.get('/api/saladero', (req, res) => {
+app.get('/api/saladero', async (req, res) => {
   const fecha = req.query.fecha ?? hoyLocal()
-  const movimientos = qSal.delDia.all(fecha)
+  const movimientos = await qSal.delDia.all(fecha)
   const vivos = movimientos.filter((m) => !m.anulado)
   const sumar = (tipo) =>
     vivos.filter((m) => m.tipo === tipo).reduce((n, m) => n + m.cantidad, 0)
   res.json({ fecha, entradas: sumar('entrada'), salidas: sumar('salida'), movimientos })
 })
 
-app.post('/api/saladero/:id/anular', (req, res) => {
+app.post('/api/saladero/:id/anular', async (req, res) => {
   const id = Number(req.params.id)
-  if (qSal.anular.run(ahora(), id).changes === 0) {
+  if ((await qSal.anular.run(ahora(), id)).changes === 0) {
     return res.status(404).json({ error: 'no existe o ya estaba anulado' })
   }
-  res.json(qSal.detalle.get(id))
+  res.json(await qSal.detalle.get(id))
 })
 
 // ---------------------------------------------------------------- maduracion
@@ -858,17 +1067,17 @@ const MADURACION_SALDOS = `
 const qMad = {
   // Salieron de sal, maduran, y todavía no entraron (del todo) a la cámara.
   paraEntrar: db.prepare(`
-    SELECT * FROM (${MADURACION_SALDOS})
+    SELECT * FROM (${MADURACION_SALDOS}) s
      WHERE madura = 1 AND salio_de_sal > entro_camara
      ORDER BY fecha_hora
   `),
   // Adentro de la cámara ahora.
   enCamara: db.prepare(`
-    SELECT * FROM (${MADURACION_SALDOS})
+    SELECT * FROM (${MADURACION_SALDOS}) s
      WHERE entro_camara > salio_camara
      ORDER BY entrada_camara
   `),
-  saldoDe: db.prepare(`SELECT * FROM (${MADURACION_SALDOS}) WHERE id = ?`),
+  saldoDe: db.prepare(`SELECT * FROM (${MADURACION_SALDOS}) s WHERE id = ?`),
   porClientId: db.prepare('SELECT id FROM movimientos_maduracion WHERE client_id = ?'),
   insertar: db.prepare(`
     INSERT INTO movimientos_maduracion
@@ -925,9 +1134,9 @@ function estadoMaduracion(t, diasAdentro) {
   return { estado: 'apto', falta: 0 }
 }
 
-app.get('/api/maduracion/pendientes', (_req, res) => {
+app.get('/api/maduracion/pendientes', async (_req, res) => {
   res.json(
-    qMad.paraEntrar.all().map((t) => ({
+    (await qMad.paraEntrar.all()).map((t) => ({
       ...t,
       falta: t.salio_de_sal - t.entro_camara,
       minutos_desde_sal: null,
@@ -935,8 +1144,8 @@ app.get('/api/maduracion/pendientes', (_req, res) => {
   )
 })
 
-app.get('/api/maduracion/camara', (_req, res) => {
-  const lotes = qMad.enCamara.all().map((t) => {
+app.get('/api/maduracion/camara', async (_req, res) => {
+  const lotes = (await qMad.enCamara.all()).map((t) => {
     const diasAdentro = t.entrada_camara ? dias(t.entrada_camara) : 0
     return {
       ...t,
@@ -960,7 +1169,7 @@ app.get('/api/maduracion/camara', (_req, res) => {
   })
 })
 
-app.post('/api/maduracion', (req, res) => {
+app.post('/api/maduracion', async (req, res) => {
   const { client_id, operario_id, tina_id, tipo, cantidad, fecha_hora_cliente } = req.body ?? {}
 
   if (!client_id || !operario_id || !tina_id || !tipo) {
@@ -973,12 +1182,12 @@ app.post('/api/maduracion', (req, res) => {
     return res.status(400).json({ error: 'cantidad debe ser un entero mayor a cero' })
   }
 
-  const previo = qMad.porClientId.get(client_id)
-  if (previo) return res.json({ ...qMad.detalle.get(previo.id), duplicado: true })
+  const previo = await qMad.porClientId.get(client_id)
+  if (previo) return res.json({ ...(await qMad.detalle.get(previo.id)), duplicado: true })
 
-  if (!existe('operarios', operario_id)) return res.status(400).json({ error: 'operario inexistente' })
+  if (!(await existe('operarios', operario_id))) return res.status(400).json({ error: 'operario inexistente' })
 
-  const saldo = qMad.saldoDe.get(tina_id)
+  const saldo = await qMad.saldoDe.get(tina_id)
   if (!saldo) return res.status(400).json({ error: 'tina inexistente o anulada' })
   if (tipo === 'entrada' && !saldo.madura) {
     return res.status(409).json({ error: `el ${saldo.queso} no madura` })
@@ -1000,7 +1209,7 @@ app.post('/api/maduracion', (req, res) => {
   const diasReales =
     tipo === 'salida' && saldo.entrada_camara ? dias(saldo.entrada_camara) : null
 
-  const info = qMad.insertar.run({
+  const info = await qMad.insertar.run({
     client_id,
     ...marcaDeTiempo(fecha_hora_cliente),
     operario_id,
@@ -1009,23 +1218,23 @@ app.post('/api/maduracion', (req, res) => {
     cantidad,
     dias_reales: diasReales,
   })
-  res.status(201).json(qMad.detalle.get(info.lastInsertRowid))
+  res.status(201).json(await qMad.detalle.get(info.lastInsertRowid))
 })
 
-app.get('/api/maduracion', (req, res) => {
+app.get('/api/maduracion', async (req, res) => {
   const fecha = req.query.fecha ?? hoyLocal()
-  const movimientos = qMad.delDia.all(fecha)
+  const movimientos = await qMad.delDia.all(fecha)
   const vivos = movimientos.filter((m) => !m.anulado)
   const sumar = (tipo) => vivos.filter((m) => m.tipo === tipo).reduce((n, m) => n + m.cantidad, 0)
   res.json({ fecha, entradas: sumar('entrada'), salidas: sumar('salida'), movimientos })
 })
 
-app.post('/api/maduracion/:id/anular', (req, res) => {
+app.post('/api/maduracion/:id/anular', async (req, res) => {
   const id = Number(req.params.id)
-  if (qMad.anular.run(ahora(), id).changes === 0) {
+  if ((await qMad.anular.run(ahora(), id)).changes === 0) {
     return res.status(404).json({ error: 'no existe o ya estaba anulado' })
   }
-  res.json(qMad.detalle.get(id))
+  res.json(await qMad.detalle.get(id))
 })
 
 // ---------------------------------------------------------------- días de maduración
@@ -1044,18 +1253,18 @@ const qDias = {
   `),
 }
 
-app.get('/api/quesos/dias', (_req, res) => {
+app.get('/api/quesos/dias', async (_req, res) => {
   res.json({
-    quesos: qDias.todos.all(),
+    quesos: await qDias.todos.all(),
     // Lo que tardaron de verdad, para contrastar contra el número cargado.
-    reales: qMad.realesPorQueso.all(),
+    reales: await qMad.realesPorQueso.all(),
   })
 })
 
-app.put('/api/quesos/:id/dias', (req, res) => {
+app.put('/api/quesos/:id/dias', async (req, res) => {
   const { madura, dias_minimos, dias_optimos, dias_maximos } = req.body ?? {}
   const id = Number(req.params.id)
-  if (!existe('tipos_queso', id)) return res.status(404).json({ error: 'queso inexistente' })
+  if (!(await existe('tipos_queso', id))) return res.status(404).json({ error: 'queso inexistente' })
 
   const limpio = (v) => (v === null || v === undefined || v === '' ? null : Number(v))
   const min = limpio(dias_minimos)
@@ -1077,8 +1286,8 @@ app.put('/api/quesos/:id/dias', (req, res) => {
 
   // Escribir marca dias_provisorios = 0: a partir de acá el valor es del quesero, y
   // ningún seed posterior lo pisa.
-  qDias.actualizar.run({ id, madura: madura ? 1 : 0, min, opt, max })
-  res.json(qDias.todos.all().find((q) => q.id === id))
+  await qDias.actualizar.run({ id, madura: madura ? 1 : 0, min, opt, max })
+  res.json((await qDias.todos.all()).find((q) => q.id === id))
 })
 
 // ---------------------------------------------------------------- envasado
@@ -1124,11 +1333,11 @@ const qEnv = {
   pendientes: db.prepare(`
     SELECT *, ${DISPONIBLE_ENVASAR} AS disponible,
            COALESCE(salida_camara_fecha, ultima_salida) AS espera_desde
-      FROM (${ENVASADO_SALDOS})
+      FROM (${ENVASADO_SALDOS}) s
      WHERE se_envasa = 1 AND ${DISPONIBLE_ENVASAR} > envasado
      ORDER BY espera_desde
   `),
-  saldoDe: db.prepare(`SELECT * FROM (${ENVASADO_SALDOS}) WHERE id = ?`),
+  saldoDe: db.prepare(`SELECT * FROM (${ENVASADO_SALDOS}) s WHERE id = ?`),
   porClientId: db.prepare('SELECT id FROM movimientos_envasado WHERE client_id = ?'),
   insertar: db.prepare(`
     INSERT INTO movimientos_envasado
@@ -1160,9 +1369,9 @@ const qEnv = {
   ),
 }
 
-app.get('/api/envasado/pendientes', (_req, res) => {
+app.get('/api/envasado/pendientes', async (_req, res) => {
   res.json({
-    pendientes: qEnv.pendientes.all().map((t) => ({
+    pendientes: (await qEnv.pendientes.all()).map((t) => ({
       ...t,
       falta: t.disponible - t.envasado,
       minutos_desde_sal: t.espera_desde ? minutosDesde(t.espera_desde) : null,
@@ -1172,7 +1381,7 @@ app.get('/api/envasado/pendientes', (_req, res) => {
   })
 })
 
-app.post('/api/envasado', (req, res) => {
+app.post('/api/envasado', async (req, res) => {
   const { client_id, operario_id, tina_id, cantidad, fecha_hora_cliente } = req.body ?? {}
 
   if (!client_id || !operario_id || !tina_id) {
@@ -1182,12 +1391,12 @@ app.post('/api/envasado', (req, res) => {
     return res.status(400).json({ error: 'cantidad debe ser un entero mayor a cero' })
   }
 
-  const previo = qEnv.porClientId.get(client_id)
-  if (previo) return res.json({ ...qEnv.detalle.get(previo.id), duplicado: true })
+  const previo = await qEnv.porClientId.get(client_id)
+  if (previo) return res.json({ ...(await qEnv.detalle.get(previo.id)), duplicado: true })
 
-  if (!existe('operarios', operario_id)) return res.status(400).json({ error: 'operario inexistente' })
+  if (!(await existe('operarios', operario_id))) return res.status(400).json({ error: 'operario inexistente' })
 
-  const saldo = qEnv.saldoDe.get(tina_id)
+  const saldo = await qEnv.saldoDe.get(tina_id)
   if (!saldo) return res.status(400).json({ error: 'tina inexistente o anulada' })
   if (!saldo.se_envasa) {
     return res.status(409).json({ error: `el ${saldo.queso} no se envasa` })
@@ -1203,19 +1412,19 @@ app.post('/api/envasado', (req, res) => {
     })
   }
 
-  const info = qEnv.insertar.run({
+  const info = await qEnv.insertar.run({
     client_id,
     ...marcaDeTiempo(fecha_hora_cliente),
     operario_id,
     tina_id,
     cantidad,
   })
-  res.status(201).json(qEnv.detalle.get(info.lastInsertRowid))
+  res.status(201).json(await qEnv.detalle.get(info.lastInsertRowid))
 })
 
-app.get('/api/envasado', (req, res) => {
+app.get('/api/envasado', async (req, res) => {
   const fecha = req.query.fecha ?? hoyLocal()
-  const movimientos = qEnv.delDia.all(fecha)
+  const movimientos = await qEnv.delDia.all(fecha)
   const vivos = movimientos.filter((m) => !m.anulado)
   res.json({
     fecha,
@@ -1224,12 +1433,12 @@ app.get('/api/envasado', (req, res) => {
   })
 })
 
-app.post('/api/envasado/:id/anular', (req, res) => {
+app.post('/api/envasado/:id/anular', async (req, res) => {
   const id = Number(req.params.id)
-  if (qEnv.anular.run(ahora(), id).changes === 0) {
+  if ((await qEnv.anular.run(ahora(), id)).changes === 0) {
     return res.status(404).json({ error: 'no existe o ya estaba anulado' })
   }
-  res.json(qEnv.detalle.get(id))
+  res.json(await qEnv.detalle.get(id))
 })
 
 // ---------------------------------------------------------------- pedidos
@@ -1311,12 +1520,12 @@ const qPed = {
 // Arma el pedido completo con sus lineas, sus pesos y los totales ya calculados.
 // Los totales se calculan aca y no en cada pantalla: el kilaje termina en una factura
 // y no puede depender de que dos clientes sumen igual.
-function pedidoCompleto(id) {
-  const cab = qPed.cabecera.get(id)
+async function pedidoCompleto(id) {
+  const cab = await qPed.cabecera.get(id)
   if (!cab) return null
 
-  const lineas = qPed.lineas.all(id).map((l) => {
-    const pesos = qPed.pesosDe.all(l.id)
+  const lineas = await Promise.all((await qPed.lineas.all(id)).map(async (l) => {
+    const pesos = await qPed.pesosDe.all(l.id)
     const gramos = pesos.reduce((n, p) => n + p.gramos, 0)
     return {
       ...l,
@@ -1327,7 +1536,7 @@ function pedidoCompleto(id) {
       // si en la camara hay 2 y pidieron 3, el sistema no lo impide, lo muestra.
       diferencia: pesos.length - l.cantidad_pedida,
     }
-  })
+  }))
 
   return {
     ...cab,
@@ -1338,9 +1547,9 @@ function pedidoCompleto(id) {
   }
 }
 
-app.get('/api/clientes', (_req, res) => res.json(qPed.clientes.all()))
+app.get('/api/clientes', async (_req, res) => res.json(await qPed.clientes.all()))
 
-app.post('/api/pedidos', (req, res) => {
+app.post('/api/pedidos', async (req, res) => {
   const { client_id, cliente_id, lineas, origen, nota } = req.body ?? {}
 
   if (!client_id || !cliente_id || !Array.isArray(lineas) || !lineas.length) {
@@ -1350,18 +1559,28 @@ app.post('/api/pedidos', (req, res) => {
     if (!l.tipo_queso_id || !Number.isInteger(l.cantidad_pedida) || l.cantidad_pedida < 1) {
       return res.status(400).json({ error: 'línea inválida' })
     }
-    if (!existe('tipos_queso', l.tipo_queso_id)) {
+    if (!(await existe('tipos_queso', l.tipo_queso_id))) {
       return res.status(400).json({ error: 'queso inexistente' })
     }
   }
 
-  const previo = qPed.porClientId.get(client_id)
-  if (previo) return res.json({ ...pedidoCompleto(previo.id), duplicado: true })
+  const previo = await qPed.porClientId.get(client_id)
+  if (previo) return res.json({ ...await pedidoCompleto(previo.id), duplicado: true })
 
-  if (!existe('clientes', cliente_id)) return res.status(400).json({ error: 'cliente inexistente' })
+  if (!(await existe('clientes', cliente_id))) return res.status(400).json({ error: 'cliente inexistente' })
 
-  const alta = db.transaction(() => {
-    const info = qPed.crear.run({
+  // La cabecera y sus lineas van juntas o no va ninguna: un pedido sin lineas seria
+  // una fila que el armador ve y no puede armar.
+  const nuevoId = await db.transaccion(async (tx) => {
+    const crear = tx.prepare(`
+      INSERT INTO pedidos (client_id, cliente_id, estado, origen, creado_en, nota)
+      VALUES (@client_id, @cliente_id, @estado, @origen, @creado_en, @nota)
+    `)
+    const crearLinea = tx.prepare(`
+      INSERT INTO pedido_lineas (pedido_id, tipo_queso_id, cantidad_pedida)
+      VALUES (?, ?, ?)
+    `)
+    const info = await crear.run({
       client_id,
       cliente_id,
       estado: 'pendiente',
@@ -1369,17 +1588,17 @@ app.post('/api/pedidos', (req, res) => {
       creado_en: ahora(),
       nota: nota ?? null,
     })
-    for (const l of lineas) qPed.crearLinea.run(info.lastInsertRowid, l.tipo_queso_id, l.cantidad_pedida)
+    for (const l of lineas) await crearLinea.run(info.lastInsertRowid, l.tipo_queso_id, l.cantidad_pedida)
     return info.lastInsertRowid
   })
 
-  res.status(201).json(pedidoCompleto(alta()))
+  res.status(201).json(await pedidoCompleto(nuevoId))
 })
 
-app.get('/api/pedidos', (req, res) => {
+app.get('/api/pedidos', async (req, res) => {
   const estado = req.query.estado ?? ''
-  const pedidos = qPed.listar.all(estado, estado).map((p) => {
-    const completo = pedidoCompleto(p.id)
+  const pedidos = await Promise.all((await qPed.listar.all(estado, estado)).map(async (p) => {
+    const completo = await pedidoCompleto(p.id)
     return {
       ...p,
       piezas: completo.piezas,
@@ -1387,27 +1606,27 @@ app.get('/api/pedidos', (req, res) => {
       gramos: completo.gramos,
       lineas: completo.lineas.length,
     }
-  })
+  }))
   res.json({ pedidos })
 })
 
-app.get('/api/pedidos/:id', (req, res) => {
-  const p = pedidoCompleto(Number(req.params.id))
+app.get('/api/pedidos/:id', async (req, res) => {
+  const p = await pedidoCompleto(Number(req.params.id))
   if (!p) return res.status(404).json({ error: 'no existe' })
   res.json(p)
 })
 
-app.post('/api/pedidos/:id/tomar', (req, res) => {
+app.post('/api/pedidos/:id/tomar', async (req, res) => {
   const id = Number(req.params.id)
-  qPed.marcarArmando.run(req.body?.operario_id ?? null, id)
-  const p = pedidoCompleto(id)
+  await qPed.marcarArmando.run(req.body?.operario_id ?? null, id)
+  const p = await pedidoCompleto(id)
   if (!p) return res.status(404).json({ error: 'no existe' })
   res.json(p)
 })
 
 // Una fila por pieza pesada. client_id unico = la cola offline puede reenviar sin
 // duplicar, igual que en el resto del sistema.
-app.post('/api/pedidos/pesos', (req, res) => {
+app.post('/api/pedidos/pesos', async (req, res) => {
   const { client_id, linea_id, gramos, fecha_hora_cliente } = req.body ?? {}
 
   if (!client_id || !linea_id) return res.status(400).json({ error: 'faltan campos obligatorios' })
@@ -1415,66 +1634,66 @@ app.post('/api/pedidos/pesos', (req, res) => {
     return res.status(400).json({ error: 'peso fuera de rango' })
   }
 
-  const previo = qPed.pesoPorClientId.get(client_id)
+  const previo = await qPed.pesoPorClientId.get(client_id)
   if (previo) return res.json({ id: previo.id, duplicado: true })
 
-  const linea = qPed.lineaDe.get(linea_id)
+  const linea = await qPed.lineaDe.get(linea_id)
   if (!linea) return res.status(400).json({ error: 'línea inexistente' })
 
   const marca = marcaDeTiempo(fecha_hora_cliente)
-  const info = qPed.agregarPeso.run({
+  const info = await qPed.agregarPeso.run({
     client_id,
     linea_id,
     gramos,
     fecha_hora: marca.fecha_hora,
     origen: marca.origen,
   })
-  res.status(201).json({ id: info.lastInsertRowid, pedido: pedidoCompleto(linea.pedido_id) })
+  res.status(201).json({ id: info.lastInsertRowid, pedido: await pedidoCompleto(linea.pedido_id) })
 })
 
-app.post('/api/pedidos/pesos/:id/anular', (req, res) => {
+app.post('/api/pedidos/pesos/:id/anular', async (req, res) => {
   const id = Number(req.params.id)
-  if (qPed.anularPeso.run(ahora(), id).changes === 0) {
+  if ((await qPed.anularPeso.run(ahora(), id)).changes === 0) {
     return res.status(404).json({ error: 'no existe o ya estaba anulado' })
   }
   res.json({ ok: true })
 })
 
-app.post('/api/pedidos/:id/cerrar', (req, res) => {
+app.post('/api/pedidos/:id/cerrar', async (req, res) => {
   const id = Number(req.params.id)
-  if (qPed.cerrar.run(ahora(), req.body?.operario_id ?? null, id).changes === 0) {
+  if ((await qPed.cerrar.run(ahora(), req.body?.operario_id ?? null, id)).changes === 0) {
     return res.status(409).json({ error: 'el pedido no está en condiciones de cerrarse' })
   }
-  res.json(pedidoCompleto(id))
+  res.json(await pedidoCompleto(id))
 })
 
-app.post('/api/pedidos/:id/reabrir', (req, res) => {
+app.post('/api/pedidos/:id/reabrir', async (req, res) => {
   const id = Number(req.params.id)
-  if (qPed.reabrir.run(id).changes === 0) {
+  if ((await qPed.reabrir.run(id)).changes === 0) {
     return res.status(409).json({ error: 'solo se puede reabrir un pedido listo' })
   }
-  res.json(pedidoCompleto(id))
+  res.json(await pedidoCompleto(id))
 })
 
-app.post('/api/pedidos/:id/facturar', (req, res) => {
+app.post('/api/pedidos/:id/facturar', async (req, res) => {
   const id = Number(req.params.id)
-  if (qPed.facturar.run(ahora(), id).changes === 0) {
+  if ((await qPed.facturar.run(ahora(), id)).changes === 0) {
     return res.status(409).json({ error: 'solo se puede facturar un pedido listo' })
   }
-  res.json(pedidoCompleto(id))
+  res.json(await pedidoCompleto(id))
 })
 
-app.post('/api/pedidos/:id/anular', (req, res) => {
+app.post('/api/pedidos/:id/anular', async (req, res) => {
   const id = Number(req.params.id)
-  if (qPed.anular.run(ahora(), id).changes === 0) {
+  if ((await qPed.anular.run(ahora(), id)).changes === 0) {
     return res.status(404).json({ error: 'no existe o ya estaba anulado' })
   }
   res.json({ ok: true })
 })
 
 // Lo que el encargado necesita para facturar, en el formato mas plano posible.
-app.get('/api/pedidos/:id/remito.csv', (req, res) => {
-  const p = pedidoCompleto(Number(req.params.id))
+app.get('/api/pedidos/:id/remito.csv', async (req, res) => {
+  const p = await pedidoCompleto(Number(req.params.id))
   if (!p) return res.status(404).send('no existe')
   const filas = ['cliente,queso,piezas_pedidas,piezas_entregadas,kilos']
   for (const l of p.lineas) {
@@ -1495,6 +1714,13 @@ app.get('/api/pedidos/:id/remito.csv', (req, res) => {
 //   - STOCK  ("hay 3.248 en sal"): es una foto del momento, no depende del dia.
 // En la pantalla van separados y etiquetados, porque un numero sin referencia en una
 // pared es decoracion.
+
+const qSecciones = {
+  todas: db.prepare(
+    'SELECT clave, nombre, descripcion, visible FROM tablero_secciones ORDER BY orden'
+  ),
+  cambiar: db.prepare('UPDATE tablero_secciones SET visible = @visible WHERE clave = @clave'),
+}
 
 const qTab = {
   palletsHoy: db.prepare(`
@@ -1547,7 +1773,9 @@ const qTab = {
       JOIN tipos_queso q ON q.id = t.tipo_queso_id
      WHERE m.anulado = 0
      GROUP BY q.id
-    HAVING piezas > 0
+    -- Postgres no acepta el alias de salida en HAVING (se evalua antes del SELECT),
+    -- asi que la expresion va repetida. En ORDER BY si lo acepta, y ahi queda el alias.
+    HAVING SUM(CASE WHEN m.tipo = 'entrada' THEN m.cantidad ELSE -m.cantidad END) > 0
      ORDER BY piezas DESC
   `),
   movSaladeroHoy: db.prepare(`
@@ -1618,7 +1846,7 @@ const qTab = {
          AND date(fecha_hora, 'localtime') < ?
          AND date(fecha_hora, 'localtime') >= date(?, '-14 days')
        GROUP BY date(fecha_hora, 'localtime')
-    )
+    ) d
   `),
 }
 
@@ -1626,17 +1854,24 @@ const qTab = {
 const ALERTA_SAL_MIN = 4 * 60
 const ALERTA_DESNUDO_MIN = 48 * 60
 
-app.get('/api/tablero', (_req, res) => {
+app.get('/api/tablero', async (_req, res) => {
   const hoy = hoyLocal()
 
-  const movSal = qTab.movSaladeroHoy.all(hoy)
-  const dePedidos = qTab.pedidosPorEstado.all()
+  // Que secciones mostrar. Viaja con los datos y no en un endpoint aparte: la pantalla
+  // ya pide esto cada 10 segundos, asi que apagar una seccion desde el escritorio se ve
+  // en la pared sin que nadie vaya hasta la maquina.
+  const secciones = Object.fromEntries(
+    (await qSecciones.todas.all()).map((s) => [s.clave, Boolean(s.visible)])
+  )
+
+  const movSal = await qTab.movSaladeroHoy.all(hoy)
+  const dePedidos = await qTab.pedidosPorEstado.all()
   const cuenta = (estado) => dePedidos.find((p) => p.estado === estado)?.n ?? 0
 
-  const enSal = qTab.enSalAhora.all()
-  const paraEnvasar = qTab.paraEnvasar.all()
-  const producido = qTab.producidoHoy.all(hoy)
-  const esperandoSal = qTab.esperandoSal.all()
+  const enSal = await qTab.enSalAhora.all()
+  const paraEnvasar = await qTab.paraEnvasar.all()
+  const producido = await qTab.producidoHoy.all(hoy)
+  const esperandoSal = await qTab.esperandoSal.all()
 
   const demoradasSal = esperandoSal
     .map((t) => ({ ...t, minutos: minutosDesde(t.fecha_hora) }))
@@ -1650,22 +1885,22 @@ app.get('/api/tablero', (_req, res) => {
     hora: ahora(),
     fecha: hoy,
 
-    recepcion: qTab.recibidoHoy.get(hoy),
+    recepcion: await qTab.recibidoHoy.get(hoy),
 
-    lecheria: (() => {
-      const detalle = qTab.palletsHoy.all(hoy)
+    lecheria: await (async () => {
+      const detalle = await qTab.palletsHoy.all(hoy)
       return {
         detalle,
         total: detalle.reduce((n, r) => n + r.pallets, 0),
         litros: detalle.reduce((n, r) => n + r.litros, 0),
         // Los pallets en un formato todavía sin confirmar no suman litros. Se cuentan
         // aparte para que el total no parezca menor de lo que fue.
-        sin_litros: qTab.palletsSinLitros.get(hoy).n,
+        sin_litros: (await qTab.palletsSinLitros.get(hoy)).n,
       }
     })(),
 
-    yogur: (() => {
-      const detalle = qTab.yogurHoy.all(hoy)
+    yogur: await (async () => {
+      const detalle = await qTab.yogurHoy.all(hoy)
       return {
         detalle,
         bins: detalle.reduce((n, r) => n + r.bins, 0),
@@ -1681,9 +1916,9 @@ app.get('/api/tablero', (_req, res) => {
       por_queso: producido,
       entro_a_sal: movSal.find((m) => m.tipo === 'entrada')?.piezas ?? 0,
       salio_de_sal: movSal.find((m) => m.tipo === 'salida')?.piezas ?? 0,
-      envasado: qTab.envasadoHoy.get(hoy).piezas,
-      pedidos_terminados: qTab.pedidosHoy.get(hoy).n,
-      promedio_piezas: qTab.promedioDiario.get(hoy, hoy)?.promedio ?? null,
+      envasado: (await qTab.envasadoHoy.get(hoy)).piezas,
+      pedidos_terminados: (await qTab.pedidosHoy.get(hoy)).n,
+      promedio_piezas: (await qTab.promedioDiario.get(hoy, hoy))?.promedio ?? null,
     },
 
     // STOCK: foto del momento
@@ -1702,7 +1937,7 @@ app.get('/api/tablero', (_req, res) => {
       pendientes: cuenta('pendiente'),
       armando: cuenta('armando'),
       listos: cuenta('listo'),
-      kilos_listos: qTab.kilosListos.get().gramos / 1000,
+      kilos_listos: (await qTab.kilosListos.get()).gramos / 1000,
     },
 
     // Lo que hay que mirar, no solo lo que paso.
@@ -1710,7 +1945,26 @@ app.get('/api/tablero', (_req, res) => {
       esperando_sal: demoradasSal.map((t) => ({ queso: t.queso, piezas: t.falta, minutos: t.minutos })),
       desnudo_viejo: desnudoViejo.map((t) => ({ queso: t.queso, piezas: t.piezas, minutos: t.minutos })),
     },
+    secciones,
   })
+})
+
+// ---------------------------------------------------------------- tablero: config
+
+app.get('/api/tablero/secciones', async (_req, res) => {
+  res.json(await qSecciones.todas.all())
+})
+
+app.put('/api/tablero/secciones/:clave', async (req, res) => {
+  const { clave } = req.params
+  const existe = (await qSecciones.todas.all()).some((s) => s.clave === clave)
+  if (!existe) return res.status(404).json({ error: 'sección inexistente' })
+
+  if (typeof req.body?.visible !== 'boolean') {
+    return res.status(400).json({ error: 'visible debe ser true o false' })
+  }
+  await qSecciones.cambiar.run({ clave, visible: req.body.visible })
+  res.json(await qSecciones.todas.all())
 })
 
 // ---------------------------------------------------------------- reportes
@@ -1722,12 +1976,14 @@ app.get('/api/tablero', (_req, res) => {
 
 const qRep = {
   piezasPorDia: db.prepare(`
-    SELECT date(fecha_hora, 'localtime') AS fecha,
-           COUNT(*)      AS tinas,
-           SUM(cantidad) AS piezas
-      FROM tinas
-     WHERE anulado = 0
-       AND date(fecha_hora, 'localtime') BETWEEN ? AND ?
+    SELECT date(t.fecha_hora, 'localtime') AS fecha,
+           COUNT(*)        AS tinas,
+           SUM(t.cantidad) AS piezas
+      FROM tinas t
+      JOIN tipos_queso q ON q.id = t.tipo_queso_id
+     WHERE t.anulado = 0
+       AND date(t.fecha_hora, 'localtime') BETWEEN ? AND ?
+       AND (? = '' OR q.nombre = ?)
      GROUP BY fecha
      ORDER BY fecha
   `),
@@ -1753,6 +2009,7 @@ const qRep = {
       JOIN tipos_queso q ON q.id = t.tipo_queso_id
      WHERE t.anulado = 0
        AND date(t.fecha_hora, 'localtime') BETWEEN ? AND ?
+       AND (? = '' OR q.nombre = ?)
      GROUP BY q.id
      ORDER BY piezas DESC
   `),
@@ -1790,8 +2047,10 @@ const qRep = {
     SELECT (julianday(MIN(m.fecha_hora)) - julianday(t.fecha_hora)) * 1440 AS minutos
       FROM tinas t
       JOIN movimientos_saladero m ON m.tina_id = t.id AND m.tipo = 'entrada' AND m.anulado = 0
+      JOIN tipos_queso q ON q.id = t.tipo_queso_id
      WHERE t.anulado = 0
        AND date(t.fecha_hora, 'localtime') BETWEEN ? AND ?
+       AND (? = '' OR q.nombre = ?)
      GROUP BY t.id
      ORDER BY minutos
   `),
@@ -1799,7 +2058,9 @@ const qRep = {
     SELECT COALESCE(SUM(CASE WHEN m.tipo = 'entrada' THEN m.cantidad ELSE -m.cantidad END), 0) AS n
       FROM movimientos_saladero m
       JOIN tinas t ON t.id = m.tina_id
+      JOIN tipos_queso q ON q.id = t.tipo_queso_id
      WHERE m.anulado = 0 AND t.anulado = 0
+       AND (? = '' OR q.nombre = ?)
   `),
   detalleTinas: db.prepare(`
     SELECT t.fecha_hora, q.nombre AS queso, t.cantidad, o.nombre AS operario, t.origen
@@ -1824,12 +2085,12 @@ function rango(req) {
   return [desde, hasta]
 }
 
-app.get('/api/reportes', (req, res) => {
+app.get('/api/reportes', async (req, res) => {
   const [desde, hasta] = rango(req)
   const queso = req.query.queso ?? ''
 
-  const porDiaTinas = qRep.piezasPorDia.all(desde, hasta)
-  const porDiaPallets = qRep.palletsPorDia.all(desde, hasta)
+  const porDiaTinas = await qRep.piezasPorDia.all(desde, hasta, queso, queso)
+  const porDiaPallets = await qRep.palletsPorDia.all(desde, hasta)
 
   // Serie continua: los dias sin produccion valen cero, no se saltean. Un hueco en
   // el eje haria parecer que se produjo todos los dias.
@@ -1855,12 +2116,12 @@ app.get('/api/reportes', (req, res) => {
     })
   }
 
-  const rendimiento = qRep.rendimiento.all(desde, hasta)
+  const rendimiento = await qRep.rendimiento.all(desde, hasta, queso, queso)
 
   // Umbral de "marcado tarde": mas de 12 h entre producir y salar no es un tiempo de
   // proceso, es un olvido. Provisorio hasta saber el intervalo real (pregunta nueva).
   const TARDE = 12 * 60
-  const tiempos = qRep.tiemposASal.all(desde, hasta).map((x) => x.minutos)
+  const tiempos = (await qRep.tiemposASal.all(desde, hasta, queso, queso)).map((x) => x.minutos)
   const mediana = tiempos.length
     ? Math.round(tiempos[Math.floor(tiempos.length / 2)])
     : null
@@ -1873,30 +2134,30 @@ app.get('/api/reportes', (req, res) => {
       tinas: rendimiento.reduce((n, r) => n + r.tinas, 0),
       pallets: dias.reduce((n, d) => n + d.pallets, 0),
       litros: dias.reduce((n, d) => n + d.litros, 0),
-      yogur_bins: qRep.yogur.all(desde, hasta).reduce((n, r) => n + r.bins, 0),
-      yogur_unidades: qRep.yogur.all(desde, hasta).reduce((n, r) => n + r.unidades, 0),
-      en_sal: qRep.enSalAhora.get().n,
+      yogur_bins: (await qRep.yogur.all(desde, hasta)).reduce((n, r) => n + r.bins, 0),
+      yogur_unidades: (await qRep.yogur.all(desde, hasta)).reduce((n, r) => n + r.unidades, 0),
+      en_sal: (await qRep.enSalAhora.get(queso, queso)).n,
       minutos_a_sal: mediana,
       muestras_a_sal: tiempos.length,
       tardias: tiempos.filter((m) => m > TARDE).length,
     },
     dias,
     rendimiento,
-    lecheria: qRep.lecheria.all(desde, hasta),
-    yogur: qRep.yogur.all(desde, hasta),
+    lecheria: await qRep.lecheria.all(desde, hasta),
+    yogur: await qRep.yogur.all(desde, hasta),
     // Orden canonico de los productos, independiente de lo que traiga el filtro.
     // El color de cada tipo de leche se asigna por esta lista y no por el orden de
     // aparicion: si cambiar el rango repintara las series, comparar dos periodos
     // seria enganoso.
-    productos: qCatalogo.productos.all('leche').map((p) => p.nombre),
-    detalle: qRep.detalleTinas.all(desde, hasta, queso, queso),
+    productos: (await qCatalogo.productos.all('leche')).map((p) => p.nombre),
+    detalle: await qRep.detalleTinas.all(desde, hasta, queso, queso),
   })
 })
 
-app.get('/api/reportes.csv', (req, res) => {
+app.get('/api/reportes.csv', async (req, res) => {
   const [desde, hasta] = rango(req)
   const queso = req.query.queso ?? ''
-  const filas = qRep.detalleTinas.all(desde, hasta, queso, queso)
+  const filas = await qRep.detalleTinas.all(desde, hasta, queso, queso)
   const csv = [
     'fecha_hora,queso,cantidad,operario,origen',
     ...filas.map((r) => [r.fecha_hora, r.queso, r.cantidad, r.operario, r.origen].join(',')),
@@ -1908,9 +2169,57 @@ app.get('/api/reportes.csv', (req, res) => {
 
 app.use(express.static(join(root, 'public')))
 
-const port = process.env.PORT ?? 3000
-app.listen(port, () => {
-  console.log(`Fabrica Belgrano - http://localhost:${port}`)
-  avisarAcceso()
-  programarBackups()
+// El escritorio nuevo (React) es una SPA: sus rutas —/app/reportes y las que vengan—
+// solo existen en el navegador. Si alguien las abre directo o recarga, el estático no
+// encuentra archivo y contesta 404; hay que devolverle el index y dejar que el router
+// resuelva. Se limita a /app para no tocar nada de lo que ya funciona: las tablets y
+// el tablero siguen siendo archivos de verdad en la raíz.
+app.get('/app/*', (_req, res) => {   // Express 4: comodin '*', no ':splat'
+  res.sendFile(join(root, 'public', 'app', 'index.html'), (err) => {
+    if (!err) return
+    // Todavia no se corrio el build del escritorio. Es lo PRIMERO que pasa en una
+    // maquina recien clonada, asi que la instruccion va en la pantalla y no en el log
+    // del servidor: quien abre el navegador no lo esta mirando.
+    res.status(503).type('html').send(`<!doctype html>
+<meta charset="utf-8">
+<title>Falta compilar el escritorio</title>
+<body style="font:15px/1.5 system-ui;max-width:34rem;margin:15vh auto;padding:0 1.5rem">
+<h1 style="font-size:19px">El escritorio no está compilado</h1>
+<p>Las pantallas de <code>/app</code> se generan con un paso de build. Corré:</p>
+<pre style="background:#f4f4f2;padding:12px 14px;border-radius:8px">npm run web:install   # solo la primera vez
+npm run web:build</pre>
+<p style="color:#666">Las tablets de planta no dependen de esto:
+<a href="/">seguí a la pantalla de sectores</a>.</p>
+</body>`)
+  })
 })
+
+// Último recurso: un error que llegó hasta acá se registra entero y se responde 500.
+// Sin esto el cliente recibe una conexión cortada y nadie sabe qué pasó.
+app.use((err, _req, res, _next) => {
+  console.error('Error no manejado:', err.message)
+  if (err.stack) console.error(err.stack.split(String.fromCharCode(10)).slice(1, 4).join(String.fromCharCode(10)))
+  if (!res.headersSent) res.status(500).json({ error: 'error interno' })
+})
+
+// La app se EXPORTA y el listen queda condicionado a que este archivo sea el que se
+// ejecutó. Es lo que permite que el mismo código corra como proceso de siempre (un
+// servidor en la fábrica) y como función en un hosting serverless, donde no hay ningún
+// proceso al que hacerle listen: el entorno importa la app y le pasa cada request.
+export { app }
+
+// pathToFileURL y no comparar strings de path: en Windows argv[1] viene con barras
+// invertidas y con la unidad en mayúscula, y import.meta.url no. Comparar las dos URLs
+// ya normalizadas es lo único que funciona igual en los dos sistemas.
+const ejecutadoDirecto =
+  Boolean(process.argv[1]) && import.meta.url === pathToFileURL(process.argv[1]).href
+
+if (ejecutadoDirecto) {
+  const port = process.env.PORT ?? 3000
+  app.listen(port, () => {
+    console.log(`Fabrica Belgrano - http://localhost:${port}`)
+    avisarMotor()
+    avisarAcceso()
+    programarBackups()
+  })
+}
