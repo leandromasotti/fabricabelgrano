@@ -221,6 +221,35 @@ h1 {
 .estado.sin-red { background: var(--alerta); color: #fff; }
 .estado.sin-red .punto { background: #fff; }
 
+/* ------------------------------------------------------------ pantallas angostas */
+/* Las tablets de planta son de 1280 de ancho y nada de esto las toca. Esto es para
+   cuando alguien entra desde el celular: ver lo que se cargó, o registrar algo estando
+   lejos de la tablet amurada.
+
+   El problema concreto: `.migas` tiene flex:1 y min-width:0, asi que en 390 px se
+   comprime a 20 px y el texto se derrama por debajo de "Cambiar" y del indicador de red.
+   No es que se corte: queda ilegible encima de los dos controles.
+
+   La solucion es bajarlo entero a su propia linea en vez de recortarlo. Las migas dicen
+   que se eligio hasta ahora, y truncarlas con puntos suspensivos borraria justo lo que
+   uno mira para saber donde esta parado. */
+@media (max-width: 780px) {
+  header { flex-wrap: wrap; gap: 8px 12px; }
+  h1 { font-size: 17px; }
+  /* El titulo se queda arriba con los dos controles; las migas pasan a la segunda fila,
+     donde tienen el ancho completo y pueden wrappear tranquilas. */
+  #btn-reiniciar { margin-left: auto; }
+  .migas {
+    order: 4;
+    flex: none;
+    flex-basis: 100%;
+    flex-wrap: wrap;
+    font-size: 16px;
+    gap: 6px;
+    line-height: 1.3;
+  }
+}
+
 @media (max-width: 620px) {
   .opciones { grid-template-columns: 1fr 1fr; }
   .opcion { font-size: 21px; min-height: 84px; }
