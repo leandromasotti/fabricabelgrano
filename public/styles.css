@@ -491,3 +491,38 @@ h1 {
   border-radius: 12px; cursor: pointer;
 }
 .btn-seguir:active { background: rgba(255, 255, 255, 0.3); }
+
+/* ------------------------------------------------------------ pallet incompleto */
+/* Los litros equivalentes, debajo del numero que se esta tecleando. Es la misma idea
+   que en la pantalla de envases: ver el resultado ANTES de guardar es lo que hace que
+   alguien note que puso 200 donde iba 20, cuando todavia se puede arreglar. */
+.equivale {
+  min-height: 22px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--texto-tenue);
+  text-align: center;
+}
+
+/* Salida discreta a proposito: la usa una minoria de los pallets y no puede competir
+   visualmente con DESHACER y SEGUIR, que son lo que se toca siempre. */
+.btn-ajustar {
+  display: block;
+  width: 100%;
+  margin-top: 14px;
+  padding: 14px;
+  font: 600 16px system-ui, sans-serif;
+  color: var(--texto-tenue);
+  background: transparent;
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+}
+.btn-ajustar:active { background: var(--panel-alto); }
+
+.acciones-ajuste {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  max-width: 420px;
+}
+.acciones-ajuste .btn-ajustar { margin-top: 0; }

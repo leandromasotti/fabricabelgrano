@@ -11,7 +11,12 @@ const VENTANA_DESHACER = 60
 
 const est = { operario: null, marca: null, producto: null, envase: null, ultimo: null, timer: null }
 // El paso de envase tiene 3 opciones: entra sin ocultar el historial.
-const mostrar = hacerPasos(['operario', 'marca', 'producto', 'envase', 'listo'])
+// 'ajustar' va a pantalla completa: el teclado numerico no entra junto con el
+// historial, y ademas es un momento de foco — se esta corrigiendo un numero.
+const mostrar = hacerPasos(
+  ['operario', 'marca', 'producto', 'envase', 'listo', 'ajustar'],
+  ['ajustar']
+)
 
 function irA(paso) {
   mostrar(paso)
@@ -46,6 +51,10 @@ async function registrar() {
     marca: est.marca.nombre,
     producto: est.producto.nombre,
     envase: est.envase.nombre,
+    // Lo que el formato dice que entra. Si el pallet no fue completo se corrige desde
+    // la misma pantalla de confirmacion, sin volver a empezar.
+    bultos: est.envase.bultos_por_pallet ?? null,
+    unidades_por_bulto: est.envase.unidades_por_bulto ?? null,
     litros: est.envase.litros_por_pallet,
   }
 
@@ -55,9 +64,7 @@ async function registrar() {
   $('listo-hora').textContent = hhmm(fecha)
   // Los litros se muestran si el envase los tiene cargados. Si es una palangana sin
   // números todavía, el pallet se registra igual y no se inventa nada.
-  $('listo-detalle').textContent =
-    `${local.marca} · ${local.producto} · ${local.envase}` +
-    (local.litros ? ` · ${local.litros.toLocaleString('es-AR')} L` : '')
+  pintarConfirmacion()
   irA('listo')
   clearInterval(est.timer)
   est.timer = cuentaRegresiva(VENTANA_DESHACER, $('deshacer-seg'), reiniciar)
@@ -76,6 +83,135 @@ async function registrar() {
     red.hay = false
   }
   pintarEstado()
+}
+
+// ---------------------------------------------------------------- pallet incompleto
+
+// "A lo ultimo de la produccion puede suceder que pidan un pallet con 20 cajones
+// solamente, o 15 cajones por 18 unidades. Pasa pocas veces al dia." [Alexis, 16/9]
+//
+// Por eso NO es un paso del flujo: el 99% de los pallets son completos y pagarian un
+// toque de mas por el 1% que no lo es. Se registra el pallet completo y, si no lo fue,
+// se corrige desde la misma confirmacion, dentro de la ventana que ya existe.
+
+const ajuste = { campo: 'bultos', valor: '' }
+
+function pintarConfirmacion() {
+  const u = est.ultimo
+  if (!u) return
+  const partes = [u.marca, u.producto, u.envase]
+  // "40 × 18" solo aparece cuando se sabe; si el formato esta a confirmar no se
+  // inventa nada, igual que con los litros.
+  if (u.bultos && u.unidades_por_bulto) partes.push(`${u.bultos} × ${u.unidades_por_bulto}`)
+  if (u.litros) partes.push(`${u.litros.toLocaleString('es-AR')} L`)
+  $('listo-detalle').textContent = partes.join(' · ')
+  // Sin formato cargado no hay nada que ajustar: no se sabe cuanto es "completo".
+  $('btn-ajustar').hidden = !u.bultos
+}
+
+function litrosDe(bultos, unidades) {
+  const l = est.envase?.litros_por_unidad
+  if (!bultos || !unidades || !l) return null
+  return Math.round(bultos * unidades * l)
+}
+
+function pintarAjuste() {
+  const esBultos = ajuste.campo === 'bultos'
+  const u = est.ultimo
+  $('ajustar-pregunta').textContent = esBultos
+    ? '¿Cuántos bultos entraron?'
+    : '¿Cuántas unidades por bulto?'
+  const v = $('ajustar-valor')
+  v.textContent = ajuste.valor || '0'
+  v.classList.toggle('vacio', !ajuste.valor)
+  $('ajustar-unidad').textContent = esBultos ? 'bultos' : 'unidades c/u'
+  $('btn-cambiar-campo').textContent = esBultos
+    ? `Cambiar unidades por bulto (${u.unidades_por_bulto ?? '?'})`
+    : `Cambiar cantidad de bultos (${u.bultos ?? '?'})`
+
+  const n = Number(ajuste.valor)
+  const bultos = esBultos ? n : u.bultos
+  const unidades = esBultos ? u.unidades_por_bulto : n
+  const litros = litrosDe(bultos, unidades)
+  $('ajustar-equivale').textContent =
+    n >= 1 && litros ? `${bultos} × ${unidades} = ${litros.toLocaleString('es-AR')} L` : ''
+  $('ajustar-ok').disabled = !(n >= 1)
+}
+
+function teclaAjuste(valor) {
+  if (valor === 'borrar') ajuste.valor = ajuste.valor.slice(0, -1)
+  else if (ajuste.valor.length < 3) ajuste.valor = (ajuste.valor + valor).replace(/^0+/, '')
+  pintarAjuste()
+}
+
+function armarTecladoAjuste() {
+  const t = $('ajustar-teclado')
+  t.replaceChildren()
+  for (const n of ['1', '2', '3', '4', '5', '6', '7', '8', '9']) {
+    const b = document.createElement('button')
+    b.className = 'tecla'
+    b.textContent = n
+    b.onclick = () => teclaAjuste(n)
+    t.append(b)
+  }
+  const borrar = document.createElement('button')
+  borrar.className = 'tecla borrar'
+  borrar.textContent = '⌫'
+  borrar.onclick = () => teclaAjuste('borrar')
+
+  const cero = document.createElement('button')
+  cero.className = 'tecla'
+  cero.textContent = '0'
+  cero.onclick = () => teclaAjuste('0')
+
+  const ok = document.createElement('button')
+  ok.className = 'tecla ok'
+  ok.id = 'ajustar-ok'
+  ok.textContent = 'LISTO'
+  ok.disabled = true
+  ok.onclick = confirmarAjuste
+
+  t.append(borrar, cero, ok)
+}
+
+function abrirAjuste(campo) {
+  // Se congela la cuenta regresiva: con el teclado abierto, que el DESHACER venza
+  // debajo dejaria la correccion a medias y sin manera de completarla.
+  clearInterval(est.timer)
+  ajuste.campo = campo
+  ajuste.valor = ''
+  pintarAjuste()
+  irA('ajustar')
+}
+
+async function confirmarAjuste() {
+  const n = Number(ajuste.valor)
+  if (!(n >= 1)) return
+  const u = est.ultimo
+  const cambios =
+    ajuste.campo === 'bultos' ? { bultos: n } : { unidades_por_bulto: n }
+
+  Object.assign(u, cambios)
+  u.litros = litrosDe(u.bultos, u.unidades_por_bulto)
+  pintarConfirmacion()
+  actualizarFila(u)
+  irA('listo')
+  est.timer = cuentaRegresiva(VENTANA_DESHACER, $('deshacer-seg'), reiniciar)
+
+  // Si el alta todavia esta en la cola, se corrige ahi y viaja una sola vez ya
+  // correcta. Si ya viajo, se manda la correccion por client_id.
+  if (cola.actualizar(u.client_id, cambios)) return
+  try {
+    await fetch('/api/registros/cantidades', {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ client_id: u.client_id, ...cambios }),
+    })
+    refrescarHoy()
+  } catch {
+    red.hay = false
+    pintarEstado()
+  }
 }
 
 // El deshacer cubre el error real: "toque el boton de al lado". Lo que cae fuera de la
@@ -100,10 +236,17 @@ async function deshacer() {
 function fila(r, pendiente = false) {
   const el = document.createElement('div')
   el.className = `fila${pendiente ? ' pendiente' : ''}${r.anulado ? ' anulada' : ''}`
+  el.dataset.clientId = r.client_id ?? ''
   el.innerHTML = '<span class="h"></span><span class="q"></span><span class="op"></span>'
   el.querySelector('.h').textContent = hhmm(r.fecha_hora)
+  // El "15 × 18" solo se muestra cuando el pallet NO fue el formato completo: ponerlo
+  // en todas las filas convierte en ruido lo que justamente hay que poder distinguir.
+  const incompleto =
+    r.bultos && r.bultos_formato && r.bultos !== r.bultos_formato
+      ? ` · ${r.bultos} × ${r.unidades_por_bulto}`
+      : ''
   el.querySelector('.q').textContent =
-    `${r.marca} · ${r.producto}` + (r.envase ? ` · ${r.envase}` : '')
+    `${r.marca} · ${r.producto}` + (r.envase ? ` · ${r.envase}` : '') + incompleto
   el.querySelector('.op').textContent = r.operario
   return el
 }
@@ -111,6 +254,13 @@ function fila(r, pendiente = false) {
 function agregarFila(r, pendiente) {
   $('lista-hoy').prepend(fila(r, pendiente))
   $('total-hoy').textContent = Number($('total-hoy').textContent) + 1
+}
+
+// Repinta la fila del pallet que se acaba de corregir, sin esperar al refresco: el
+// operario tiene que ver en la lista lo mismo que acaba de confirmar en pantalla.
+function actualizarFila(r) {
+  const vieja = $('lista-hoy').querySelector(`[data-client-id="${r.client_id}"]`)
+  if (vieja) vieja.replaceWith(fila({ ...r, bultos_formato: est.envase?.bultos_por_pallet }, true))
 }
 
 async function refrescarHoy() {
@@ -158,6 +308,15 @@ botones($('op-envases'), catalogo.envases, (e) => {
   return partes
 })
 
+armarTecladoAjuste()
+$('btn-ajustar').addEventListener('click', () => abrirAjuste('bultos'))
+$('btn-cambiar-campo').addEventListener('click', () =>
+  abrirAjuste(ajuste.campo === 'bultos' ? 'unidades' : 'bultos')
+)
+$('btn-ajustar-cancelar').addEventListener('click', () => {
+  irA('listo')
+  est.timer = cuentaRegresiva(VENTANA_DESHACER, $('deshacer-seg'), reiniciar)
+})
 $('btn-deshacer').addEventListener('click', deshacer)
 $('btn-seguir').addEventListener('click', () => {
   clearInterval(est.timer)

@@ -43,6 +43,22 @@
     </section>
 
     <!-- paso 4 -->
+    <section class="paso" id="paso-ajustar" hidden>
+      <p class="pregunta" id="ajustar-pregunta">¿Cuántos bultos entraron?</p>
+      <div class="centrado">
+        <div class="contador">
+          <div class="valor vacio" id="ajustar-valor">0</div>
+          <div class="unidad" id="ajustar-unidad">bultos</div>
+        </div>
+        <div class="equivale" id="ajustar-equivale"></div>
+        <div class="teclado" id="ajustar-teclado"></div>
+        <div class="acciones-ajuste">
+          <button class="btn-ajustar" id="btn-cambiar-campo">Cambiar unidades por bulto</button>
+          <button class="btn-ajustar" id="btn-ajustar-cancelar">Volver sin cambiar</button>
+        </div>
+      </div>
+    </section>
+
     <section class="paso" id="paso-listo" hidden>
       <div class="confirmacion">
         <div class="tilde">✓</div>
@@ -53,6 +69,9 @@
           <button class="btn-deshacer" id="btn-deshacer">DESHACER · <span id="deshacer-seg">60</span>s</button>
           <button class="btn-seguir" id="btn-seguir">SEGUIR</button>
         </div>
+        <!-- Pallet incompleto o con otra cantidad por cajon. Pasa pocas veces al dia,
+             asi que va DESPUES de registrar y no antes: el camino normal no paga nada. -->
+        <button class="btn-ajustar" id="btn-ajustar" hidden>No fue un pallet completo</button>
       </div>
     </section>
 

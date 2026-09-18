@@ -44,6 +44,16 @@ export const cola = {
   quitar(clientId) {
     cola.guardar(cola.leer().filter((i) => i.cuerpo.client_id !== clientId))
   },
+  // Corregir algo que todavia no se sincronizo. Sin esto, arreglar un pallet cargado
+  // sin red significaria anularlo y volver a cargarlo entero.
+  actualizar(clientId, cambios) {
+    const items = cola.leer()
+    const i = items.findIndex((x) => x.cuerpo.client_id === clientId)
+    if (i === -1) return false
+    items[i] = { ...items[i], cuerpo: { ...items[i].cuerpo, ...cambios } }
+    cola.guardar(items)
+    return true
+  },
 }
 
 // ---------------------------------------------------------------- red
