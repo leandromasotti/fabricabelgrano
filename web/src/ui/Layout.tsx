@@ -4,20 +4,25 @@ import { NavLink, Outlet } from 'react-router'
  * Todo el escritorio ya está en el SPA. Las tablets y el tablero LED siguen siendo
  * páginas HTML aparte y se enlazan como externas: son código offline-first que funciona
  * y que no puede fallar a las 6 de la mañana en lechería.
+ *
+ * Las rutas internas van SIN el /app. El router ya tiene basename="/app" y lo antepone
+ * solo; escribirlo también acá generaba /app/app/reportes, que no existe, y el comodín
+ * mandaba todo a Despacho. Se veía como "el menú no funciona" y en realidad los enlaces
+ * apuntaban a una ruta inventada.
  */
 const SECCIONES = [
   {
     titulo: 'Escritorio',
     items: [
-      { a: '/app/nuevo-pedido', texto: 'Nuevo pedido' },
-      { a: '/app/despacho', texto: 'Despacho' },
-      { a: '/app/reportes', texto: 'Reportes' },
-      { a: '/app/leche-cruda', texto: 'Leche cruda' },
-      { a: '/app/envases', texto: 'Envases' },
-      { a: '/app/maduracion-dias', texto: 'Días de maduración' },
-      { a: '/app/consulta', texto: 'Consulta de lechería' },
-      { a: '/app/tablero-led', texto: 'Tablero LED' },
-      { a: '/app/maestros', texto: 'Datos maestros' },
+      { a: '/nuevo-pedido', texto: 'Nuevo pedido' },
+      { a: '/despacho', texto: 'Despacho' },
+      { a: '/reportes', texto: 'Reportes' },
+      { a: '/leche-cruda', texto: 'Leche cruda' },
+      { a: '/envases', texto: 'Envases' },
+      { a: '/maduracion-dias', texto: 'Días de maduración' },
+      { a: '/consulta', texto: 'Consulta de lechería' },
+      { a: '/tablero-led', texto: 'Tablero LED' },
+      { a: '/maestros', texto: 'Datos maestros' },
     ],
   },
   {
