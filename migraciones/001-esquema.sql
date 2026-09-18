@@ -220,6 +220,17 @@ CREATE TABLE registros_pallet (
   marca_id     INTEGER     NOT NULL REFERENCES marcas(id),
   producto_id  INTEGER     NOT NULL REFERENCES productos(id),
   envase_id    INTEGER     NOT NULL REFERENCES envases(id),
+  -- Cuántos bultos (cajones, cajas, palanganas) entraron REALMENTE en este pallet y
+  -- con cuántas unidades cada uno.
+  --
+  -- Se copian del formato en el alta y no se leen de él al mostrar, igual que `litros`.
+  -- Un pallet no siempre es el formato completo: al final de la producción se arma uno
+  -- con 20 cajones sueltos, y hay clientes que piden los cajones por 20 unidades en vez
+  -- de 18 para meter más litros en el mismo camión. Guardarlo acá hace que el registro
+  -- se explique solo — "15 × 18" — en vez de depender de un formato que alguien puede
+  -- editar el mes que viene.
+  bultos             INTEGER CHECK (bultos IS NULL OR bultos > 0),
+  unidades_por_bulto INTEGER CHECK (unidades_por_bulto IS NULL OR unidades_por_bulto > 0),
   -- Congelado en el alta, no calculado al mostrar: si cambia el formato, los pallets
   -- históricos conservan la equivalencia que era cierta el día que se armaron.
   -- NULL es legítimo: el formato todavía no tiene sus números cargados.
@@ -414,3 +425,29 @@ ALTER TABLE movimientos_envasado   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pedidos                ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pedido_lineas          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pedido_pesos           ENABLE ROW LEVEL SECURITY;
+
+-- ---------------------------------------------------------------- tablero LED
+
+-- Qué muestra la pantalla de planta.
+--
+-- El sistema se implementa por sectores y no todos arrancan juntos: mientras lechería
+-- ya carga y quesería todavía no, una sección del tablero en cero no dice "no se
+-- produjo", dice "esto no anda". Un tablero con tres números reales vale más que uno
+-- con seis donde la mitad son ceros que nadie sabe interpretar.
+--
+-- No hay columna `orden`: los bloques tienen formas muy distintas —una fila de cifras,
+-- cinco tarjetas iguales, una lista— y reordenarlos no es mover cajas. Prometerlo en el
+-- esquema sería prometer algo que el layout no puede cumplir.
+CREATE TABLE tablero_secciones (
+  clave       TEXT    PRIMARY KEY,
+  nombre      TEXT    NOT NULL,
+  descripcion TEXT,
+  visible     BOOLEAN NOT NULL DEFAULT true,
+  -- El orden en que aparecen en la PANTALLA, para que la lista de configuración se lea
+  -- igual que el tablero. No es editable: los bloques tienen formas muy distintas —una
+  -- fila de cifras, cinco tarjetas iguales, una lista— y reordenarlos no es mover cajas.
+  orden       INTEGER NOT NULL DEFAULT 0
+);
+
+-- RLS como en todas las demás: activada y sin políticas, que es el default seguro.
+ALTER TABLE tablero_secciones ENABLE ROW LEVEL SECURITY;

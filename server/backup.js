@@ -12,7 +12,7 @@
 // se restaura copiándola encima. No hace falta ningún procedimiento especial, que es
 // justo lo que uno quiere el día que se rompió algo.
 
-import { db } from './db.js'
+import { db, motor } from './db.js'
 import { mkdirSync, readdirSync, statSync, unlinkSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -25,11 +25,20 @@ const sello = () =>
   new Date().toLocaleString('sv-SE').replace(/[: ]/g, '-').slice(0, 16)
 
 export function backup() {
+  // VACUUM INTO es de SQLite. Con Postgres el backup es responsabilidad del motor:
+  // en Supabase son automáticos, y en un Postgres propio se hace con pg_dump desde
+  // afuera del proceso. Fingir que este script hace algo sería peor que decirlo.
+  if (motor !== 'sqlite') {
+    throw new Error(
+      'El backup por VACUUM INTO es solo para SQLite. Con PostgreSQL usá pg_dump ' +
+      '(o los backups administrados de Supabase).'
+    )
+  }
   mkdirSync(DESTINO, { recursive: true })
   const archivo = join(DESTINO, `fabrica-${sello()}.db`)
 
   // VACUUM INTO falla si el destino ya existe, lo cual es bueno: nunca pisa un backup.
-  db.exec(`VACUUM INTO '${archivo.replace(/'/g, "''")}'`)
+  db._crudo.exec(`VACUUM INTO '${archivo.replace(/'/g, "''")}'`)
 
   const tamaño = statSync(archivo).size
   const borrados = limpiarViejos()
@@ -63,6 +72,10 @@ function faltaParaElBackup() {
 }
 
 export function programarBackups() {
+  if (motor !== 'sqlite') {
+    console.log('Backups: los maneja PostgreSQL (pg_dump o Supabase), no este proceso')
+    return
+  }
   // Uno al arrancar: si el servidor se reinició, algo pasó, y ese es justo el momento
   // en que uno quiere tener una copia.
   try {

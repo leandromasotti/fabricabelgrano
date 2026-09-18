@@ -8,11 +8,54 @@ const dbPath = process.env.DB_PATH ?? join(root, 'data', 'fabrica.db')
 
 mkdirSync(dirname(dbPath), { recursive: true })
 
-export const db = new Database(dbPath)
-db.pragma('journal_mode = WAL')
-db.pragma('foreign_keys = ON')
+const sqlite = new Database(dbPath)
+sqlite.pragma('journal_mode = WAL')
+sqlite.pragma('foreign_keys = ON')
 
-db.exec(`
+// La API se expone ASÍNCRONA aunque better-sqlite3 sea sincrónico. No es un capricho:
+// permite que index.js tenga un solo código para los dos motores. Con SQLite las
+// promesas resuelven en el acto y no cuesta nada.
+// better-sqlite3 rechaza los booleanos como parametro; Postgres los exige en las
+// columnas BOOLEAN. Para que index.js pueda pasar true/false y funcionar con los dos,
+// aca se convierten a 1/0 al ligar. Es el mismo criterio que con las fechas: la
+// diferencia de motor se absorbe en el adaptador, no en la logica de arriba.
+const aSqlite = (v) => (typeof v === 'boolean' ? (v ? 1 : 0) : v)
+const ligar = (a) =>
+  a.length === 1 && a[0] !== null && typeof a[0] === 'object' && !Array.isArray(a[0])
+    ? [Object.fromEntries(Object.entries(a[0]).map(([k, v]) => [k, aSqlite(v)]))]
+    : a.map(aSqlite)
+
+export const db = {
+  prepare(sql) {
+    const st = sqlite.prepare(sql)
+    return {
+      get: async (...a) => st.get(...ligar(a)),
+      all: async (...a) => st.all(...ligar(a)),
+      run: async (...a) => st.run(...ligar(a)),
+    }
+  },
+  exec: async (sql) => sqlite.exec(sql),
+  pragma: (p) => sqlite.pragma(p),
+  // SQLite no necesita un cliente aparte: la transacción es sobre la misma conexión.
+  async transaccion(fn) {
+    sqlite.exec('BEGIN')
+    try {
+      const r = await fn(db)
+      sqlite.exec('COMMIT')
+      return r
+    } catch (e) {
+      sqlite.exec('ROLLBACK')
+      throw e
+    }
+  },
+  async cerrar() { sqlite.close() },
+  // Solo para el backup, que necesita el handle crudo.
+  _crudo: sqlite,
+}
+
+export const motor = 'sqlite'
+
+sqlite.exec(`
   CREATE TABLE IF NOT EXISTS operarios (
     id      INTEGER PRIMARY KEY,
     nombre  TEXT NOT NULL,
@@ -303,11 +346,11 @@ db.exec(`
 // Migracion de columnas nuevas sobre bases que ya existen. SQLite no tiene
 // "ADD COLUMN IF NOT EXISTS", asi que se consulta el esquema antes de tocar nada.
 const columnasDe = (tabla) =>
-  db.prepare(`PRAGMA table_info(${tabla})`).all().map((c) => c.name)
+  sqlite.prepare(`PRAGMA table_info(${tabla})`).all().map((c) => c.name)
 
 function agregarColumna(tabla, nombre, definicion) {
   if (!columnasDe(tabla).includes(nombre)) {
-    db.exec(`ALTER TABLE ${tabla} ADD COLUMN ${nombre} ${definicion}`)
+    sqlite.exec(`ALTER TABLE ${tabla} ADD COLUMN ${nombre} ${definicion}`)
   }
 }
 
@@ -346,8 +389,8 @@ agregarColumna('productos', 'unidades_por_bin', 'INTEGER')
 // primer relevamiento; usar el nombre real importa porque es lo que el operario ve en
 // la tablet y lo que dice cuando algo no cuadra.
 if (columnasDe('productos').includes('unidades_por_caja')) {
-  const viejos = db.prepare('SELECT id, unidades_por_caja FROM productos WHERE unidades_por_caja IS NOT NULL').all()
-  const pasar = db.prepare('UPDATE productos SET unidades_por_bin = ? WHERE id = ? AND unidades_por_bin IS NULL')
+  const viejos = sqlite.prepare('SELECT id, unidades_por_caja FROM productos WHERE unidades_por_caja IS NOT NULL').all()
+  const pasar = sqlite.prepare('UPDATE productos SET unidades_por_bin = ? WHERE id = ? AND unidades_por_bin IS NULL')
   for (const f of viejos) pasar.run(f.unidades_por_caja, f.id)
   db.exec('ALTER TABLE productos DROP COLUMN unidades_por_caja')
   console.log('  columna unidades_por_caja renombrada a unidades_por_bin')
@@ -360,7 +403,25 @@ agregarColumna('productos', 'datos_provisorios', 'INTEGER NOT NULL DEFAULT 1')
 // los pallets historicos se recalcularian con el numero nuevo: los reportes del ano
 // pasado cambiarian solos y dejarian de coincidir con lo que se facturo. El registro
 // guarda la equivalencia que era cierta el dia que se armo.
+// Que muestra el tablero LED. El sistema se implementa por sectores y no todos
+// arrancan juntos: una seccion en cero no dice "no se produjo", dice "esto no anda".
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS tablero_secciones (
+    clave       TEXT PRIMARY KEY,
+    nombre      TEXT NOT NULL,
+    descripcion TEXT,
+    visible     INTEGER NOT NULL DEFAULT 1,
+    orden       INTEGER NOT NULL DEFAULT 0
+  );
+`)
+
 agregarColumna('registros_pallet', 'litros', 'INTEGER')
+// Cuantos bultos entraron REALMENTE en el pallet y con cuantas unidades cada uno.
+// NULL en los registros viejos: se armaron antes de que existiera la distincion y no
+// hay forma de saber si fueron completos. Se dejan como estan en vez de inventarles
+// el formato de hoy, que es justo el error que ya cometimos una vez con los litros.
+agregarColumna('registros_pallet', 'bultos', 'INTEGER')
+agregarColumna('registros_pallet', 'unidades_por_bulto', 'INTEGER')
 agregarColumna('registros_pallet', 'envase_id', 'INTEGER REFERENCES envases(id)')
 
 // Relleno de los pallets ANTERIORES a que existieran los envases.
@@ -372,11 +433,11 @@ agregarColumna('registros_pallet', 'envase_id', 'INTEGER REFERENCES envases(id)'
 // arranque del servidor, en silencio.
 //
 // Esos se completan solos cuando alguien carga el formato en /envases.html.
-const legado = db
+const legado = sqlite
   .prepare('SELECT COUNT(*) n FROM registros_pallet WHERE envase_id IS NULL AND litros IS NULL')
   .get().n
 if (legado) {
-  db.prepare(`
+  sqlite.prepare(`
     UPDATE registros_pallet
        SET litros = (
          SELECT p.cajas_por_pallet * p.litros_por_caja
