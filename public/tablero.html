@@ -35,13 +35,28 @@
       -webkit-font-smoothing: antialiased;
     }
 
+    /* Flex y no grid con filas fijas: las secciones se apagan desde la configuracion,
+       y con `grid-template-rows` cada bloque oculto corria a los demas a la fila de
+       otro. Con flex, lo que no esta simplemente no ocupa. */
     .tablero {
       height: 100%;
-      display: grid;
-      grid-template-rows: auto auto 1fr auto;
+      display: flex;
+      flex-direction: column;
       gap: 1.1vh;
       padding: 1.4vh 1.4vw;
     }
+    /* El [hidden] del navegador es solo display:none SIN !important, asi que cualquier
+       clase con display:flex lo anula en silencio. Esta pantalla no carga styles.css,
+       que ya trae esta regla, y por eso la necesita propia: sin ella, ocultar una
+       seccion que ademas crece (.crece-alto) no hacia absolutamente nada. Es el mismo
+       bug que ya aparecio dos veces en las tablets. */
+    [hidden] { display: none !important; }
+
+    .bloque { min-height: 0; }
+    /* Lo que crece para llenar la pantalla. Si el circuito del queso esta apagado, el
+       JS le pone esta clase al ultimo bloque visible: una pared con una franja de
+       contenido arriba y medio metro de negro abajo se lee como "se rompio". */
+    .crece-alto { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 
     /* ------------------------------------------------------ encabezado */
     header { display: flex; align-items: baseline; gap: 1.4vw; }
@@ -69,22 +84,34 @@
     }
 
     /* ------------------------------------------------------ lecheria */
-    .lecheria { display: grid; grid-template-columns: auto auto 1fr auto; gap: 1.2vw; align-items: center; }
+    /* Flex por la misma razon que el contenedor de arriba: con columnas declaradas,
+       ocultar "leche cruda" hacia que los pallets cayeran en la columna `auto` y las
+       marcas en la que no era, descolocando todo el panel. */
+    .lecheria { display: flex; gap: 1.2vw; align-items: center; }
+    .lecheria > .crece { flex: 1; min-width: 0; }
+    /* Los separadores van SOLO entre secciones visibles. `:not([hidden]) ~ :not([hidden])`
+       es literalmente "todo lo visible que tenga algo visible antes", o sea todo menos
+       el primero: sin esto, apagar la primera seccion dejaba una linea vertical
+       colgando en el borde del panel. */
+    .lecheria > *:not([hidden]) ~ *:not([hidden]) {
+      border-left: 1px solid var(--borde);
+      padding-left: 1.2vw;
+    }
     /* La leche cruda es el INPUT del circuito, no un producto más. Va primero y con su
        propio color para que no se confunda con los litros envasados, que están al lado. */
-    .recibido { padding-right: 1.2vw; border-right: 1px solid var(--borde); min-width: 10vw; }
+    .recibido { min-width: 10vw; }
     .recibido .rt { font-size: 1.5vh; color: var(--tenue); text-transform: uppercase; letter-spacing: .15vh; }
     .recibido .rn { font-size: 5.4vh; font-weight: 800; line-height: 1.05; color: #d8c46a; }
     .recibido .ru { font-size: 1.4vh; color: var(--tenue); }
     .recibido .rd { font-size: 1.4vh; color: var(--tenue); margin-top: .4vh; }
     /* Los yogures son el otro producto de lechería: van al lado, no mezclados con los
        pallets, porque la unidad es distinta (cajas de sachets, no litros). */
-    .yogur-caja { padding-left: 1.2vw; border-left: 1px solid var(--borde); min-width: 11vw; }
+    .yogur-caja { min-width: 11vw; }
     .yogur-caja .yt { font-size: 1.5vh; color: var(--tenue); text-transform: uppercase; letter-spacing: .15vh; }
     .yogur-caja .yn { font-size: 4.6vh; font-weight: 800; line-height: 1.05; }
     .yogur-caja .yu { font-size: 1.6vh; color: var(--leche-2); font-weight: 700; }
     .yogur-caja .ys { font-size: 1.4vh; color: var(--tenue); margin-top: .4vh; line-height: 1.5; }
-    .gran-total { text-align: center; padding-right: 1.2vw; border-right: 1px solid var(--borde); }
+    .gran-total { text-align: center; }
     .gran-total .n { font-size: 8vh; font-weight: 800; line-height: 1; }
     .gran-total .t { font-size: 1.5vh; color: var(--tenue); text-transform: uppercase; letter-spacing: .15vh; }
     /* El equivalente en litros es lo que el cliente mira: los pallets son la unidad
@@ -133,7 +160,9 @@
     .tipo-stock { background: #16283a; color: #6fb3f5; }
 
     /* ------------------------------------------------------ pie */
-    .pie { display: grid; grid-template-columns: 2fr 3fr; gap: .9vw; }
+    .pie { display: flex; gap: .9vw; }
+    .pie > #sec-pedidos { flex: 2; min-width: 0; }
+    .pie > #sec-alertas { flex: 3; min-width: 0; }
     .pedidos { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 1vw; }
     .ped .n { font-size: 4.4vh; font-weight: 800; line-height: 1; }
     .ped .t { font-size: 1.4vh; color: var(--tenue); text-transform: uppercase; letter-spacing: .12vh; }
@@ -160,26 +189,26 @@
     </header>
 
     <!-- LECHERÍA -->
-    <div>
-      <div class="seccion-titulo">Leche cruda recibida · producción de lechería</div>
+    <div class="bloque" id="bloque-lecheria">
+      <div class="seccion-titulo" id="titulo-lecheria">Leche cruda recibida · producción de lechería</div>
       <div class="panel lecheria">
-        <div class="recibido">
+        <div class="recibido" id="sec-recepcion">
           <div class="rt">Entró hoy</div>
           <div class="rn" id="recibido-litros">0</div>
           <div class="ru">litros de leche cruda</div>
           <div class="rd" id="recibido-detalle"></div>
         </div>
-        <div class="gran-total">
+        <div class="gran-total" id="sec-lecheria-total">
           <div class="n" id="pallets-total">0</div>
           <div class="t">pallets hoy</div>
           <div class="litros" id="pallets-litros">0 L</div>
           <div class="sin-litros" id="pallets-sin-litros" hidden></div>
         </div>
-        <div>
+        <div class="crece" id="sec-lecheria-marcas">
           <div class="marcas" id="marcas"></div>
           <div class="leyenda" id="leyenda-leche"></div>
         </div>
-        <div class="yogur-caja" id="yogur">
+        <div class="yogur-caja" id="sec-yogur">
           <div class="yt">Yogures · bins</div>
           <div class="yn" id="yogur-bins">0</div>
           <div class="yu" id="yogur-unidades">0 sachets</div>
@@ -189,18 +218,18 @@
     </div>
 
     <!-- CIRCUITO DEL QUESO -->
-    <div style="display:flex; flex-direction:column; min-height:0">
+    <div class="bloque crece-alto" id="sec-queso">
       <div class="seccion-titulo">El queso, etapa por etapa</div>
       <div class="circuito" id="circuito"></div>
     </div>
 
     <!-- PEDIDOS + ALERTAS -->
-    <div class="pie">
-      <div>
+    <div class="bloque pie" id="bloque-pie">
+      <div id="sec-pedidos">
         <div class="seccion-titulo">Pedidos</div>
         <div class="panel pedidos" id="pedidos"></div>
       </div>
-      <div style="display:flex; flex-direction:column; min-height:0">
+      <div class="crece-alto" id="sec-alertas">
         <div class="seccion-titulo">Atención</div>
         <div class="panel alertas" id="alertas"></div>
       </div>

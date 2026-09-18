@@ -254,6 +254,70 @@ function pintarAlertas(a) {
   }))
 }
 
+// ---------------------------------------------------------------- secciones
+
+// Que se muestra en la pared.
+//
+// El sistema se implementa por sectores y no todos arrancan juntos: mientras lechería
+// ya carga y quesería todavía no, una sección en cero no dice "no se produjo hoy", dice
+// "esto no anda". Un tablero con tres números reales vale más que uno con seis donde la
+// mitad son ceros que nadie sabe interpretar.
+//
+// La configuración viaja dentro de /api/tablero, que esta pantalla ya pide cada 10
+// segundos: apagar una sección desde el escritorio se ve en la pared sola, sin que nadie
+// tenga que ir hasta la máquina que la maneja.
+
+const NODOS = {
+  recepcion: ['#sec-recepcion'],
+  // Los pallets son dos piezas del panel: el total grande y el desglose por marca.
+  lecheria: ['#sec-lecheria-total', '#sec-lecheria-marcas'],
+  yogur: ['#sec-yogur'],
+  queso: ['#sec-queso'],
+  pedidos: ['#sec-pedidos'],
+  alertas: ['#sec-alertas'],
+}
+
+function aplicarSecciones(secciones) {
+  if (!secciones) return
+  for (const [clave, selectores] of Object.entries(NODOS)) {
+    // Una sección que el servidor no nombra se muestra. Ante la duda, mostrar: un dato
+    // de más se ignora, uno de menos no se nota que falta.
+    const visible = secciones[clave] !== false
+    for (const s of selectores) {
+      const nodo = $(s)
+      if (nodo) nodo.hidden = !visible
+    }
+  }
+
+  // Los contenedores que quedan sin ningún hijo visible se van con su título: si no,
+  // queda un encabezado anunciando una sección vacía.
+  const vacio = (sel) => [...$(sel).children].every((c) => c.hidden)
+  const hayRecepcion = secciones.recepcion !== false
+  const hayProduccion = secciones.lecheria !== false || secciones.yogur !== false
+  $('#bloque-lecheria').hidden = !hayRecepcion && !hayProduccion
+  $('#bloque-pie').hidden = vacio('#bloque-pie')
+
+  // El título nombra lo que se está mostrando. Un encabezado que anuncia "leche cruda
+  // recibida" arriba de un panel donde no está es peor que no tener título: manda a
+  // buscar un número que no existe.
+  $('#titulo-lecheria').textContent =
+    hayRecepcion && hayProduccion
+      ? 'Leche cruda recibida · producción de lechería'
+      : hayRecepcion
+        ? 'Leche cruda recibida'
+        : 'Producción de lechería'
+
+  // Quién llena el alto sobrante. El circuito del queso si está, porque son cinco
+  // tarjetas que ganan con el espacio; si no, el último bloque visible. Sin esto, con
+  // el queso apagado quedaba una franja de contenido arriba y medio metro de negro
+  // abajo, que en una pared se lee como que la pantalla se colgó.
+  const bloques = [...document.querySelectorAll('.tablero > .bloque')]
+  for (const b of bloques) b.classList.remove('crece-alto')
+  const visibles = bloques.filter((b) => !b.hidden)
+  const queCrece = visibles.find((b) => b.id === 'sec-queso') ?? visibles.at(-1)
+  if (queCrece) queCrece.classList.add('crece-alto')
+}
+
 // ---------------------------------------------------------------- ciclo
 
 let ultimoBueno = null
@@ -268,6 +332,7 @@ async function refrescar() {
 
     ultimoBueno = d
     $('#latido').className = 'latido vivo'
+    aplicarSecciones(d.secciones)
     pintarRecepcion(d.recepcion)
     pintarLecheria(d.lecheria)
     pintarYogur(d.yogur)
