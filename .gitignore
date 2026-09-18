@@ -9,5 +9,29 @@ proof/
 
 # Notas de voz del cliente: se quedan en la máquina, no se versionan.
 # Las transcripciones sí se suben, que son el insumo real de trabajo.
-requerimientos/*.ogg
+# El ** cubre las subcarpetas: con `requerimientos/*.ogg` a secas, los audios que
+# llegaron en requerimientos/laboratorio/ entraron al repo igual. Mismo patrón que ya
+# nos pasó con data/*.db y el archivo -wal de SQLite.
+requerimientos/**/*.ogg
+requerimientos/**/*.opus
+requerimientos/**/*.m4a
 migraciones/datos.sql
+.env*
+
+# Salida del build del escritorio (web/ -> public/app). Se genera con `npm run web:build`;
+# versionarla garantiza conflictos en cada merge y un bundle desactualizado en el repo.
+public/app/
+
+# La carpeta vacía para Vercel SÍ se versiona (ver su LEEME).
+!vercel-sin-estaticos/
+
+# Credenciales locales de la CLI de Vercel.
+.vercel
+
+# Claves SSH. Una clave privada en el repo es la clave comprometida: cualquiera que
+# clone el proyecto entra a GitHub como su dueño. Van en ~/.ssh, nunca acá.
+cuenta_4x
+cuenta_4x.pub
+*.pem
+id_ed25519*
+id_rsa*
