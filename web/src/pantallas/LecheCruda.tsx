@@ -9,7 +9,13 @@ import type { EntregaLeche, FilaTambo } from '../api/tipos'
  * se calcula sumando las cantidades a mano. La pantalla de carga sólo mueve el tipeo de
  * lugar; esto hace desaparecer la suma.
  */
-const PRESETS = [7, 30, 90] as const
+// El 1 es "Hoy": un rango de un día. Va primero porque es la pregunta más frecuente
+// —"¿cómo venimos hoy?"— y porque la pantalla de consulta ya arranca ahí; que dos
+// pantallas del mismo sistema ofrezcan períodos distintos obliga a reaprender cada una.
+const PRESETS = [1, 7, 30, 90] as const
+
+/** El 1 se lee "Hoy", no "1 días". */
+const etiquetaPreset = (d: number) => (d === 1 ? 'Hoy' : `${d} días`)
 
 /**
  * Umbral provisorio: la leche tiene que llegar fría y por encima de esto conviene
@@ -70,7 +76,7 @@ export function LecheCruda() {
           />
           {PRESETS.map((d) => (
             <Boton key={d} onClick={() => preset(d)} activo={activo === d}>
-              {d} días
+              {etiquetaPreset(d)}
             </Boton>
           ))}
 

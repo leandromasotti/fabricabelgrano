@@ -8,7 +8,13 @@ import { decimal, diasAtras, fechaCorta, hhmm, hoy, num } from '../ui/formato'
 import { Boton, Kpi, Panel, Tabla, Tag, Vacio, type Columna } from '../ui/primitivos'
 import type { RegistroTina, RendimientoQueso, ResumenReporte } from '../api/tipos'
 
-const PRESETS = [7, 30, 90] as const
+// El 1 es "Hoy": un rango de un día. Va primero porque es la pregunta más frecuente
+// —"¿cómo venimos hoy?"— y porque la pantalla de consulta ya arranca ahí; que dos
+// pantallas del mismo sistema ofrezcan períodos distintos obliga a reaprender cada una.
+const PRESETS = [1, 7, 30, 90] as const
+
+/** El 1 se lee "Hoy", no "1 días". */
+const etiquetaPreset = (d: number) => (d === 1 ? 'Hoy' : `${d} días`)
 
 export function Reportes() {
   const [desde, setDesde] = useState(() => diasAtras(29))
@@ -52,7 +58,7 @@ export function Reportes() {
 
         {PRESETS.map((d) => (
           <Boton key={d} onClick={() => preset(d)} activo={presetActivo === d}>
-            {d} días
+            {etiquetaPreset(d)}
           </Boton>
         ))}
 
