@@ -30,6 +30,7 @@ export function Consulta() {
 
   // El desglose por producto es lo primero que el encargado quiere ver del período.
   const vivos = (data?.registros ?? []).filter((r) => !r.anulado)
+  const sinLitros = vivos.filter((r) => r.litros == null).length
   const porProducto = vivos.reduce<Record<string, number>>((acc, r) => {
     acc[r.producto] = (acc[r.producto] ?? 0) + 1
     return acc
@@ -150,9 +151,26 @@ export function Consulta() {
 
       {data && (
         <div className="flex flex-col gap-5">
+          {/* Los litros primero: es la unidad del negocio. El pallet es la unidad de
+              trabajo —lo que el operario arma y cuenta— pero lo que se factura, se
+              compara y se discute son litros. */}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Kpi
+              valor={num(data.litros)}
+              titulo="Litros"
+              // Un pallet en un formato sin equivalencia cargada no aporta litros, y
+              // entonces este total dice MENOS de lo que realmente se produjo. Callarlo
+              // sería peor que el número: se leería como una caída de producción.
+              {...(sinLitros
+                ? {
+                    nota:
+                      sinLitros === 1
+                        ? '1 pallet sin litros definidos'
+                        : `${num(sinLitros)} pallets sin litros definidos`,
+                  }
+                : {})}
+            />
             <Kpi valor={num(data.total)} titulo="Pallets" />
-            <Kpi valor={num(data.litros)} titulo="Litros" />
             {Object.entries(porProducto).map(([producto, n]) => (
               <Kpi key={producto} valor={num(n)} titulo={producto} />
             ))}
