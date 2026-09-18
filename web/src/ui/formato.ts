@@ -37,3 +37,36 @@ export const hoy = (): string => new Date().toLocaleDateString('sv-SE')
 
 export const diasAtras = (n: number): string =>
   new Date(Date.now() - n * 864e5).toLocaleDateString('sv-SE')
+
+// ---------------------------------------------------------------- períodos
+
+/**
+ * Aritmética de calendario sobre strings `YYYY-MM-DD`.
+ *
+ * Se ancla al mediodía UTC a propósito: partir de la medianoche y sumar o restar horas
+ * cae en el día de al lado según el huso y el horario de verano. Desde el mediodía,
+ * ningún corrimiento de zona alcanza a mover la fecha.
+ */
+const alMediodia = (iso: string) => new Date(`${iso}T12:00:00Z`)
+const aIso = (d: Date) => d.toISOString().slice(0, 10)
+
+/** La semana del lunes al domingo que contiene esa fecha. */
+export function semanaDe(iso: string): [string, string] {
+  const d = alMediodia(iso)
+  // getUTCDay da 0 para domingo; acá la semana arranca el lunes, como en la fábrica.
+  const desplazamiento = (d.getUTCDay() + 6) % 7
+  const lunes = new Date(d)
+  lunes.setUTCDate(d.getUTCDate() - desplazamiento)
+  const domingo = new Date(lunes)
+  domingo.setUTCDate(lunes.getUTCDate() + 6)
+  return [aIso(lunes), aIso(domingo)]
+}
+
+/** Del 1 al último día del mes que contiene esa fecha. */
+export function mesDe(iso: string): [string, string] {
+  const d = alMediodia(iso)
+  const primero = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1, 12))
+  // Día 0 del mes siguiente = último del actual, sin tablas de 28/30/31 ni bisiestos.
+  const ultimo = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0, 12))
+  return [aIso(primero), aIso(ultimo)]
+}

@@ -371,7 +371,9 @@ const qPallet = {
       JOIN marcas    m ON m.id = r.marca_id
       JOIN productos p ON p.id = r.producto_id
       LEFT JOIN envases e ON e.id = r.envase_id
-     WHERE date(r.fecha_hora, 'localtime') = ?
+     -- Por RANGO: un solo día es el rango de un día, así que no hacen falta dos
+     -- consultas ni dos caminos que mantener.
+     WHERE date(r.fecha_hora, 'localtime') BETWEEN ? AND ?
      ORDER BY r.fecha_hora DESC
   `),
   anular: db.prepare(
@@ -461,12 +463,28 @@ app.put('/api/registros/cantidades', async (req, res) => {
   res.json(await qPallet.detalle.get(actual.id))
 })
 
-app.get('/api/registros', async (req, res) => {
+// Acepta un día suelto (?fecha=) o un rango (?desde=&?hasta=). El día suelto se
+// conserva porque la tablet de lechería lo usa para su listado de hoy, y porque un
+// rango de un día es exactamente eso.
+function rangoDia(req) {
+  if (req.query.desde || req.query.hasta) {
+    const hasta = req.query.hasta ?? hoyLocal()
+    return [req.query.desde ?? hasta, hasta]
+  }
   const fecha = req.query.fecha ?? hoyLocal()
-  const registros = await qPallet.delDia.all(fecha)
+  return [fecha, fecha]
+}
+
+app.get('/api/registros', async (req, res) => {
+  const [desde, hasta] = rangoDia(req)
+  const registros = await qPallet.delDia.all(desde, hasta)
   const vivos = registros.filter((r) => !r.anulado)
   res.json({
-    fecha,
+    // `fecha` sigue saliendo para no romper a quien ya la lee; con un rango de varios
+    // días es la del final, que es la que la pantalla muestra como "hasta".
+    fecha: hasta,
+    desde,
+    hasta,
     total: vivos.length,
     litros: vivos.reduce((n, r) => n + (r.litros ?? 0), 0),
     registros,
@@ -482,15 +500,18 @@ app.post('/api/registros/:id/anular', async (req, res) => {
 })
 
 app.get('/api/registros.csv', async (req, res) => {
-  const fecha = req.query.fecha ?? hoyLocal()
-  const filas = (await qPallet.delDia.all(fecha)).filter((r) => !r.anulado)
+  const [desde, hasta] = rangoDia(req)
+  const filas = (await qPallet.delDia.all(desde, hasta)).filter((r) => !r.anulado)
   const csv = [
     'fecha_hora,operario,marca,producto,envase,litros,origen',
     ...filas.map((r) =>
       [r.fecha_hora, r.operario, r.marca, r.producto, r.envase ?? '', r.litros ?? '', r.origen].join(',')
     ),
   ].join('\n')
-  res.type('text/csv').attachment(`pallets-${fecha}.csv`).send(csv)
+  // El nombre del archivo dice el período: un CSV suelto en Descargas sin eso no se
+  // puede distinguir del que se bajó ayer.
+  const sello = desde === hasta ? desde : `${desde}_${hasta}`
+  res.type('text/csv').attachment(`pallets-${sello}.csv`).send(csv)
 })
 
 // ---------------------------------------------------------------- yogur

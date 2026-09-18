@@ -279,7 +279,10 @@ export interface RegistroPallet {
 }
 
 export interface DiaLecheria {
+  /** Igual a `hasta`. Se conserva por compatibilidad con quien ya la leía. */
   fecha: string
+  desde: string
+  hasta: string
   /** Pallets vivos del día: el server ya descuenta los anulados. */
   total: number
   litros: number

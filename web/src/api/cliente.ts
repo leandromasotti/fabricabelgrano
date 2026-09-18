@@ -80,7 +80,7 @@ export const claves = {
   clientes: () => ['clientes'] as const,
   lecheCruda: (p: Params) => ['leche-cruda', p] as const,
   tambos: () => ['tambos'] as const,
-  lecheria: (fecha: string) => ['lecheria', fecha] as const,
+  lecheria: (p: Params) => ['lecheria', p] as const,
   secciones: () => ['tablero-secciones'] as const,
   maestros: () => ['maestros'] as const,
   quesosDias: () => ['quesos-dias'] as const,
@@ -130,10 +130,11 @@ export function useTambos() {
   })
 }
 
-export function useLecheria(fecha: string) {
+export function useLecheria(params: { desde: string; hasta: string }) {
   return useQuery({
-    queryKey: claves.lecheria(fecha),
-    queryFn: () => traer<DiaLecheria>('/api/registros', { fecha }),
+    queryKey: claves.lecheria(params),
+    queryFn: () => traer<DiaLecheria>('/api/registros', params),
+    placeholderData: (previo) => previo,
   })
 }
 
