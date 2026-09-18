@@ -130,7 +130,7 @@ export function useTambos() {
   })
 }
 
-export function useLecheria(params: { desde: string; hasta: string }) {
+export function useLecheria(params: { desde: string; hasta: string; pagina: number }) {
   return useQuery({
     queryKey: claves.lecheria(params),
     queryFn: () => traer<DiaLecheria>('/api/registros', params),

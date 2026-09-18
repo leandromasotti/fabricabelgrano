@@ -376,6 +376,44 @@ const qPallet = {
      WHERE date(r.fecha_hora, 'localtime') BETWEEN ? AND ?
      ORDER BY r.fecha_hora DESC
   `),
+  // Una página del listado. El CSV NO usa esta: baja el período completo, que es
+  // justamente para lo que se baja un CSV.
+  pagina: db.prepare(`
+    SELECT r.id, r.client_id, r.fecha_hora, r.origen, r.anulado, r.litros,
+           r.bultos, r.unidades_por_bulto,
+           o.nombre AS operario, m.nombre AS marca, p.nombre AS producto,
+           e.nombre AS envase, e.bultos_por_pallet AS bultos_formato
+      FROM registros_pallet r
+      JOIN operarios o ON o.id = r.operario_id
+      JOIN marcas    m ON m.id = r.marca_id
+      JOIN productos p ON p.id = r.producto_id
+      LEFT JOIN envases e ON e.id = r.envase_id
+     WHERE date(r.fecha_hora, 'localtime') BETWEEN ? AND ?
+     ORDER BY r.fecha_hora DESC
+     LIMIT ? OFFSET ?
+  `),
+  // Los totales salen del PERÍODO, no de la página. Un KPI que cambiara al pasar de
+  // página no sería un total de nada.
+  resumen: db.prepare(`
+    SELECT COUNT(*) AS vivos,
+           COALESCE(SUM(r.litros), 0) AS litros,
+           SUM(CASE WHEN r.litros IS NULL THEN 1 ELSE 0 END) AS sin_litros
+      FROM registros_pallet r
+     WHERE r.anulado = 0 AND date(r.fecha_hora, 'localtime') BETWEEN ? AND ?
+  `),
+  // Cuántas filas hay para paginar. Incluye las anuladas, que se muestran igual.
+  filas: db.prepare(`
+    SELECT COUNT(*) AS n FROM registros_pallet r
+     WHERE date(r.fecha_hora, 'localtime') BETWEEN ? AND ?
+  `),
+  porProducto: db.prepare(`
+    SELECT p.nombre AS producto, COUNT(*) AS n
+      FROM registros_pallet r
+      JOIN productos p ON p.id = r.producto_id
+     WHERE r.anulado = 0 AND date(r.fecha_hora, 'localtime') BETWEEN ? AND ?
+     GROUP BY p.id, p.nombre
+     ORDER BY n DESC
+  `),
   anular: db.prepare(
     'UPDATE registros_pallet SET anulado = 1, anulado_en = ? WHERE id = ? AND anulado = 0'
   ),
@@ -475,18 +513,39 @@ function rangoDia(req) {
   return [fecha, fecha]
 }
 
+const POR_PAGINA = 25
+
 app.get('/api/registros', async (req, res) => {
   const [desde, hasta] = rangoDia(req)
-  const registros = await qPallet.delDia.all(desde, hasta)
-  const vivos = registros.filter((r) => !r.anulado)
+
+  const porPagina = Math.min(Math.max(Number(req.query.porPagina) || POR_PAGINA, 1), 500)
+  const filas = Number((await qPallet.filas.get(desde, hasta)).n)
+  const paginas = Math.max(Math.ceil(filas / porPagina), 1)
+  // Si alguien pide la página 9 de un rango que ahora tiene 3, se le devuelve la última
+  // en vez de una lista vacía: pasa al cambiar el filtro de fechas estando en una página
+  // alta, y una pantalla en blanco ahí se lee como "no hay datos".
+  const pagina = Math.min(Math.max(Number(req.query.pagina) || 1, 1), paginas)
+
+  const registros = await qPallet.pagina.all(desde, hasta, porPagina, (pagina - 1) * porPagina)
+
+  // Los totales y el desglose salen del PERÍODO COMPLETO, calculados en la base. Si se
+  // sumaran sobre la página, cambiarían al pasar de página y no serían el total de nada.
+  const resumen = await qPallet.resumen.get(desde, hasta)
+
   res.json({
     // `fecha` sigue saliendo para no romper a quien ya la lee; con un rango de varios
     // días es la del final, que es la que la pantalla muestra como "hasta".
     fecha: hasta,
     desde,
     hasta,
-    total: vivos.length,
-    litros: vivos.reduce((n, r) => n + (r.litros ?? 0), 0),
+    total: Number(resumen.vivos),
+    litros: Number(resumen.litros),
+    sin_litros: Number(resumen.sin_litros ?? 0),
+    por_producto: await qPallet.porProducto.all(desde, hasta),
+    pagina,
+    por_pagina: porPagina,
+    paginas,
+    filas,
     registros,
   })
 })

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useAnularPallet, useLecheria } from '../api/cliente'
 import { fechaCorta, hhmm, hoy, mesDe, num, semanaDe } from '../ui/formato'
-import { Boton, Kpi, Panel, Tabla, Tag, Vacio, type Columna } from '../ui/primitivos'
+import { Boton, Kpi, Paginador, Panel, Tabla, Tag, Vacio, type Columna } from '../ui/primitivos'
 import type { RegistroPallet } from '../api/tipos'
 
 /**
@@ -13,12 +13,16 @@ import type { RegistroPallet } from '../api/tipos'
 export function Consulta() {
   const [desde, setDesde] = useState(hoy)
   const [hasta, setHasta] = useState(hoy)
-  const { data, isPending, isError, isFetching } = useLecheria({ desde, hasta })
+  const [pagina, setPagina] = useState(1)
+  const { data, isPending, isError, isFetching } = useLecheria({ desde, hasta, pagina })
   const anular = useAnularPallet()
 
+  // Cambiar el período vuelve a la primera página: quedarse en la 7 de un rango que
+  // ahora tiene 2 mostraría una lista vacía que se lee como "no hay datos".
   const aplicar = ([d, h]: [string, string]) => {
     setDesde(d)
     setHasta(h)
+    setPagina(1)
   }
   const esHoy = desde === hoy() && hasta === hoy()
   const esSemana = desde === semanaDe(hoy())[0] && hasta === semanaDe(hoy())[1]
@@ -27,14 +31,6 @@ export function Consulta() {
   // Con un rango de varios días, la hora sola no ubica nada: hay que ver de qué día es
   // cada fila. Con un día solo, la fecha es la misma en todas y sería ruido.
   const variosDias = desde !== hasta
-
-  // El desglose por producto es lo primero que el encargado quiere ver del período.
-  const vivos = (data?.registros ?? []).filter((r) => !r.anulado)
-  const sinLitros = vivos.filter((r) => r.litros == null).length
-  const porProducto = vivos.reduce<Record<string, number>>((acc, r) => {
-    acc[r.producto] = (acc[r.producto] ?? 0) + 1
-    return acc
-  }, {})
 
   const columnas: Columna<RegistroPallet>[] = [
     ...(variosDias
@@ -110,7 +106,7 @@ export function Consulta() {
           type="date"
           value={desde}
           max={hasta}
-          onChange={(e) => setDesde(e.target.value)}
+          onChange={(e) => aplicar([e.target.value, hasta])}
           className="rounded-md border border-eje bg-superficie px-2.5 py-1.5 text-[14px] text-tinta"
         />
         <label className="text-[13px] text-tinta-2" htmlFor="hasta">
@@ -121,7 +117,7 @@ export function Consulta() {
           type="date"
           value={hasta}
           min={desde}
-          onChange={(e) => setHasta(e.target.value)}
+          onChange={(e) => aplicar([desde, e.target.value])}
           className="rounded-md border border-eje bg-superficie px-2.5 py-1.5 text-[14px] text-tinta"
         />
 
@@ -161,33 +157,42 @@ export function Consulta() {
               // Un pallet en un formato sin equivalencia cargada no aporta litros, y
               // entonces este total dice MENOS de lo que realmente se produjo. Callarlo
               // sería peor que el número: se leería como una caída de producción.
-              {...(sinLitros
+              {...(data.sin_litros
                 ? {
                     nota:
-                      sinLitros === 1
+                      data.sin_litros === 1
                         ? '1 pallet sin litros definidos'
-                        : `${num(sinLitros)} pallets sin litros definidos`,
+                        : `${num(data.sin_litros)} pallets sin litros definidos`,
                   }
                 : {})}
             />
             <Kpi valor={num(data.total)} titulo="Pallets" />
-            {Object.entries(porProducto).map(([producto, n]) => (
-              <Kpi key={producto} valor={num(n)} titulo={producto} />
+            {data.por_producto.map((x) => (
+              <Kpi key={x.producto} valor={num(x.n)} titulo={x.producto} />
             ))}
           </div>
 
           <Panel
             titulo="Registros"
-            nota={`${num(data.registros.length)} en total${
-              data.registros.length > data.total ? ` · ${data.registros.length - data.total} anulados` : ''
-            }`}
+            nota={
+              data.filas
+                ? `${num(data.filas)} en el período` +
+                  (data.filas > data.total ? ` · ${num(data.filas - data.total)} anulados` : '')
+                : 'Sin registros en este período'
+            }
           >
             <Tabla
               columnas={columnas}
               filas={data.registros}
               claveDe={(r) => r.id}
               sinDatos="Sin registros en este período."
-              altoMax={520}
+            />
+            <Paginador
+              pagina={data.pagina}
+              paginas={data.paginas}
+              filas={data.filas}
+              porPagina={data.por_pagina}
+              alCambiar={setPagina}
             />
             {anular.isError && (
               <p className="mt-2 text-[13px] text-alerta">{anular.error.message}</p>

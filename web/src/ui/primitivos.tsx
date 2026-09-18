@@ -176,3 +176,56 @@ export function Tabla<T>({
     </div>
   )
 }
+
+/**
+ * Paginador de tablas largas.
+ *
+ * Dice SIEMPRE de cuántas filas se está viendo cuántas. Un "◀ 3 ▶" suelto obliga a
+ * adivinar si falta poco o mucho, y con un mes de producción esa diferencia importa.
+ */
+export function Paginador({
+  pagina,
+  paginas,
+  filas,
+  porPagina,
+  alCambiar,
+}: {
+  pagina: number
+  paginas: number
+  filas: number
+  porPagina: number
+  alCambiar: (p: number) => void
+}) {
+  // Con una sola página no hay nada que navegar y el control sería ruido.
+  if (paginas <= 1) return null
+
+  const desde = (pagina - 1) * porPagina + 1
+  const hasta = Math.min(pagina * porPagina, filas)
+
+  return (
+    <nav
+      aria-label="Paginación"
+      className="mt-4 flex flex-wrap items-center gap-2 border-t border-borde pt-3"
+    >
+      <span className="cifras text-[13px] text-tinta-2">
+        {desde}–{hasta} de {filas.toLocaleString('es-AR')}
+      </span>
+      <div className="flex-1" />
+      <Boton onClick={() => alCambiar(1)} deshabilitado={pagina === 1}>
+        « Primera
+      </Boton>
+      <Boton onClick={() => alCambiar(pagina - 1)} deshabilitado={pagina === 1}>
+        ‹ Anterior
+      </Boton>
+      <span className="cifras px-1 text-[13px] text-tinta-2">
+        {pagina} de {paginas}
+      </span>
+      <Boton onClick={() => alCambiar(pagina + 1)} deshabilitado={pagina === paginas}>
+        Siguiente ›
+      </Boton>
+      <Boton onClick={() => alCambiar(paginas)} deshabilitado={pagina === paginas}>
+        Última »
+      </Boton>
+    </nav>
+  )
+}

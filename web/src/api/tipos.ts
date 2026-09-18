@@ -283,10 +283,21 @@ export interface DiaLecheria {
   fecha: string
   desde: string
   hasta: string
-  /** Pallets vivos del día: el server ya descuenta los anulados. */
+  /**
+   * Los totales son del PERÍODO completo, no de la página: los calcula la base. Si se
+   * sumaran sobre la página cambiarían al pasar de página y no serían el total de nada.
+   */
   total: number
   litros: number
-  /** Incluye los anulados, para poder verlos tachados en vez de que desaparezcan. */
+  /** Pallets cuyo formato todavía no tiene equivalencia: no suman litros. */
+  sin_litros: number
+  por_producto: { producto: string; n: number }[]
+  pagina: number
+  por_pagina: number
+  paginas: number
+  /** Filas del período, anuladas incluidas. Es lo que se pagina. */
+  filas: number
+  /** Sólo la página pedida. Incluye anulados, que se muestran como tales. */
   registros: RegistroPallet[]
 }
 
