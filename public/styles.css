@@ -149,7 +149,9 @@ h1 {
 /* Es el unico boton de correccion del sistema: tiene que ser facil de acertar
    con guantes y a la primera. */
 .btn-deshacer {
-  margin-top: 16px;
+  /* Sin margin-top propio: el contenedor .acciones-confirmacion ya lo pone, y tenerlo
+     acá también lo bajaba unos píxeles respecto de SEGUIR. Los dos botones tienen que
+     quedar al ras, que a un metro de distancia es lo que se nota. */
   min-height: 88px;
   padding: 0 44px;
   font: 800 26px/1 inherit;
@@ -506,18 +508,32 @@ h1 {
 
 /* Salida discreta a proposito: la usa una minoria de los pallets y no puede competir
    visualmente con DESHACER y SEGUIR, que son lo que se toca siempre. */
+/* Va sobre el VERDE de la confirmación, no sobre el panel oscuro: con --texto-tenue
+   —un gris azulado pensado para fondo oscuro— quedaba casi ilegible. Blanco atenuado,
+   como DESHACER y SEGUIR, que están al lado sobre el mismo verde.
+   Sigue siendo discreto: lo usa una minoría de los pallets y no puede competir con los
+   dos botones que se tocan siempre. */
 .btn-ajustar {
   display: block;
   width: 100%;
   margin-top: 14px;
   padding: 14px;
   font: 600 16px system-ui, sans-serif;
-  color: var(--texto-tenue);
-  background: transparent;
-  border: 1px solid var(--borde);
+  color: rgba(255, 255, 255, 0.92);
+  background: rgba(0, 0, 0, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.45);
   border-radius: var(--radio);
 }
-.btn-ajustar:active { background: var(--panel-alto); }
+.btn-ajustar:active { background: rgba(0, 0, 0, 0.3); }
+
+/* En el paso del teclado el fondo SÍ es el oscuro de siempre, así que ahí el mismo
+   botón necesita el tratamiento contrario. */
+.acciones-ajuste .btn-ajustar {
+  color: var(--texto);
+  background: var(--panel-alto);
+  border-color: var(--borde);
+}
+.acciones-ajuste .btn-ajustar:active { background: var(--panel); }
 
 .acciones-ajuste {
   display: flex;

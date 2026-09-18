@@ -29,7 +29,30 @@ for (const metodo of ['get', 'post', 'put', 'delete']) {
 app.use(acceso)
 app.use(express.json())
 
-const hoyLocal = () => new Date().toLocaleDateString('sv-SE') // YYYY-MM-DD local
+// La zona de la FÁBRICA, no la del servidor.
+//
+// Esta distinción no existía mientras el servidor corría en la misma provincia que la
+// planta. En la nube corre en UTC, y entonces "hoy" pasa a significar dos cosas: entre
+// las 21 y la medianoche argentinas el servidor ya está en el día siguiente, mientras
+// que la base —que convierte con dia_local()— sigue en el anterior. El resultado eran
+// pantallas en cero con producción cargada: el servidor pedía un día en el que todavía
+// no había pasado nada.
+//
+// El día de la fábrica se define donde está la fábrica. La base ya lo hacía así; esto
+// lo alinea.
+const ZONA_FABRICA = process.env.ZONA_FABRICA ?? 'America/Argentina/Buenos_Aires'
+const hoyLocal = () => new Date().toLocaleDateString('sv-SE', { timeZone: ZONA_FABRICA })
+
+// Aritmética de días sobre el calendario, sin instantes.
+//
+// Se ancla al mediodía UTC a propósito: restar 24 h desde la medianoche puede caer en el
+// día anterior o en el mismo según el huso y el horario de verano. Desde el mediodía,
+// ningún corrimiento de zona alcanza a cambiar la fecha.
+const restarDias = (iso, n) => {
+  const d = new Date(`${iso}T12:00:00Z`)
+  d.setUTCDate(d.getUTCDate() - n)
+  return d.toISOString().slice(0, 10)
+}
 // Existe de verdad, sin mirar `activo`.
 //
 // La diferencia importa. `activo` significa "no lo ofrezcas más", no "rechazá lo que ya
@@ -2079,9 +2102,7 @@ const qRep = {
 // tambien en recepcion, que esta mas arriba en el archivo.)
 function rango(req) {
   const hasta = req.query.hasta ?? hoyLocal()
-  const desde =
-    req.query.desde ??
-    new Date(Date.parse(`${hasta}T00:00:00`) - 29 * 864e5).toLocaleDateString('sv-SE')
+  const desde = req.query.desde ?? restarDias(hasta, 29)
   return [desde, hasta]
 }
 

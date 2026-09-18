@@ -62,8 +62,8 @@ async function registrar() {
   // problema nuestro, no suyo - el ya solto el pallet y agarro el siguiente.
   est.ultimo = local
   $('listo-hora').textContent = hhmm(fecha)
-  // Los litros se muestran si el envase los tiene cargados. Si es una palangana sin
-  // números todavía, el pallet se registra igual y no se inventa nada.
+  // Los litros se muestran si el formato los tiene cargados. Si es uno todavía sin
+  // números, el pallet se registra igual y no se inventa nada.
   pintarConfirmacion()
   irA('listo')
   clearInterval(est.timer)

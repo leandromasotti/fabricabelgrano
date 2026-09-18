@@ -18,14 +18,18 @@ const productos = [
   { nombre: 'Frutilla', familia: 'yogur', orden: 2 },
 ]
 
-// Formatos en que se arma un pallet de leche.
+// Formatos en que se arma un pallet de leche, confirmados por el cliente el 2026-09-16.
 //
-// Solo el primero esta confirmado: 70 cajas de 12 sachets de 1 litro = 840 L.
-// Los dos tipos de palangana quedan marcados como PROVISORIOS porque el cliente
-// todavia no tiene los numeros. La pantalla lo dice, y se corrigen desde
-// /envases.html sin tocar codigo.
-// El sachet de leche es de 1 litro en todos los formatos (confirmado 2026-09-15), asi
-// que de las palanganas solo faltan las dos cantidades.
+// El sachet es de 1 litro en todos, asi que los litros salen de multiplicar bultos por
+// unidades. Casi todos los cajones son por 18; los clientes que piden por 20 se
+// resuelven corrigiendo el pallet desde la tablet, no con un formato aparte.
+//
+// La caja va primera porque es a donde la fabrica esta yendo: "estamos intentando pasar
+// de cajones, todo a cajas". Los cajones se dan de baja desde /app/maestros cuando dejen
+// de usarse, sin tocar codigo.
+//
+// Las dos "Palangana" que habia antes eran suposiciones nuestras de cuando no conociamos
+// las equivalencias. Ya no se siembran: las reales son Palangana 30 y Bandejon.
 // Secciones del tablero LED.
 //
 // Arrancan TODAS visibles porque es lo que el tablero mostraba hasta hoy, y un seed no
@@ -41,9 +45,12 @@ const seccionesTablero = [
 ]
 
 const envases = [
-  { nombre: 'Caja 12 × 1 L', bultos: 70, unidades: 12, litros: 1, provisorio: 0, orden: 1 },
-  { nombre: 'Palangana', bultos: null, unidades: null, litros: 1, provisorio: 1, orden: 2 },
-  { nombre: 'Palangana 2', bultos: null, unidades: null, litros: 1, provisorio: 1, orden: 3 },
+  { nombre: 'Caja 12 × 1 L',       bultos: 70, unidades: 12, litros: 1, provisorio: 0, orden: 1 },
+  { nombre: 'Cajón lácteo',        bultos: 40, unidades: 18, litros: 1, provisorio: 0, orden: 2 },
+  { nombre: 'Cajón Sancor',        bultos: 40, unidades: 18, litros: 1, provisorio: 0, orden: 3 },
+  { nombre: 'Cajón La Serenísima', bultos: 40, unidades: 18, litros: 1, provisorio: 0, orden: 4 },
+  { nombre: 'Palangana 30',        bultos: 30, unidades: 18, litros: 1, provisorio: 0, orden: 5 },
+  { nombre: 'Bandejón de colores', bultos: 30, unidades: 18, litros: 1, provisorio: 0, orden: 6 },
 ]
 
 // Que familia hace cada marca. El yogur va en dos marcas: Ovenac NO hace yogur
