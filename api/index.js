@@ -1,9 +1,13 @@
 // Punto de entrada para hosting serverless (Vercel).
 //
-// El archivo se llama [...ruta].js —una "catch-all route"— para que TODAS las URLs
-// lleguen acá con su path original intacto: /api/registros, /lecheria.html, /app/despacho.
-// Con un `api/index.js` a secas, el entorno sólo enrutaría /api y Express vería un path
-// que no es el que pidió el navegador.
+// TODAS las URLs llegan acá con su path original intacto —/api/registros,
+// /lecheria.html, /app/despacho— porque el rewrite de vercel.json apunta a un destino
+// FIJO (/api) y el entorno le pasa a la función la URL que pidió el navegador.
+//
+// El primer intento usaba una catch-all [...ruta].js con destino /api/$1. Falló en
+// silencio para todo lo que tuviera más de un segmento: /app/despacho reescribía a
+// /api/app/despacho y eso ya no resolvía. Un destino de un solo segmento no tiene
+// esa ambigüedad.
 //
 // Así el sistema entero —API, tablets, tablero y escritorio— pasa por el mismo Express
 // que corre en la fábrica. No hay dos comportamientos que mantener sincronizados, y la

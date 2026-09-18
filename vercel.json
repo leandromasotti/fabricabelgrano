@@ -3,9 +3,14 @@
   "buildCommand": "npm --prefix web ci && npm --prefix web run build",
   "installCommand": "npm ci",
   "outputDirectory": "vercel-sin-estaticos",
-  "rewrites": [{ "source": "/(.*)", "destination": "/api/$1" }],
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/api"
+    }
+  ],
   "functions": {
-    "api/[...ruta].js": {
+    "api/index.js": {
       "includeFiles": "public/**",
       "maxDuration": 15
     }
