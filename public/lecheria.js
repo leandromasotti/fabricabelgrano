@@ -4,7 +4,7 @@
 
 import {
   $, hhmm, cola, red, horaServidor, pintarEstado, postear, sincronizar,
-  cargarCatalogo, botones, hacerPasos, pintarMigas, cuentaRegresiva, registrarSW,
+  cargarCatalogo, configurarTablet, botones, hacerPasos, pintarMigas, cuentaRegresiva, registrarSW,
 } from '/comun.js'
 
 const VENTANA_DESHACER = 60
@@ -279,6 +279,7 @@ async function refrescarHoy() {
 // ---------------------------------------------------------------- arranque
 
 const catalogo = await cargarCatalogo('lecheria')
+configurarTablet(catalogo)
 
 botones($('op-operarios'), catalogo.operarios, (o) => {
   est.operario = o

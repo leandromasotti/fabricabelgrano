@@ -426,6 +426,23 @@ ALTER TABLE pedidos                ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pedido_lineas          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pedido_pesos           ENABLE ROW LEVEL SECURITY;
 
+-- ---------------------------------------------------------------- opciones de tablet
+
+-- Preferencias de las pantallas de planta.
+--
+-- Viven en la base y no en cada tablet porque son ocho equipos amurados en sectores
+-- distintos: cambiar algo yendo máquina por máquina garantiza que queden desparejas y
+-- que nadie sepa cuál quedó sin tocar.
+CREATE TABLE opciones_tablet (
+  clave       TEXT    PRIMARY KEY,
+  nombre      TEXT    NOT NULL,
+  descripcion TEXT,
+  activo      BOOLEAN NOT NULL DEFAULT false,
+  orden       INTEGER NOT NULL DEFAULT 0
+);
+
+ALTER TABLE opciones_tablet ENABLE ROW LEVEL SECURITY;
+
 -- ---------------------------------------------------------------- tablero LED
 
 -- Qué muestra la pantalla de planta.

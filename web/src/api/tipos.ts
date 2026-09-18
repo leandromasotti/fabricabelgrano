@@ -310,6 +310,14 @@ export interface SeccionTablero {
   visible: BoolApi
 }
 
+/** Preferencias de las pantallas de planta. Viven en la base, no en cada tablet. */
+export interface OpcionTablet {
+  clave: string
+  nombre: string
+  descripcion: string | null
+  activo: BoolApi
+}
+
 // ---------------------------------------------------------------- datos maestros
 
 export interface Sector {

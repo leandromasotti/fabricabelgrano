@@ -30,6 +30,20 @@ const productos = [
 //
 // Las dos "Palangana" que habia antes eran suposiciones nuestras de cuando no conociamos
 // las equivalencias. Ya no se siembran: las reales son Palangana 30 y Bandejon.
+// Opciones de las tablets de planta.
+//
+// El historial arranca APAGADO: en una tablet amurada, la lista de lo que cargaron otros
+// compite con el botón que hay que tocar, y la pantalla existe para registrar, no para
+// consultar. Para consultar está /app/consulta, en una computadora.
+const opcionesTablet = [
+  {
+    orden: 1,
+    clave: 'historial',
+    nombre: 'Historial del día en las tablets',
+    descripcion: 'La lista de lo ya registrado hoy, abajo de la pantalla de cada sector',
+  },
+]
+
 // Secciones del tablero LED.
 //
 // Arrancan TODAS visibles porque es lo que el tablero mostraba hasta hoy, y un seed no
@@ -178,6 +192,9 @@ const clientes = [
 const insertTambo = db.prepare(
   'INSERT INTO tambos (numero, orden) VALUES (@numero, @orden)'
 )
+const insertOpcionTablet = db.prepare(
+  'INSERT INTO opciones_tablet (clave, nombre, descripcion, activo, orden) VALUES (@clave, @nombre, @descripcion, false, @orden)'
+)
 const insertSeccion = db.prepare(
   'INSERT INTO tablero_secciones (clave, nombre, descripcion, visible, orden) VALUES (@clave, @nombre, @descripcion, true, @orden)'
 )
@@ -244,6 +261,12 @@ async function cargar() {
   for (const s of seccionesTablero) if (!(await existeSeccion.get(s.clave))) nuevasSecciones.push(s)
   for (const s of nuevasSecciones) await insertSeccion.run(s)
   if (nuevasSecciones.length) console.log(`  tablero:   +${nuevasSecciones.length} secciones`)
+
+  const existeOpcion = db.prepare('SELECT 1 FROM opciones_tablet WHERE clave = ?')
+  const nuevasOpciones = []
+  for (const o of opcionesTablet) if (!(await existeOpcion.get(o.clave))) nuevasOpciones.push(o)
+  for (const o of nuevasOpciones) await insertOpcionTablet.run(o)
+  if (nuevasOpciones.length) console.log(`  tablets:   +${nuevasOpciones.length} opciones`)
 
   // Que familia hace cada marca. INSERT OR IGNORE: no pisa lo que ya este.
   const marcaPorNombre = db.prepare('SELECT id FROM marcas WHERE nombre = ?')

@@ -166,6 +166,22 @@ export function botones(contenedor, items, alTocar, etiqueta = (i) => i.nombre) 
   )
 }
 
+// El historial del dia: se muestra solo si la configuracion lo pide.
+//
+// Arranca apagado. En una tablet amurada, la lista de lo que cargaron otros compite con
+// el boton que hay que tocar, y la pantalla existe para REGISTRAR, no para consultar.
+// Para consultar esta /app/consulta, en una computadora y con filtros de verdad.
+//
+// Lo decide el catalogo, que ya se pide al arrancar. Si no dice nada —catalogo viejo en
+// localStorage de antes de que existiera la opcion— se asume apagado, que es el default.
+let mostrarHistorial = false
+
+export function configurarTablet(catalogo) {
+  mostrarHistorial = catalogo?.opciones?.historial === true
+  const historial = document.querySelector('.historial')
+  if (historial && !mostrarHistorial) historial.hidden = true
+}
+
 // Algunos pasos necesitan toda la pantalla (la grilla de 17 quesos, el teclado
 // numerico). En esos, el historial se oculta: en una tablet amurada y con guantes
 // nadie descubre que hay que scrollear adentro de un panel, asi que lo que no entra
@@ -174,7 +190,9 @@ export function hacerPasos(nombres, pantallaCompleta = []) {
   return (cual) => {
     for (const n of nombres) $(`paso-${n}`).hidden = n !== cual
     const historial = document.querySelector('.historial')
-    if (historial) historial.hidden = pantallaCompleta.includes(cual)
+    // Las dos condiciones se combinan: la opcion decide si existe, el paso decide si
+    // estorba. Con la opcion apagada no hay paso que lo vuelva a mostrar.
+    if (historial) historial.hidden = !mostrarHistorial || pantallaCompleta.includes(cual)
   }
 }
 

@@ -11,7 +11,7 @@
 
 import {
   $, hhmm, cola, red, horaServidor, pintarEstado, postear, sincronizar,
-  cargarCatalogo, botones, hacerPasos, pintarMigas, cuentaRegresiva, registrarSW,
+  cargarCatalogo, configurarTablet, botones, hacerPasos, pintarMigas, cuentaRegresiva, registrarSW,
 } from '/comun.js'
 
 const VENTANA_DESHACER = 60
@@ -215,6 +215,7 @@ async function refrescarHoy() {
 // ---------------------------------------------------------------- arranque
 
 const catalogo = await cargarCatalogo('recepcion')
+configurarTablet(catalogo)
 const tambos = await (await fetch('/api/tambos')).json().catch(() => [])
 
 botones($('op-operarios'), catalogo.operarios, (o) => {

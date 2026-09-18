@@ -9,7 +9,7 @@ import { LecheCruda } from './pantallas/LecheCruda'
 import { Maestros } from './pantallas/Maestros'
 import { NuevoPedido } from './pantallas/NuevoPedido'
 import { Reportes } from './pantallas/Reportes'
-import { TableroLed } from './pantallas/TableroLed'
+import { Pantallas } from './pantallas/Pantallas'
 
 const cliente = new QueryClient({
   defaultOptions: {
@@ -42,7 +42,9 @@ export function App() {
             <Route path="envases" element={<Envases />} />
             <Route path="maduracion-dias" element={<DiasMaduracion />} />
             <Route path="consulta" element={<Consulta />} />
-            <Route path="tablero-led" element={<TableroLed />} />
+            <Route path="pantallas" element={<Pantallas />} />
+            {/* La URL anterior sigue funcionando: ya se compartió y se anotó. */}
+            <Route path="tablero-led" element={<Navigate to="/pantallas" replace />} />
             <Route path="maestros" element={<Maestros />} />
             <Route path="*" element={<Navigate to="/despacho" replace />} />
           </Route>

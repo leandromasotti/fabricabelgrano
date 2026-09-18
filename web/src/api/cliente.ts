@@ -12,6 +12,7 @@ import type {
   DiaLecheria,
   Reporte,
   Maestros,
+  OpcionTablet,
   ReporteLecheCruda,
   SeccionTablero,
   TipoMaestro,
@@ -82,6 +83,7 @@ export const claves = {
   tambos: () => ['tambos'] as const,
   lecheria: (p: Params) => ['lecheria', p] as const,
   secciones: () => ['tablero-secciones'] as const,
+  opcionesTablet: () => ['tablets-opciones'] as const,
   maestros: () => ['maestros'] as const,
   quesosDias: () => ['quesos-dias'] as const,
   envases: () => ['envases'] as const,
@@ -213,6 +215,26 @@ export function useVisibilidadMaestro() {
   return useMutarMaestro<{ id: number; activo?: boolean; orden?: number }>(
     ({ tipo, id, ...v }) => actualizar<unknown[]>(`/api/maestros/${tipo}/${id}/visibilidad`, v),
   )
+}
+
+export function useOpcionesTablet() {
+  return useQuery({
+    queryKey: claves.opcionesTablet(),
+    queryFn: () => traer<OpcionTablet[]>('/api/tablets/opciones'),
+  })
+}
+
+export function useCambiarOpcionTablet() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ clave, activo }: { clave: string; activo: boolean }) =>
+      actualizar<OpcionTablet[]>(`/api/tablets/opciones/${clave}`, { activo }),
+    onSuccess: (lista) => {
+      qc.setQueryData(claves.opcionesTablet(), lista)
+      // El catálogo lleva estas opciones, y es lo que consumen las tablets.
+      void qc.invalidateQueries({ queryKey: ['catalogo'] })
+    },
+  })
 }
 
 export function useQuesosDias() {

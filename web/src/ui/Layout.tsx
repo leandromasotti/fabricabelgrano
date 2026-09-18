@@ -21,7 +21,7 @@ const SECCIONES = [
       { a: '/envases', texto: 'Envases' },
       { a: '/maduracion-dias', texto: 'Días de maduración' },
       { a: '/consulta', texto: 'Consulta de lechería' },
-      { a: '/tablero-led', texto: 'Tablero LED' },
+      { a: '/pantallas', texto: 'Pantallas de planta' },
       { a: '/maestros', texto: 'Datos maestros' },
     ],
   },

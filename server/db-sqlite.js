@@ -403,6 +403,18 @@ agregarColumna('productos', 'datos_provisorios', 'INTEGER NOT NULL DEFAULT 1')
 // los pallets historicos se recalcularian con el numero nuevo: los reportes del ano
 // pasado cambiarian solos y dejarian de coincidir con lo que se facturo. El registro
 // guarda la equivalencia que era cierta el dia que se armo.
+// Preferencias de las pantallas de planta. Viven en la base y no en cada tablet: son
+// ocho equipos amurados y tocarlos uno por uno garantiza que queden desparejos.
+sqlite.exec(`
+  CREATE TABLE IF NOT EXISTS opciones_tablet (
+    clave       TEXT PRIMARY KEY,
+    nombre      TEXT NOT NULL,
+    descripcion TEXT,
+    activo      INTEGER NOT NULL DEFAULT 0,
+    orden       INTEGER NOT NULL DEFAULT 0
+  );
+`)
+
 // Que muestra el tablero LED. El sistema se implementa por sectores y no todos
 // arrancan juntos: una seccion en cero no dice "no se produjo", dice "esto no anda".
 sqlite.exec(`

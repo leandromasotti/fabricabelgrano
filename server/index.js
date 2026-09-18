@@ -122,6 +122,11 @@ app.get('/api/catalogo', async (req, res) => {
     productos: await qCatalogo.productos.all(familia),
     envases: await qCatalogo.envases.all(),
     quesos: await qCatalogo.quesos.all(),
+    // Las opciones viajan con el catálogo, que la tablet ya pide al arrancar: una
+    // preferencia no merece su propia ida y vuelta.
+    opciones: Object.fromEntries(
+      (await qOpcionesTablet.todas.all()).map((o) => [o.clave, Boolean(o.activo)])
+    ),
     // La tablet usa esto para calcular su desfasaje de reloj. Las tablets amuradas
     // se desconfiguran y nadie las mira, y la hora aca es un dato de proceso.
     serverTime: ahora(),
@@ -1818,6 +1823,13 @@ app.get('/api/pedidos/:id/remito.csv', async (req, res) => {
 // En la pantalla van separados y etiquetados, porque un numero sin referencia en una
 // pared es decoracion.
 
+const qOpcionesTablet = {
+  todas: db.prepare(
+    'SELECT clave, nombre, descripcion, activo FROM opciones_tablet ORDER BY orden'
+  ),
+  cambiar: db.prepare('UPDATE opciones_tablet SET activo = @activo WHERE clave = @clave'),
+}
+
 const qSecciones = {
   todas: db.prepare(
     'SELECT clave, nombre, descripcion, visible FROM tablero_secciones ORDER BY orden'
@@ -2053,6 +2065,22 @@ app.get('/api/tablero', async (_req, res) => {
 })
 
 // ---------------------------------------------------------------- tablero: config
+
+app.get('/api/tablets/opciones', async (_req, res) => {
+  res.json(await qOpcionesTablet.todas.all())
+})
+
+app.put('/api/tablets/opciones/:clave', async (req, res) => {
+  const { clave } = req.params
+  if (!(await qOpcionesTablet.todas.all()).some((o) => o.clave === clave)) {
+    return res.status(404).json({ error: 'opción inexistente' })
+  }
+  if (typeof req.body?.activo !== 'boolean') {
+    return res.status(400).json({ error: 'activo debe ser true o false' })
+  }
+  await qOpcionesTablet.cambiar.run({ clave, activo: req.body.activo })
+  res.json(await qOpcionesTablet.todas.all())
+})
 
 app.get('/api/tablero/secciones', async (_req, res) => {
   res.json(await qSecciones.todas.all())
