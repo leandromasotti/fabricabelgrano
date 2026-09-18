@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "npm --prefix web ci && npm --prefix web run build",
+  "installCommand": "npm ci",
+  "outputDirectory": "vercel-sin-estaticos",
+  "rewrites": [{ "source": "/(.*)", "destination": "/api/$1" }],
+  "functions": {
+    "api/[...ruta].js": {
+      "includeFiles": "public/**",
+      "maxDuration": 15
+    }
+  }
+}

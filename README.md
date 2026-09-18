@@ -10,17 +10,73 @@ Ver [docs/04-plan-mvp.md](docs/04-plan-mvp.md) para el alcance y las fases sigui
 
 ## Cómo correrlo
 
+### La primera vez
+
 ```bash
-npm install
-npm run seed      # marcas, productos, tipos de queso y operarios de ejemplo
-npm start         # http://localhost:3000
+npm install          # backend
+npm run web:install  # escritorio (React)
+npm run web:build    # compila el escritorio a public/app
+npm run seed         # marcas, productos, tipos de queso y operarios de ejemplo
+npm start            # http://localhost:3000
+```
+
+El escritorio queda en **`/app`** y las tablets en la raíz (`/lecheria.html` y compañía).
+
+### El día a día
+
+```bash
+npm run dev          # servidor con recarga al guardar
+```
+
+Con eso alcanza para usar el sistema entero, porque `public/app` ya está compilado.
+**Sólo hace falta `npm run web:build` después de tocar algo dentro de `web/`.**
+
+### Trabajando sobre el escritorio
+
+Dos terminales: el servidor por un lado y Vite por el otro, que recarga el navegador
+al guardar sin recompilar nada.
+
+```bash
+npm run dev          # terminal 1: API en :3017
+npm run web          # terminal 2: front en :5173, con proxy de /api al 3017
+```
+
+Se entra por **http://localhost:5173/app**. Al terminar, `npm run web:build` para que
+el servidor sirva la versión compilada.
+
+Vite reenvía al servidor de siempre todo lo que no es del escritorio: la API, las tablets
+de planta, el tablero LED y el lanzador. Sin eso, abrir el tablero desde `:5173` devolvía
+un error de Vite —*"did you mean to visit /app/tablero.html"*— que manda a una URL que no
+existe. **Los dos puertos muestran el sistema completo**, sólo que `:5173` recarga el
+escritorio al guardar.
+
+### Qué base usa
+
+```
+.env.local con DATABASE_URL  ->  PostgreSQL
+sin .env.local               ->  SQLite (data/fabrica.db)
+```
+
+Los scripts de npm cargan `.env.local` solos. Volver a SQLite es renombrar ese archivo:
+no hay nada que cambiar en el código. Para levantar el PostgreSQL local:
+
+```bash
+docker start postgres   # si el contenedor ya existe
+```
+
+`.env.local` está gitignoreado porque lleva la contraseña. El contenido es:
+
+```
+DATABASE_URL=postgres://postgres:LA_CLAVE@localhost:5432/fabrica_belgrano
+PORT=3017
 ```
 
 Antes de usarlo en la fábrica, cargar los operarios reales y verificar los backups:
 
 ```bash
-npm run operarios                                        # ver los que hay
-npm run operarios -- lecheria "Juan Pérez" "Carlos Gómez"  # reemplazar los de un sector
+# Los operarios se cargan desde /app/maestros, agrupados por sector.
+# El script sigue existiendo para cargar muchos de una vez:
+npm run operarios -- lecheria "Juan Pérez" "Carlos Gómez"
 npm run backup                                           # copia manual
 ```
 
@@ -42,6 +98,23 @@ npm run demo          # 30 días de producción simulada
 npm run demo -- 90    # 90 días
 ```
 
+### Arrancar de cero
+
+Vacía la producción registrada —pallets, tinas, saladero, maduración, envasado, pedidos,
+recepciones— y **conserva los catálogos**: operarios, marcas, productos, quesos, formatos
+de envase, clientes y tambos. Es lo que hay que correr antes del piloto, para empezar con
+todo configurado pero sin un solo registro de prueba.
+
+```bash
+npm run limpiar               # NO borra: muestra qué borraría
+npm run limpiar -- --confirmar # borra
+```
+
+El modo por defecto es la simulación a propósito: este es justo el script que uno no
+quiere haber ejecutado sin querer. Además se niega a correr si `DATABASE_URL` apunta a
+una base que no sea local, y borra todo dentro de una transacción — o queda vacío del
+todo, o queda como estaba. Los `id` vuelven a empezar en 1.
+
 Para usar otro puerto: `PORT=3017 npm start`
 
 | Pantalla | URL | Para quién |
@@ -54,25 +127,48 @@ Para usar otro puerto: `PORT=3017 npm start`
 | Envasado | `/envasado.html` | Tablet amurada: lo que ya está listo para envasar |
 | Armado de pedidos | `/pedidos.html` | Tablet amurada: armar, pesar pieza por pieza y cerrar |
 | **Tablero LED** | `/tablero.html` | **Pantalla colgada en planta. No se toca, se mira.** |
-| Despacho | `/despacho.html` | Encargado: pedidos en tiempo real y facturación |
-| Reportes | `/reportes.html` | Encargado: búsqueda por fecha y tipo, gráficos, rendimiento |
-| Días de maduración | `/maduracion-dias.html` | Encargado: corregir los días por tipo de queso |
-| Consulta del día | `/consulta.html` | Encargado: detalle de lechería y anulaciones |
+
+Y el escritorio, que corre en React bajo `/app`:
+
+| Pantalla | URL | Para quién |
+|---|---|---|
+| Nuevo pedido | `/app/nuevo-pedido` | Administración: alta e impresión de las hojas de armado |
+| Despacho | `/app/despacho` | Encargado: pedidos en tiempo real y facturación |
+| Reportes | `/app/reportes` | Encargado: búsqueda por fecha y tipo, gráficos, rendimiento |
+| Leche cruda | `/app/leche-cruda` | Encargado: litros por tambo, para liquidar |
+| Envases | `/app/envases` | Encargado: litros de cada formato de pallet y kilos por bin |
+| Días de maduración | `/app/maduracion-dias` | Encargado: corregir los días por tipo de queso |
+| Datos maestros | `/app/maestros` | Encargado: operarios por sector, clientes, tambos y marcas |
+| Tablero LED | `/app/tablero-led` | Encargado: qué secciones muestra la pantalla de planta |
+| Consulta de lechería | `/app/consulta` | Encargado: detalle del día y anulaciones |
+
+> Las versiones anteriores de esas siete siguen en disco (`/reportes.html`,
+> `/despacho.html`, …) y andan. Si algo del escritorio nuevo falla, se entra por ahí y
+> se sigue trabajando.
 
 ## Stack
 
-Node + Express + SQLite, front en JS vanilla con service worker. Sin build step: lo que está en
-`public/` es lo que corre en la tablet.
+Node + Express, con **PostgreSQL o SQLite** según haya `DATABASE_URL`. Los dos motores exponen
+la misma API asíncrona y el código de arriba no sabe cuál está usando.
 
-No se usó un framework de front a propósito — son tres pantallas de formulario que tienen que
-arrancar instantáneo y funcionar sin red. El razonamiento completo está en
-[docs/04-plan-mvp.md](docs/04-plan-mvp.md).
+El front son **dos cosas distintas a propósito**:
+
+- **Tablets de planta** (`public/*.html`): JS vanilla, sin build step, con service worker y cola
+  offline. Tienen que arrancar instantáneo y funcionar sin red — es lo que no puede fallar a las
+  6 de la mañana en lechería. Se dejan como están al menos hasta el piloto.
+- **Escritorio** (`web/`): React 19 + TypeScript estricto + Vite, Tailwind v4 y TanStack Query.
+  Acá hay tablas, filtros, impresión y siete pantallas: es donde un framework rinde y donde el
+  riesgo de rehacer es bajo.
+
+El razonamiento completo está en [docs/08-arquitectura-nube.md](docs/08-arquitectura-nube.md).
 
 ## Estructura
 
 ```
 server/
-  db.js          esquema y conexión SQLite
+  db.js          elige el motor según DATABASE_URL
+  db-pg.js       adaptador PostgreSQL (traduce el dialecto en un solo lugar)
+  db-sqlite.js   adaptador SQLite, con el esquema y las migraciones
   seed.js        datos iniciales
   demo.js        generador de datos de ejemplo (solo desarrollo)
   index.js       API REST
@@ -82,9 +178,15 @@ public/
   queseria.*     tablet de quesería (teclado numérico para el rinde)
   saladero.*     tablet de saladero (tinas ordenadas por tiempo de espera)
   reportes.*     gráficos y búsqueda para el encargado
-  consulta.html  detalle del día de lechería
   styles.css     diseño para uso con guantes
   sw.js          service worker (cachea el app shell)
+  app/           ¡generado! salida de `npm run web:build`, no se versiona
+web/             escritorio en React + TS
+  src/api/       tipos del dominio y hooks de datos
+  src/graficos/  los gráficos, en SVG declarativo
+  src/pantallas/ una por pantalla
+  src/ui/        primitivos compartidos y formato de números
+migraciones/     esquema PostgreSQL y migración desde SQLite
 docs/            relevamiento, requerimientos, preguntas y plan
 requerimientos/  audios originales y transcripciones
 ```
@@ -136,7 +238,7 @@ solo cambia el indicador: una pared en blanco no se distingue de "no se produjo 
 queso todavía verde.
 
 **Los días de maduración cargados son de referencia, no de la fábrica.** Están marcados como
-provisorios en la base y la pantalla lo dice. Se corrigen desde `/maduracion-dias.html`, y al
+provisorios en la base y la pantalla lo dice. Se corrigen desde `/app/maduracion-dias`, y al
 guardarlos dejan de ser provisorios: un `npm run seed` posterior ya no los pisa. Al salir de cámara
 se guardan los **días reales**, así que el sistema aprende cuánto madura cada queso en esa planta.
 
@@ -150,7 +252,11 @@ dos períodos induciría a error.
 
 ## Ponerlo online
 
-Para darle acceso al cliente: [docs/06-despliegue.md](docs/06-despliegue.md).
+Para darle una URL pública al cliente: **[docs/10-online-vercel-supabase.md](docs/10-online-vercel-supabase.md)**
+(Vercel + Supabase, gratis). El repo ya trae `vercel.json` listo; sólo hay que cargar
+`DATABASE_URL` y `ACCESO_CLAVE`.
+
+La opción con servidor propio —Fly.io, Docker— está en [docs/06-despliegue.md](docs/06-despliegue.md).
 
 Lo esencial en tres líneas:
 
@@ -164,17 +270,17 @@ Hay `Dockerfile` y `fly.toml` listos. Railway y cualquier VPS con Docker funcion
 
 ## Próximo paso: el piloto
 
-Hay 12 pantallas construidas y **ningún operario tocó una sola**. Antes de seguir agregando
+Hay 16 pantallas construidas y **ningún operario tocó una sola**. Antes de seguir agregando
 funcionalidad corresponde poner una tablet en lechería y mirar una semana.
 
 El plan completo —qué instalar, qué medir, qué preguntar y qué decidir al final— está en
 [docs/05-piloto.md](docs/05-piloto.md).
 
-**Lo único que bloquea:** la lista real de operarios de lechería.
+**Lo único que bloquea:** la lista real de operarios de lechería — que ahora se carga
+desde `/app/maestros` sin tocar código.
 
 ## Lo que falta para uso real (no bloquea el piloto)
 
-- **ABM de datos maestros** — hoy agregar un operario o un cliente necesita un desarrollador.
 - **Merma y descarte** — un queso que se rompe no tiene cómo salir del sistema.
 - **Ajuste de inventario** — no hay forma de decir "conté y hay 98, no 105".
 - **Los otros tres canales de venta** — solo se descuenta el mayorista; la venta directa, el local

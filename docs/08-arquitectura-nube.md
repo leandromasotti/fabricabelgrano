@@ -92,11 +92,11 @@ Next.js no sería un error, pero acá es una pieza de más.
 
 ### Qué se rehace y qué no
 
-| | Pantallas | Líneas | Qué hacer |
+| | Pantallas | Líneas | Qué se hizo |
 |---|---|---|---|
-| Escritorio | 6 | ~1.400 | **Rehacer.** Es donde duele y donde el riesgo es bajo |
-| Tablets de planta | 8 | ~2.200 | **Dejar como están**, al menos hasta el piloto |
-| Tablero LED | 1 | 287 | **Dejar.** No tiene interacción; funciona |
+| Escritorio | 7 | ~1.400 | **Rehecho** en React + TS, en `/app` |
+| Tablets de planta | 8 | ~2.200 | **Sin tocar**, al menos hasta el piloto |
+| Tablero LED | 1 | 287 | **Sin tocar.** No tiene interacción; funciona |
 
 Las tablets son código offline-first que funciona, y son justo lo que no puede fallar a
 las 6 de la mañana en lechería. Reescribirlas es el mayor riesgo con la menor ganancia.
@@ -126,15 +126,118 @@ SQLite.
 >
 > Es exactamente el tipo de cosa que aparece al migrar de verdad y no al planificar.
 
-**2b. Apuntar el servidor actual a Postgres.**
-El sistema que ya existe sigue funcionando igual, pero contra Postgres en vez de SQLite.
-Valor inmediato: backups administrados y datos accesibles desde afuera. **Sin tocar una
-sola pantalla.**
+**2b. Apuntar el servidor actual a Postgres** ← *hecho y **corriendo***.
+El sistema que ya existe funciona igual, pero contra Postgres en vez de SQLite. Valor
+inmediato: backups administrados y datos accesibles desde afuera. **Sin tocar una sola
+pantalla.**
+
+El motor se elige con una variable de entorno, no con una rama de código:
+
+```bash
+node --env-file=.env.local server/index.js   # DATABASE_URL definida -> PostgreSQL
+node server/index.js                         # sin ella              -> SQLite
+```
+
+Volver atrás es borrar una línea del `.env.local`. Eso importa más de lo que parece: es
+la diferencia entre "probemos Postgres" y "migremos a Postgres".
+
+Los dos motores pasan las mismas tres baterías: 37 lecturas, 18 escrituras de punta a
+punta (recepción → quesería → saladero → maduración → envasado → pedido pesado) y 20
+pruebas sobre las rutas de anulación y cambio de estado.
+
+> **Las diferencias de dialecto que aparecieron** están todas resueltas dentro del
+> adaptador o en una consulta, no repartidas por los 51 endpoints: `GROUP BY` con
+> columnas de otra tabla, subconsultas del `FROM` sin alias, el alias de salida usado en
+> `HAVING`, los booleanos que en SQLite eran 0/1, `date(x, '-14 days')`, y los parámetros
+> que quedaban sin tipo deducible.
+
+> **Lo que la migración destapó y no tenía nada que ver con Postgres:** convertir los 51
+> endpoints a `async` dejó 21 lugares con la forma `await consulta.run(...).changes`. Eso
+> se parsea como `await (consulta.run(...).changes)`: la propiedad se pide sobre la
+> **promesa**, no sobre el resultado, y vale `undefined` siempre. Sin ruido, sin
+> excepción, sin log.
+>
+> Las consecuencias eran reales y silenciosas: anular dos veces devolvía 200 las dos
+> veces (`undefined === 0` es falso, así que el 404 nunca salía), el seed se salteaba
+> marcas y clientes en una base nueva, y el aviso de *"N pallets completados"* no
+> aparecía nunca. Con SQLite sincrónico el mismo código funcionaba; lo rompió el
+> `async`, no el motor.
+>
+> Aparte había una validación —que el queso de una línea de pedido exista— escrita sin
+> `await`: `!promesa` es siempre falso, así que no validaba nada.
 
 **3. Auth de verdad**, aprovechando que Supabase la trae. Con la distinción que ya
 conocemos: tablets sin clave, escritorio con clave.
 
-**4. Escritorio en React + TS**, pantalla por pantalla, empezando por reportes.
+**4. Escritorio en React + TS** ← *hecho: **las 7 pantallas** están portadas y andando
+en `/app`*.
+
+**Stack elegido:** React 19 + TypeScript estricto + Vite, Tailwind v4 y TanStack Query.
+Sin Next.js, por lo de la sección 3: ya hay un servidor —el de la fábrica— y Next
+agregaría un segundo runtime para hacer lo que Supabase ya hace.
+
+**Cómo conviven las dos versiones.** El escritorio nuevo vive bajo `/app` y las tablets
+siguen siendo archivos HTML en la raíz. Son rutas distintas del mismo origen: no hay
+segundo dominio, ni proxy, ni fecha de corte. El menú lateral lista las pantallas viejas
+junto a las nuevas, marcadas como tales, para que durante la migración se llegue a todo
+desde un solo lado.
+
+```bash
+npm run web          # desarrollo: Vite en :5173, la API sigue en :3017
+npm run web:build    # compila a public/app, que el Express ya sirve
+```
+
+**Lo que el tipado ya evitó no es hipotético.** La pantalla de envasado se rompió entera
+porque un `id` del HTML no coincidía con el `$('unidad')` del JS; acá los gráficos, las
+columnas de tabla y las respuestas de la API son tipos, y esa clase de error no compila.
+
+**Decisiones de forma que se conservaron del original**, porque no eran estéticas:
+producción por día = columnas de un solo tono (una serie en el tiempo); piezas por queso
+= barras horizontales (magnitudes ordenadas, nombres largos); pallets por marca =
+apiladas con tres hues categóricos; rendimiento = tabla y no gráfico (17 categorías con
+seis medidas cada una). La paleta es la misma que ya había pasado el validador.
+
+> **Portar la pantalla destapó un bug que llevaba semanas ahí:** el filtro de queso se
+> aplicaba **solo al detalle**. Con "Pategrás" elegido, la pantalla mostraba 13.690
+> piezas producidas —de todos los quesos—, la tabla de rendimiento con los 17, y abajo
+> un listado con Pategrás solo. Es **exactamente** el mismo problema que ya habíamos
+> arreglado con el filtro de tambo en leche cruda, en otra pantalla.
+>
+> Ahora el filtro entra en las cuatro consultas que faltaban (piezas por día,
+> rendimiento, tiempos a sal, en sal ahora) y los números cierran entre sí. Lo que **no**
+> se filtra —leche y yogur, que no tienen tipo de queso— lo dice en el número mismo:
+> *"no filtra por queso"*. Dos cifras que no responden al mismo filtro no pueden verse
+> iguales.
+>
+> El arreglo es en la API, así que la pantalla vieja (`/reportes.html`) también quedó
+> bien.
+
+**Las otras seis pantallas.** Despacho, Nuevo pedido, Leche cruda, Envases, Días de
+maduración y Consulta de lechería. Lo que cambió, además de la tecnología:
+
+> **Despacho pedía el detalle de cada pedido en cada refresco**, estuviera desplegado o
+> no. Con 21 pedidos en el tablero eran **264 requests por minuto**, la mayoría de
+> detalles que nadie estaba mirando. Ahora el detalle sólo se pide mientras su tarjeta
+> está abierta: medido en 11 segundos, **44 requests contra 2**.
+>
+> De paso desapareció el `Set` global que guardaba qué tarjetas estaban desplegadas. Era
+> un parche para que el refresco no cerrara el detalle cada 5 segundos justo mientras
+> alguien controlaba un pedido; con componentes, el estado vive en la tarjeta y el
+> problema no existe.
+
+> **La hoja de armado se imprimía a destiempo.** La versión anterior la construía dentro
+> del handler del botón y llamaba a `window.print()` en la línea siguiente; en React eso
+> imprime el DOM anterior, porque el estado se aplica de forma asíncrona. Ahora las hojas
+> están siempre montadas y ocultas por CSS, así que el botón sólo llama a `print()` — y
+> el **Ctrl+P del navegador**, que antes sacaba una hoja vacía, ahora también funciona.
+
+> **Tres filtros salían de su propia respuesta filtrada** (quesos en Reportes, tambos en
+> Leche cruda). Elegir una opción dejaba el desplegable con esa sola adentro: un control
+> que se destruye a sí mismo al usarlo. Ahora salen del catálogo, que es estable.
+
+Las decisiones de forma de los gráficos y el CSS de impresión —columnas en blanco altas
+para escribir con guantes, un pedido que nunca se parte entre dos páginas— se portaron
+tal cual: no eran estéticas.
 
 **5. Sincronización fábrica ↔ nube**, que es lo que hace real el "la planta no puede
 parar". Va acá y no antes porque hasta este punto se puede vivir con la base en la nube

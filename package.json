@@ -5,19 +5,24 @@
   "description": "Seguimiento de produccion - Lacteos Belgrano. MVP: registro de pallets en lecheria.",
   "type": "module",
   "scripts": {
-    "start": "node server/seed.js && node server/index.js",
-    "dev": "node --watch server/index.js",
-    "seed": "node server/seed.js",
-    "demo": "node server/demo.js",
-    "backup": "node server/backup.js",
-    "operarios": "node server/operarios.js",
-    "migrar": "node migraciones/migrar-desde-sqlite.js"
+    "start": "node --env-file-if-exists=.env.local server/seed.js && node --env-file-if-exists=.env.local server/index.js",
+    "dev": "node --env-file-if-exists=.env.local --watch server/index.js",
+    "seed": "node --env-file-if-exists=.env.local server/seed.js",
+    "demo": "node --env-file-if-exists=.env.local server/demo.js",
+    "limpiar": "node --env-file-if-exists=.env.local server/limpiar.js",
+    "backup": "node --env-file-if-exists=.env.local server/backup.js",
+    "operarios": "node --env-file-if-exists=.env.local server/operarios.js",
+    "migrar": "node migraciones/migrar-desde-sqlite.js",
+    "web": "npm --prefix web run dev",
+    "web:build": "npm --prefix web run build",
+    "web:install": "npm --prefix web install"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
     "better-sqlite3": "^11.5.0",
-    "express": "^4.21.1"
+    "express": "^4.21.1",
+    "pg": "^8.23.0"
   }
 }

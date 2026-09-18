@@ -5,6 +5,14 @@ esté prendida.
 
 ---
 
+> **Desactualizado desde que la base pasó a PostgreSQL.** Lo de abajo razona sobre SQLite
+> —"la base es un archivo"— y por eso descarta serverless. Sin archivo local, Vercel y
+> compañía pasaron a ser opciones válidas: ver
+> [`10-online-vercel-supabase.md`](10-online-vercel-supabase.md).
+>
+> Sigue vigente todo lo que dice sobre la clave de acceso y sobre por qué la instalación en
+> planta necesita un servidor local.
+
 ## Lo que hay que entender antes de elegir hosting
 
 **La base es un archivo.** `data/fabrica.db` es SQLite: no hay servidor de base de datos
