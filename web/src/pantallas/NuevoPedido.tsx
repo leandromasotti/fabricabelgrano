@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
-import {
-  traer,
-  useCatalogo,
-  useClientes,
-  useCrearPedido,
-  usePedidos,
-} from '../api/cliente'
+import { traer, useClientes, useCrearPedido, usePedidos } from '../api/cliente'
 import { num } from '../ui/formato'
 import { Boton, Panel, Tag, Vacio } from '../ui/primitivos'
+import {
+  claveLinea,
+  ElegirLinea,
+  LineasBorrador,
+  useCatalogosPedido,
+} from './LineasPedido'
 import type { LineaNueva, PedidoDetalle } from '../api/tipos'
 
 /**
@@ -18,20 +18,16 @@ import type { LineaNueva, PedidoDetalle } from '../api/tipos'
  */
 export function NuevoPedido() {
   const { data: clientes } = useClientes()
-  const { data: catalogo } = useCatalogo('pedidos')
   const { data } = usePedidos()
   const crear = useCrearPedido()
 
   const [clienteId, setClienteId] = useState('')
-  const [quesoId, setQuesoId] = useState('')
-  const [cantidad, setCantidad] = useState('1')
   const [nota, setNota] = useState('')
   const [lineas, setLineas] = useState<LineaNueva[]>([])
   const [seleccion, setSeleccion] = useState<Set<number>>(new Set())
   const [unaPorHoja, setUnaPorHoja] = useState(false)
 
-  const quesos = catalogo?.quesos ?? []
-  const nombreDe = (id: number) => quesos.find((q) => q.id === id)?.nombre ?? ''
+  const catalogos = useCatalogosPedido()
 
   // Sólo lo que todavía hay que armar: un pedido ya facturado no se imprime.
   const porArmar = (data?.pedidos ?? []).filter(
@@ -52,18 +48,19 @@ export function NuevoPedido() {
     })
   }, [idsVivos])
 
-  const agregar = () => {
-    const id = Number(quesoId)
-    const n = Number(cantidad)
-    if (!id || !Number.isInteger(n) || n < 1) return
-    // Si el queso ya está, se suma: el armador no tiene por qué buscar dos veces el
-    // mismo queso en la cámara, y la base además exige un queso por pedido.
+  // Si lo mismo ya está, se suma en vez de agregarse otra vez: el armador no tiene por
+  // qué buscar dos veces el mismo queso en la cámara, y la base además lo exige con un
+  // único por pedido. "Lo mismo" incluye el formato: Entera en cajón x 18 y en x 20 son
+  // dos líneas distintas.
+  const agregar = (nueva: LineaNueva) => {
+    const clave = claveLinea(nueva)
     setLineas((prev) => {
-      const i = prev.findIndex((l) => l.tipo_queso_id === id)
-      if (i === -1) return [...prev, { tipo_queso_id: id, cantidad_pedida: n }]
-      return prev.map((l, j) => (j === i ? { ...l, cantidad_pedida: l.cantidad_pedida + n } : l))
+      const i = prev.findIndex((l) => claveLinea(l) === clave)
+      if (i === -1) return [...prev, nueva]
+      return prev.map((l, j) =>
+        j === i ? { ...l, cantidad_pedida: l.cantidad_pedida + nueva.cantidad_pedida } : l,
+      )
     })
-    setCantidad('1')
   }
 
   const guardar = () => {
@@ -118,57 +115,16 @@ export function NuevoPedido() {
                 </select>
               </label>
 
-              <div className="flex items-end gap-2">
-                <label className="flex min-w-0 flex-1 flex-col gap-1 text-[13px] text-tinta-2">
-                  Queso
-                  <select
-                    value={quesoId}
-                    onChange={(e) => setQuesoId(e.target.value)}
-                    className="rounded-md border border-eje bg-superficie px-2.5 py-2 text-[14px] text-tinta"
-                  >
-                    <option value="">Elegir…</option>
-                    {quesos.map((q) => (
-                      <option key={q.id} value={q.id}>
-                        {q.nombre}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="flex w-20 flex-col gap-1 text-[13px] text-tinta-2">
-                  Piezas
-                  <input
-                    type="number"
-                    min={1}
-                    value={cantidad}
-                    onChange={(e) => setCantidad(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && agregar()}
-                    className="rounded-md border border-eje bg-superficie px-2.5 py-2 text-[14px] text-tinta"
-                  />
-                </label>
-                <Boton onClick={agregar}>Agregar</Boton>
-              </div>
+              <ElegirLinea catalogos={catalogos} onAgregar={agregar} />
 
               {lineas.length ? (
-                <ul className="text-[14px]">
-                  {lineas.map((l) => (
-                    <li
-                      key={l.tipo_queso_id}
-                      className="flex items-center gap-2 border-b border-grilla py-1.5"
-                    >
-                      <span className="flex-1">{nombreDe(l.tipo_queso_id)}</span>
-                      <span className="cifras text-tinta-2">{num(l.cantidad_pedida)} pz</span>
-                      <Boton
-                        onClick={() =>
-                          setLineas((p) => p.filter((x) => x.tipo_queso_id !== l.tipo_queso_id))
-                        }
-                      >
-                        Quitar
-                      </Boton>
-                    </li>
-                  ))}
-                </ul>
+                <LineasBorrador
+                  lineas={lineas}
+                  catalogos={catalogos}
+                  onQuitar={(clave) => setLineas((p) => p.filter((x) => claveLinea(x) !== clave))}
+                />
               ) : (
-                <Vacio>Todavía no agregaste ningún queso.</Vacio>
+                <Vacio>Todavía no agregaste nada al pedido.</Vacio>
               )}
 
               <label className="flex flex-col gap-1 text-[13px] text-tinta-2">
@@ -374,29 +330,54 @@ function Hojas({
           <table>
             <thead>
               <tr>
-                <th>Queso</th>
-                <th className="n">Piezas</th>
-                <th>Piezas armadas</th>
+                <th>Detalle</th>
+                <th className="n">Pedido</th>
+                <th>Armado</th>
                 <th>Kilos</th>
               </tr>
             </thead>
             <tbody>
               {p.lineas.map((l) => (
                 <tr key={l.id}>
-                  <td>{l.queso}</td>
-                  <td className="n">{l.cantidad_pedida}</td>
+                  <td>{l.descripcion}</td>
+                  <td className="n">
+                    {l.cantidad_pedida} {l.unidad}
+                  </td>
                   {/* En blanco a propósito: se completan a mano en la cámara y después
                       se vuelcan en la tablet. */}
                   <td className="anotar" />
-                  <td className="anotar" />
+                  {/* La leche y el yogur no se pesan. Un renglón para escribir kilos que
+                      nadie va a pesar es una invitación a inventar un número. */}
+                  {l.clase === 'queso' ? <td className="anotar" /> : <td>—</td>}
                 </tr>
               ))}
-              <tr>
-                <td>TOTAL</td>
-                <td className="n">{p.piezas_pedidas}</td>
-                <td className="anotar" />
-                <td className="anotar" />
-              </tr>
+              {/* Un total por clase y no uno solo: sumar cajones con piezas de queso da
+                  un número que no significa nada. Sólo aparece la clase que el pedido
+                  tiene. */}
+              {p.piezas_pedidas > 0 && (
+                <tr>
+                  <td>TOTAL queso</td>
+                  <td className="n">{p.piezas_pedidas} piezas</td>
+                  <td className="anotar" />
+                  <td className="anotar" />
+                </tr>
+              )}
+              {p.bultos_pedidos > 0 && (
+                <tr>
+                  <td>TOTAL leche</td>
+                  <td className="n">{p.bultos_pedidos} bultos</td>
+                  <td className="anotar" />
+                  <td>—</td>
+                </tr>
+              )}
+              {p.unidades_yogur_pedidas > 0 && (
+                <tr>
+                  <td>TOTAL yogur</td>
+                  <td className="n">{p.unidades_yogur_pedidas} unidades</td>
+                  <td className="anotar" />
+                  <td>—</td>
+                </tr>
+              )}
             </tbody>
           </table>
           <div className="pie">

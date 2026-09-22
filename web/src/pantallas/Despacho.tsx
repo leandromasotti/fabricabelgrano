@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import {
   useAccionPedido,
-  useCatalogo,
   useClientes,
   useCrearPedido,
   usePedido,
@@ -10,6 +9,12 @@ import {
 import { hhmm, kilos, num } from '../ui/formato'
 import { Modal } from '../ui/Modal'
 import { Boton, Vacio } from '../ui/primitivos'
+import {
+  claveLinea,
+  ElegirLinea,
+  LineasBorrador,
+  useCatalogosPedido,
+} from './LineasPedido'
 import type { EstadoPedido, LineaNueva, Pedido } from '../api/tipos'
 
 /**
@@ -112,14 +117,37 @@ function Tarjeta({ pedido: p }: { pedido: Pedido }) {
         </span>
       </div>
 
-      <div className="mt-2 mb-1 flex items-baseline gap-4">
-        <span className="cifras text-[27px] leading-none font-extrabold">
-          {kilos(p.gramos)}
-          <small className="ml-1 text-[13px] font-semibold text-tinta-2">kg</small>
-        </span>
-        <span className="cifras text-[14px] text-tinta-2">
-          {p.piezas} de {p.piezas_pedidas} piezas
-        </span>
+      {/* Un pedido puede ser de queso, de leche, de yogur o de las tres. Mostrar siempre
+          kilos dejaba un 0,000 enorme arriba de un pedido de leche perfectamente armado:
+          el número grande es el de la clase que el pedido realmente tiene. */}
+      <div className="mt-2 mb-1 flex flex-wrap items-baseline gap-x-4 gap-y-1">
+        {p.piezas_pedidas > 0 && (
+          <>
+            <span className="cifras text-[27px] leading-none font-extrabold">
+              {kilos(p.gramos)}
+              <small className="ml-1 text-[13px] font-semibold text-tinta-2">kg</small>
+            </span>
+            <span className="cifras text-[14px] text-tinta-2">
+              {p.piezas} de {p.piezas_pedidas} piezas
+            </span>
+          </>
+        )}
+        {p.bultos_pedidos > 0 && (
+          <>
+            <span className="cifras text-[27px] leading-none font-extrabold">
+              {num(p.litros)}
+              <small className="ml-1 text-[13px] font-semibold text-tinta-2">L</small>
+            </span>
+            <span className="cifras text-[14px] text-tinta-2">
+              {p.bultos} de {p.bultos_pedidos} bultos
+            </span>
+          </>
+        )}
+        {p.unidades_yogur_pedidas > 0 && (
+          <span className="cifras text-[14px] text-tinta-2">
+            {p.unidades_yogur} de {p.unidades_yogur_pedidas} unidades de yogur
+          </span>
+        )}
       </div>
 
       {p.armador && <div className="text-[12.5px] text-tinta-suave">Armando: {p.armador}</div>}
@@ -173,7 +201,7 @@ function Detalle({ id }: { id: number }) {
     <table className="mt-2 w-full border-collapse text-[13.5px]">
       <thead>
         <tr>
-          {['Queso', 'Pedidas', 'Entregadas', 'Kilos'].map((h, i) => (
+          {['Detalle', 'Pedido', 'Entregado', 'Kilos / litros'].map((h, i) => (
             <th
               key={h}
               className={`border-b border-grilla px-1.5 py-1.5 text-[11px] font-medium tracking-wide text-tinta-suave uppercase ${
@@ -188,7 +216,12 @@ function Detalle({ id }: { id: number }) {
       <tbody>
         {data.lineas.map((l) => (
           <tr key={l.id}>
-            <td className="border-b border-grilla px-1.5 py-1.5">{l.queso}</td>
+            <td className="border-b border-grilla px-1.5 py-1.5">
+              {l.descripcion}
+              {/* La unidad al lado del renglón y no sólo en la cabecera: en un pedido
+                  mixto, "40" puede ser piezas de queso o cajones de leche. */}
+              <span className="ml-1.5 text-[11px] text-tinta-suave">{l.unidad}</span>
+            </td>
             <td className="cifras border-b border-grilla px-1.5 py-1.5 text-right">
               {l.cantidad_pedida}
             </td>
@@ -196,13 +229,17 @@ function Detalle({ id }: { id: number }) {
                 hay que mirar antes de facturar. */}
             <td
               className={`cifras border-b border-grilla px-1.5 py-1.5 text-right ${
-                l.piezas !== l.cantidad_pedida ? 'font-bold text-alerta' : ''
+                l.entregado !== l.cantidad_pedida ? 'font-bold text-alerta' : ''
               }`}
             >
-              {l.piezas}
+              {l.entregado}
             </td>
             <td className="cifras border-b border-grilla px-1.5 py-1.5 text-right">
-              {kilos(l.gramos)}
+              {l.clase === 'queso'
+                ? `${kilos(l.gramos)} kg`
+                : l.clase === 'leche'
+                  ? `${num(l.litros)} L`
+                  : '—'}
             </td>
           </tr>
         ))}
@@ -215,39 +252,30 @@ function Detalle({ id }: { id: number }) {
 
 function AltaPedido({ abierto, alCerrar }: { abierto: boolean; alCerrar: () => void }) {
   const { data: clientes } = useClientes()
-  const { data: catalogo } = useCatalogo('pedidos')
+  const catalogos = useCatalogosPedido()
   const crear = useCrearPedido()
 
   const [clienteId, setClienteId] = useState('')
-  const [quesoId, setQuesoId] = useState('')
-  const [cantidad, setCantidad] = useState('')
   const [lineas, setLineas] = useState<LineaNueva[]>([])
-
-  const quesos = catalogo?.quesos ?? []
-  const nombreDe = (id: number) => quesos.find((q) => q.id === id)?.nombre ?? ''
 
   const cerrarYLimpiar = () => {
     setLineas([])
-    setQuesoId('')
-    setCantidad('')
     crear.reset()
     alCerrar()
   }
 
-  const agregar = () => {
-    const id = Number(quesoId)
-    const n = Number(cantidad)
-    if (!id || !Number.isInteger(n) || n < 1) return
-    // Si el queso ya está, se SUMA en vez de agregar una segunda línea: la base exige
-    // un queso por pedido, y cargarlo dos veces fue justo lo que rompió una migración.
+  // Si lo mismo ya está, se SUMA en vez de agregar una segunda línea: la base exige uno
+  // por pedido, y cargarlo dos veces fue justo lo que rompió una migración. "Lo mismo"
+  // incluye el formato, así que Entera x 18 y Entera x 20 siguen siendo dos líneas.
+  const agregar = (nueva: LineaNueva) => {
+    const clave = claveLinea(nueva)
     setLineas((prev) => {
-      const i = prev.findIndex((l) => l.tipo_queso_id === id)
-      if (i === -1) return [...prev, { tipo_queso_id: id, cantidad_pedida: n }]
+      const i = prev.findIndex((l) => claveLinea(l) === clave)
+      if (i === -1) return [...prev, nueva]
       return prev.map((l, j) =>
-        j === i ? { ...l, cantidad_pedida: l.cantidad_pedida + n } : l,
+        j === i ? { ...l, cantidad_pedida: l.cantidad_pedida + nueva.cantidad_pedida } : l,
       )
     })
-    setCantidad('')
   }
 
   const guardar = () => {
@@ -291,52 +319,14 @@ function AltaPedido({ abierto, alCerrar }: { abierto: boolean; alCerrar: () => v
           </select>
         </label>
 
-        <div className="flex flex-wrap items-center gap-2.5 text-[13px] text-tinta-2">
-          Queso
-          <select
-            value={quesoId}
-            onChange={(e) => setQuesoId(e.target.value)}
-            className="flex-1 rounded-md border border-eje bg-superficie px-2.5 py-2 text-[14px] text-tinta"
-          >
-            <option value="">Elegir…</option>
-            {quesos.map((q) => (
-              <option key={q.id} value={q.id}>
-                {q.nombre}
-              </option>
-            ))}
-          </select>
-          <input
-            type="number"
-            min={1}
-            value={cantidad}
-            placeholder="piezas"
-            onChange={(e) => setCantidad(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && agregar()}
-            className="w-24 rounded-md border border-eje bg-superficie px-2.5 py-2 text-[14px] text-tinta"
-          />
-          <Boton onClick={agregar}>Agregar</Boton>
-        </div>
+        <ElegirLinea catalogos={catalogos} onAgregar={agregar} />
 
         {lineas.length > 0 && (
-          <ul className="text-[14px]">
-            {lineas.map((l) => (
-              <li
-                key={l.tipo_queso_id}
-                className="flex items-center gap-2.5 border-b border-grilla py-1.5"
-              >
-                <span className="flex-1">
-                  {nombreDe(l.tipo_queso_id)} · {num(l.cantidad_pedida)} piezas
-                </span>
-                <Boton
-                  onClick={() =>
-                    setLineas((prev) => prev.filter((x) => x.tipo_queso_id !== l.tipo_queso_id))
-                  }
-                >
-                  Quitar
-                </Boton>
-              </li>
-            ))}
-          </ul>
+          <LineasBorrador
+            lineas={lineas}
+            catalogos={catalogos}
+            onQuitar={(clave) => setLineas((prev) => prev.filter((x) => claveLinea(x) !== clave))}
+          />
         )}
 
         {crear.isError && <p className="text-[13px] text-alerta">{crear.error.message}</p>}

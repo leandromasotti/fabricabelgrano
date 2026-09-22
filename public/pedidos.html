@@ -37,8 +37,10 @@
       <p class="pregunta" id="titulo-armado">Pedido</p>
       <div class="columna" id="lista-lineas"></div>
       <div class="pie-total">
-        <div class="pie-dato"><span id="total-piezas">0</span><small>piezas</small></div>
-        <div class="pie-dato destacado"><span id="total-kilos">0,000</span><small>kilos</small></div>
+        <!-- Las unidades son dinámicas: un pedido puede ser de queso (piezas y kilos),
+             de leche (bultos y litros) o mixto. -->
+        <div class="pie-dato"><span id="total-piezas">0</span><small id="total-piezas-u">preparado</small></div>
+        <div class="pie-dato destacado"><span id="total-kilos">—</span><small id="total-kilos-u">total</small></div>
         <button class="btn-cerrar" id="btn-cerrar">PEDIDO LISTO</button>
       </div>
     </section>
@@ -60,6 +62,29 @@
           </div>
           <div class="pesadas" id="lista-pesadas"></div>
           <div class="pesadas-total"><span id="linea-kilos">0,000</span> kg</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4b. contar: leche y yogur no se pesan, se cuentan.
+         Misma forma que el pesaje para que el operario no tenga que aprender dos
+         pantallas, pero sin balanza: acá el número son cajones o unidades. -->
+    <section class="paso" id="paso-contar" hidden>
+      <p class="pregunta" id="titulo-contar">Contar</p>
+      <div class="pesaje">
+        <div class="pesaje-izq">
+          <div class="contador">
+            <div class="valor cero" id="contar-valor">0</div>
+            <div class="unidad" id="contar-unidad">bultos</div>
+          </div>
+          <div class="teclado" id="teclado-contar"></div>
+        </div>
+        <div class="pesaje-der">
+          <div class="pesadas-titulo">
+            Preparado <strong id="contar-n">0</strong> de <span id="contar-pedidas">0</span>
+          </div>
+          <div class="pesadas" id="lista-cargas"></div>
+          <div class="pesadas-total"><span id="linea-litros"></span></div>
         </div>
       </div>
     </section>

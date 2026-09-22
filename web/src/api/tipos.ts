@@ -181,10 +181,16 @@ export interface Pedido {
   facturado_en: string | null
   cliente: string
   armador: string | null
+  /** Piezas y gramos son SÓLO de queso: sumar cajones con piezas no significa nada. */
   piezas: number
   piezas_pedidas: number
   /** Gramos enteros, nunca kilos con coma: este número termina en una factura. */
   gramos: number
+  bultos: number
+  bultos_pedidos: number
+  litros: number
+  unidades_yogur: number
+  unidades_yogur_pedidas: number
   /** Cantidad de líneas, no las líneas. Para eso está el detalle. */
   lineas: number
 }
@@ -196,17 +202,49 @@ export interface PesoPieza {
   origen: 'online' | 'offline'
 }
 
+export interface CargaPreparada {
+  id: number
+  cantidad: number
+  fecha_hora: string
+  origen: 'online' | 'offline'
+}
+
+/**
+ * Una línea es de queso o de producto, nunca de las dos.
+ *
+ * El queso se cumple pesando pieza por pieza porque cada una pesa distinto; la leche y el
+ * yogur se cumplen contando. Por eso conviven `pesos` y `cantidades`, y sólo una de las
+ * dos tiene contenido. Para no tener que preguntarlo en cada pantalla, el servidor manda
+ * `clase`, `unidad`, `descripcion` y `entregado` ya resueltos.
+ */
 export interface LineaPedido {
   id: number
-  tipo_queso_id: number
+  clase: 'queso' | 'leche' | 'yogur'
+  /** Cómo hay que leer `cantidad_pedida` y `entregado`. */
+  unidad: 'piezas' | 'bultos' | 'unidades'
+  /** Lo que se muestra: el queso, o "Entera · Lácteos Belgrano · Cajón lácteo x 18". */
+  descripcion: string
   cantidad_pedida: number
-  queso: string
-  familia: string
+  entregado: number
+  /** Entregado menos pedido. Puede ser negativo: el sistema lo muestra, no lo impide. */
+  diferencia: number
+
+  tipo_queso_id: number | null
+  queso: string | null
+  familia: string | null
   pesos: PesoPieza[]
   piezas: number
   gramos: number
-  /** Entregado menos pedido. Puede ser negativo: el sistema lo muestra, no lo impide. */
-  diferencia: number
+
+  producto_id: number | null
+  producto: string | null
+  marca_id: number | null
+  marca: string | null
+  envase_id: number | null
+  envase: string | null
+  cantidades: CargaPreparada[]
+  /** Sólo en leche, y sólo si el formato tiene los números cargados. */
+  litros: number
 }
 
 export interface PedidoDetalle extends Omit<Pedido, 'lineas'> {
@@ -216,8 +254,18 @@ export interface PedidoDetalle extends Omit<Pedido, 'lineas'> {
   lineas: LineaPedido[]
 }
 
+/**
+ * Una línea a crear. `tipo_queso_id` O `producto_id`, nunca los dos — el servidor lo
+ * rechaza con 400 si vienen juntos o si no viene ninguno.
+ *
+ * `envase_id` es obligatorio en leche (se pide en cajones, y x 18 contra x 20 son 80
+ * litros de diferencia en el mismo pallet) y prohibido en yogur, que se pide en unidades.
+ */
 export interface LineaNueva {
-  tipo_queso_id: number
+  tipo_queso_id?: number
+  producto_id?: number
+  marca_id?: number
+  envase_id?: number
   cantidad_pedida: number
 }
 

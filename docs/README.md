@@ -14,6 +14,9 @@ Sistema de seguimiento de producción para fábrica de lácteos y quesos, con ta
 | [06-despliegue.md](06-despliegue.md) | Cómo ponerlo online para que lo vea el cliente |
 | [07-laboratorio.md](07-laboratorio.md) | Análisis del material de laboratorio y qué conviene sumar al MVP |
 | [08-arquitectura-nube.md](08-arquitectura-nube.md) | Salir del MVP: Supabase, qué framework y en qué orden |
+| [09-cajones.md](09-cajones.md) | Formatos de cajón, pallets incompletos y el cambio a x 18 / x 20 |
+| [10-online-vercel-supabase.md](10-online-vercel-supabase.md) | La versión pública en Vercel + Supabase |
+| [11-pedidos-leche-yogur.md](11-pedidos-leche-yogur.md) | **Los pedidos dejan de ser sólo de queso** |
 
 ## Fuente
 

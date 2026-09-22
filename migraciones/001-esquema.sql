@@ -369,17 +369,48 @@ CREATE TABLE pedidos (
 
 CREATE INDEX ON pedidos (estado) WHERE anulado = false;
 
+-- Una línea de pedido es de QUESO o de PRODUCTO (leche / yogur), nunca de las dos.
+--
+-- Son dos negocios distintos metidos en la misma tabla porque son la misma cosa para el
+-- cliente —un renglón de su pedido— pero se cumplen de manera distinta:
+--
+--   queso  ->  tipo_queso_id             cantidad_pedida = piezas     cumple con pesos
+--   leche  ->  producto + marca + envase  cantidad_pedida = bultos     cumple con cantidades
+--   yogur  ->  producto + marca           cantidad_pedida = unidades   cumple con cantidades
+--
+-- El queso se pesa pieza por pieza porque cada uno pesa distinto. La leche no: un cartón
+-- de 1 L es 1 L, y lo que puede variar es cuántos bultos se llegaron a preparar.
+--
+-- La leche se pide en CAJONES (confirmado 2026-09-22), no en pallets ni en litros. Es lo
+-- que hace que elegir "Cajón lácteo x 18" o "x 20" signifique algo: el cliente que pide
+-- x 20 mete más litros en el mismo camión.
 CREATE TABLE pedido_lineas (
   id              INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   pedido_id       INTEGER NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE,
-  tipo_queso_id   INTEGER NOT NULL REFERENCES tipos_queso(id),
+  tipo_queso_id   INTEGER REFERENCES tipos_queso(id),
+  producto_id     INTEGER REFERENCES productos(id),
+  marca_id        INTEGER REFERENCES marcas(id),
+  envase_id       INTEGER REFERENCES envases(id),
   cantidad_pedida INTEGER NOT NULL CHECK (cantidad_pedida > 0),
+  CONSTRAINT pedido_lineas_una_clase CHECK (
+    (tipo_queso_id IS NOT NULL AND producto_id IS NULL
+     AND marca_id IS NULL AND envase_id IS NULL)
+    OR
+    (tipo_queso_id IS NULL AND producto_id IS NOT NULL AND marca_id IS NOT NULL)
+  ),
   UNIQUE (pedido_id, tipo_queso_id)
 );
 
 COMMENT ON CONSTRAINT pedido_lineas_pedido_id_tipo_queso_id_key ON pedido_lineas IS
   'Un queso aparece una sola vez por pedido: si se carga dos veces se suma en la '
   'línea existente. Nadie tiene que buscar dos veces el mismo queso en la cámara.';
+
+-- Lo mismo para leche y yogur. Va como índice parcial y no como UNIQUE de tabla porque
+-- sólo aplica a las líneas de producto. COALESCE sobre envase_id porque NULL nunca es
+-- igual a NULL: sin eso, dos líneas de yogur del mismo sabor y marca no chocarían.
+CREATE UNIQUE INDEX pedido_lineas_producto_uk
+    ON pedido_lineas (pedido_id, producto_id, marca_id, COALESCE(envase_id, 0))
+ WHERE producto_id IS NOT NULL;
 
 -- Una fila por pieza pesada. EN GRAMOS ENTEROS: sumar decimales en punto flotante
 -- acumula error, y este número termina en una factura.
@@ -395,6 +426,27 @@ CREATE TABLE pedido_pesos (
 );
 
 CREATE INDEX ON pedido_pesos (linea_id);
+
+-- Lo que el armador preparó de una línea de leche o yogur. Una fila por carga y no un
+-- total en la línea, por lo mismo que los pesos son filas: da deshacer de a una, cola
+-- offline idempotente por client_id, y a qué hora se preparó cada cosa. Un total pisado
+-- pierde las tres.
+--
+-- Existe porque el armador puede entregar menos de lo pedido —"a lo último de la
+-- producción puede pedir un pallet con 20 cajones solamente"— y la factura tiene que
+-- salir por lo que salió del depósito, no por lo que se pidió.
+CREATE TABLE pedido_cantidades (
+  id         INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  client_id  UUID        NOT NULL UNIQUE,
+  linea_id   INTEGER     NOT NULL REFERENCES pedido_lineas(id) ON DELETE CASCADE,
+  cantidad   INTEGER     NOT NULL CHECK (cantidad BETWEEN 1 AND 100000),
+  fecha_hora TIMESTAMPTZ NOT NULL,
+  origen     origen_registro NOT NULL DEFAULT 'online',
+  anulado    BOOLEAN     NOT NULL DEFAULT false,
+  anulado_en TIMESTAMPTZ
+);
+
+CREATE INDEX ON pedido_cantidades (linea_id);
 
 -- ============================================================================
 -- SEGURIDAD (Supabase)
@@ -425,6 +477,7 @@ ALTER TABLE movimientos_envasado   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pedidos                ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pedido_lineas          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE pedido_pesos           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE pedido_cantidades      ENABLE ROW LEVEL SECURITY;
 
 -- ---------------------------------------------------------------- opciones de tablet
 

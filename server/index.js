@@ -1561,13 +1561,18 @@ const qPed = {
   clientes: db.prepare('SELECT id, nombre FROM clientes WHERE activo = 1 ORDER BY orden, nombre'),
   porClientId: db.prepare('SELECT id FROM pedidos WHERE client_id = ?'),
 
+  producto: db.prepare('SELECT id, nombre, familia FROM productos WHERE id = ?'),
+  marcaHaceFamilia: db.prepare(
+    'SELECT 1 AS hay FROM marcas_familias WHERE marca_id = ? AND familia = ?'
+  ),
+
   crear: db.prepare(`
     INSERT INTO pedidos (client_id, cliente_id, estado, origen, creado_en, nota)
     VALUES (@client_id, @cliente_id, @estado, @origen, @creado_en, @nota)
   `),
   crearLinea: db.prepare(`
-    INSERT INTO pedido_lineas (pedido_id, tipo_queso_id, cantidad_pedida)
-    VALUES (?, ?, ?)
+    INSERT INTO pedido_lineas (pedido_id, tipo_queso_id, producto_id, marca_id, envase_id, cantidad_pedida)
+    VALUES (@pedido_id, @tipo_queso_id, @producto_id, @marca_id, @envase_id, @cantidad_pedida)
   `),
 
   cabecera: db.prepare(`
@@ -1578,16 +1583,31 @@ const qPed = {
       LEFT JOIN operarios o ON o.id = p.armado_por
      WHERE p.id = ?
   `),
+  // LEFT JOIN en los cuatro: una línea usa tipos_queso O productos/marcas/envases, nunca
+  // los dos. Con JOIN normal cada línea perdía la mitad de los pedidos.
   lineas: db.prepare(`
-    SELECT l.id, l.tipo_queso_id, l.cantidad_pedida, q.nombre AS queso, q.familia
+    SELECT l.id, l.tipo_queso_id, l.producto_id, l.marca_id, l.envase_id, l.cantidad_pedida,
+           q.nombre  AS queso,    q.familia,
+           pr.nombre AS producto, pr.familia AS producto_familia,
+           m.nombre  AS marca,    e.nombre   AS envase,
+           e.unidades_por_bulto,  e.litros_por_unidad
       FROM pedido_lineas l
-      JOIN tipos_queso q ON q.id = l.tipo_queso_id
+      LEFT JOIN tipos_queso q  ON q.id  = l.tipo_queso_id
+      LEFT JOIN productos   pr ON pr.id = l.producto_id
+      LEFT JOIN marcas      m  ON m.id  = l.marca_id
+      LEFT JOIN envases     e  ON e.id  = l.envase_id
      WHERE l.pedido_id = ?
      ORDER BY l.id
   `),
   pesosDe: db.prepare(`
     SELECT id, client_id, gramos, fecha_hora, origen
       FROM pedido_pesos
+     WHERE linea_id = ? AND anulado = 0
+     ORDER BY id
+  `),
+  cantidadesDe: db.prepare(`
+    SELECT id, client_id, cantidad, fecha_hora, origen
+      FROM pedido_cantidades
      WHERE linea_id = ? AND anulado = 0
      ORDER BY id
   `),
@@ -1606,13 +1626,24 @@ const qPed = {
   `),
 
   pesoPorClientId: db.prepare('SELECT id FROM pedido_pesos WHERE client_id = ?'),
-  lineaDe: db.prepare('SELECT l.id, l.pedido_id FROM pedido_lineas l WHERE l.id = ?'),
+  lineaDe: db.prepare(
+    'SELECT l.id, l.pedido_id, l.tipo_queso_id, l.producto_id FROM pedido_lineas l WHERE l.id = ?'
+  ),
   agregarPeso: db.prepare(`
     INSERT INTO pedido_pesos (client_id, linea_id, gramos, fecha_hora, origen)
     VALUES (@client_id, @linea_id, @gramos, @fecha_hora, @origen)
   `),
   anularPeso: db.prepare(
     'UPDATE pedido_pesos SET anulado = 1, anulado_en = ? WHERE id = ? AND anulado = 0'
+  ),
+
+  cantidadPorClientId: db.prepare('SELECT id FROM pedido_cantidades WHERE client_id = ?'),
+  agregarCantidad: db.prepare(`
+    INSERT INTO pedido_cantidades (client_id, linea_id, cantidad, fecha_hora, origen)
+    VALUES (@client_id, @linea_id, @cantidad, @fecha_hora, @origen)
+  `),
+  anularCantidad: db.prepare(
+    'UPDATE pedido_cantidades SET anulado = 1, anulado_en = ? WHERE id = ? AND anulado = 0'
   ),
   marcarArmando: db.prepare(
     "UPDATE pedidos SET estado = 'armando', armado_por = ? WHERE id = ? AND estado = 'pendiente'"
@@ -1634,25 +1665,73 @@ async function pedidoCompleto(id) {
   if (!cab) return null
 
   const lineas = await Promise.all((await qPed.lineas.all(id)).map(async (l) => {
-    const pesos = await qPed.pesosDe.all(l.id)
-    const gramos = pesos.reduce((n, p) => n + p.gramos, 0)
+    // El queso se cumple pesando: la unidad pedida son piezas y lo que se entrega son
+    // kilos, porque cada pieza pesa distinto.
+    if (l.tipo_queso_id) {
+      const pesos = await qPed.pesosDe.all(l.id)
+      const gramos = pesos.reduce((n, p) => n + p.gramos, 0)
+      return {
+        ...l,
+        clase: 'queso',
+        unidad: 'piezas',
+        descripcion: l.queso,
+        pesos,
+        cantidades: [],
+        piezas: pesos.length,
+        gramos,
+        litros: 0,
+        entregado: pesos.length,
+        // Diferencia entre lo pedido y lo que se esta entregando. Puede ser negativa:
+        // si en la camara hay 2 y pidieron 3, el sistema no lo impide, lo muestra.
+        diferencia: pesos.length - l.cantidad_pedida,
+      }
+    }
+
+    // Leche y yogur se cumplen contando. No hay balanza: un carton de 1 L es 1 L, y lo
+    // que puede variar es cuantos bultos se llegaron a preparar.
+    const cargas = await qPed.cantidadesDe.all(l.id)
+    const preparado = cargas.reduce((n, c) => n + c.cantidad, 0)
+    const esYogur = l.producto_familia === 'yogur'
+
+    // Litros solo tienen sentido en leche, y solo si el formato tiene los numeros
+    // cargados. NUMERIC vuelve como texto desde Postgres, de ahi el Number().
+    const porBulto = Number(l.unidades_por_bulto ?? 0) * Number(l.litros_por_unidad ?? 0)
+    const litros = esYogur ? 0 : Math.round(preparado * porBulto)
+
     return {
       ...l,
-      pesos,
-      piezas: pesos.length,
-      gramos,
-      // Diferencia entre lo pedido y lo que se esta entregando. Puede ser negativa:
-      // si en la camara hay 2 y pidieron 3, el sistema no lo impide, lo muestra.
-      diferencia: pesos.length - l.cantidad_pedida,
+      clase: esYogur ? 'yogur' : 'leche',
+      unidad: esYogur ? 'unidades' : 'bultos',
+      descripcion: [l.producto, l.marca, l.envase].filter(Boolean).join(' · '),
+      pesos: [],
+      cantidades: cargas,
+      piezas: 0,
+      gramos: 0,
+      litros,
+      entregado: preparado,
+      diferencia: preparado - l.cantidad_pedida,
     }
   }))
+
+  const deQueso = lineas.filter((l) => l.clase === 'queso')
+  const deLeche = lineas.filter((l) => l.clase === 'leche')
+  const deYogur = lineas.filter((l) => l.clase === 'yogur')
+  const suma = (xs, f) => xs.reduce((n, x) => n + f(x), 0)
 
   return {
     ...cab,
     lineas,
-    piezas: lineas.reduce((n, l) => n + l.piezas, 0),
-    piezas_pedidas: lineas.reduce((n, l) => n + l.cantidad_pedida, 0),
-    gramos: lineas.reduce((n, l) => n + l.gramos, 0),
+    // piezas y gramos siguen siendo SOLO de queso. Mezclar bultos de leche con piezas de
+    // queso en un mismo total daria un numero que no significa nada, y este es el objeto
+    // del que sale el remito.
+    piezas: suma(deQueso, (l) => l.piezas),
+    piezas_pedidas: suma(deQueso, (l) => l.cantidad_pedida),
+    gramos: suma(deQueso, (l) => l.gramos),
+    bultos: suma(deLeche, (l) => l.entregado),
+    bultos_pedidos: suma(deLeche, (l) => l.cantidad_pedida),
+    litros: suma(deLeche, (l) => l.litros),
+    unidades_yogur: suma(deYogur, (l) => l.entregado),
+    unidades_yogur_pedidas: suma(deYogur, (l) => l.cantidad_pedida),
   }
 }
 
@@ -1664,13 +1743,65 @@ app.post('/api/pedidos', async (req, res) => {
   if (!client_id || !cliente_id || !Array.isArray(lineas) || !lineas.length) {
     return res.status(400).json({ error: 'faltan cliente o líneas' })
   }
+  // Cada línea se normaliza acá, una sola vez, y lo que sigue trabaja con el resultado.
+  // Validar en el handler y volver a deducir la clase más abajo es como se cuelan los
+  // casos raros: una línea de yogur con envase, una de leche sin marca.
+  const normalizadas = []
   for (const l of lineas) {
-    if (!l.tipo_queso_id || !Number.isInteger(l.cantidad_pedida) || l.cantidad_pedida < 1) {
-      return res.status(400).json({ error: 'línea inválida' })
+    if (!Number.isInteger(l.cantidad_pedida) || l.cantidad_pedida < 1) {
+      return res.status(400).json({ error: 'cantidad inválida' })
     }
-    if (!(await existe('tipos_queso', l.tipo_queso_id))) {
-      return res.status(400).json({ error: 'queso inexistente' })
+    const esQueso = Boolean(l.tipo_queso_id)
+    const esProducto = Boolean(l.producto_id)
+    if (esQueso === esProducto) {
+      return res.status(400).json({ error: 'la línea tiene que ser de queso o de producto' })
     }
+
+    if (esQueso) {
+      if (!(await existe('tipos_queso', l.tipo_queso_id))) {
+        return res.status(400).json({ error: 'queso inexistente' })
+      }
+      normalizadas.push({
+        tipo_queso_id: l.tipo_queso_id,
+        producto_id: null,
+        marca_id: null,
+        envase_id: null,
+        cantidad_pedida: l.cantidad_pedida,
+      })
+      continue
+    }
+
+    const producto = await qPed.producto.get(l.producto_id)
+    if (!producto) return res.status(400).json({ error: 'producto inexistente' })
+    if (!l.marca_id) return res.status(400).json({ error: 'falta la marca' })
+    if (!(await existe('marcas', l.marca_id))) {
+      return res.status(400).json({ error: 'marca inexistente' })
+    }
+    // Obenac no hace yogur. Sin esto se puede cargar un pedido que la planta no puede
+    // producir, y el que se entera es el armador parado frente a la cámara.
+    if (!(await qPed.marcaHaceFamilia.get(l.marca_id, producto.familia))) {
+      return res.status(400).json({ error: `esa marca no hace ${producto.familia}` })
+    }
+
+    // La leche se pide en cajones, así que el formato es parte de lo pedido: pedir
+    // "40 cajones de Entera" sin decir si son x 18 o x 20 son 80 litros de diferencia.
+    // El yogur se pide en unidades y no lleva envase.
+    const esLeche = producto.familia === 'leche'
+    if (esLeche && !l.envase_id) return res.status(400).json({ error: 'falta el formato' })
+    if (!esLeche && l.envase_id) {
+      return res.status(400).json({ error: 'el yogur se pide en unidades, sin formato' })
+    }
+    if (l.envase_id && !(await existe('envases', l.envase_id))) {
+      return res.status(400).json({ error: 'formato inexistente' })
+    }
+
+    normalizadas.push({
+      tipo_queso_id: null,
+      producto_id: l.producto_id,
+      marca_id: l.marca_id,
+      envase_id: l.envase_id ?? null,
+      cantidad_pedida: l.cantidad_pedida,
+    })
   }
 
   const previo = await qPed.porClientId.get(client_id)
@@ -1686,8 +1817,8 @@ app.post('/api/pedidos', async (req, res) => {
       VALUES (@client_id, @cliente_id, @estado, @origen, @creado_en, @nota)
     `)
     const crearLinea = tx.prepare(`
-      INSERT INTO pedido_lineas (pedido_id, tipo_queso_id, cantidad_pedida)
-      VALUES (?, ?, ?)
+      INSERT INTO pedido_lineas (pedido_id, tipo_queso_id, producto_id, marca_id, envase_id, cantidad_pedida)
+      VALUES (@pedido_id, @tipo_queso_id, @producto_id, @marca_id, @envase_id, @cantidad_pedida)
     `)
     const info = await crear.run({
       client_id,
@@ -1697,7 +1828,7 @@ app.post('/api/pedidos', async (req, res) => {
       creado_en: ahora(),
       nota: nota ?? null,
     })
-    for (const l of lineas) await crearLinea.run(info.lastInsertRowid, l.tipo_queso_id, l.cantidad_pedida)
+    for (const l of normalizadas) await crearLinea.run({ ...l, pedido_id: info.lastInsertRowid })
     return info.lastInsertRowid
   })
 
@@ -1713,6 +1844,11 @@ app.get('/api/pedidos', async (req, res) => {
       piezas: completo.piezas,
       piezas_pedidas: completo.piezas_pedidas,
       gramos: completo.gramos,
+      bultos: completo.bultos,
+      bultos_pedidos: completo.bultos_pedidos,
+      litros: completo.litros,
+      unidades_yogur: completo.unidades_yogur,
+      unidades_yogur_pedidas: completo.unidades_yogur_pedidas,
       lineas: completo.lineas.length,
     }
   }))
@@ -1748,6 +1884,11 @@ app.post('/api/pedidos/pesos', async (req, res) => {
 
   const linea = await qPed.lineaDe.get(linea_id)
   if (!linea) return res.status(400).json({ error: 'línea inexistente' })
+  // Una línea de leche no se pesa. Sin esta guarda un error de la tablet mete gramos en
+  // una línea que se cuenta en cajones, y el remito sale con kilos inventados.
+  if (!linea.tipo_queso_id) {
+    return res.status(400).json({ error: 'esa línea se cumple por cantidad, no por peso' })
+  }
 
   const marca = marcaDeTiempo(fecha_hora_cliente)
   const info = await qPed.agregarPeso.run({
@@ -1763,6 +1904,49 @@ app.post('/api/pedidos/pesos', async (req, res) => {
 app.post('/api/pedidos/pesos/:id/anular', async (req, res) => {
   const id = Number(req.params.id)
   if ((await qPed.anularPeso.run(ahora(), id)).changes === 0) {
+    return res.status(404).json({ error: 'no existe o ya estaba anulado' })
+  }
+  res.json({ ok: true })
+})
+
+// El equivalente de los pesos para leche y yogur: una fila por carga preparada.
+//
+// Va aparte y no como un campo en la linea por lo mismo que los pesos: el armador puede
+// preparar en dos veces, deshacer una sola, y la cola offline reenvia sin duplicar
+// gracias al client_id unico. Un total pisado en la linea pierde las tres cosas.
+app.post('/api/pedidos/cantidades', async (req, res) => {
+  const { client_id, linea_id, cantidad, fecha_hora_cliente } = req.body ?? {}
+
+  if (!client_id || !linea_id) return res.status(400).json({ error: 'faltan campos obligatorios' })
+  if (!Number.isInteger(cantidad) || cantidad < 1 || cantidad > 100000) {
+    return res.status(400).json({ error: 'cantidad fuera de rango' })
+  }
+
+  const previo = await qPed.cantidadPorClientId.get(client_id)
+  if (previo) return res.json({ id: previo.id, duplicado: true })
+
+  const linea = await qPed.lineaDe.get(linea_id)
+  if (!linea) return res.status(400).json({ error: 'línea inexistente' })
+  // La contracara de la guarda de los pesos: un queso se pesa, no se cuenta. Si entrara
+  // por acá, el pedido mostraria piezas entregadas sin un solo kilo detras.
+  if (!linea.producto_id) {
+    return res.status(400).json({ error: 'esa línea se cumple pesando, no por cantidad' })
+  }
+
+  const marca = marcaDeTiempo(fecha_hora_cliente)
+  const info = await qPed.agregarCantidad.run({
+    client_id,
+    linea_id,
+    cantidad,
+    fecha_hora: marca.fecha_hora,
+    origen: marca.origen,
+  })
+  res.status(201).json({ id: info.lastInsertRowid, pedido: await pedidoCompleto(linea.pedido_id) })
+})
+
+app.post('/api/pedidos/cantidades/:id/anular', async (req, res) => {
+  const id = Number(req.params.id)
+  if ((await qPed.anularCantidad.run(ahora(), id)).changes === 0) {
     return res.status(404).json({ error: 'no existe o ya estaba anulado' })
   }
   res.json({ ok: true })
@@ -1804,11 +1988,38 @@ app.post('/api/pedidos/:id/anular', async (req, res) => {
 app.get('/api/pedidos/:id/remito.csv', async (req, res) => {
   const p = await pedidoCompleto(Number(req.params.id))
   if (!p) return res.status(404).send('no existe')
-  const filas = ['cliente,queso,piezas_pedidas,piezas_entregadas,kilos']
-  for (const l of p.lineas) {
-    filas.push([p.cliente, l.queso, l.cantidad_pedida, l.piezas, (l.gramos / 1000).toFixed(3)].join(','))
+  // Una fila por linea, con las dos clases en las mismas columnas. `unidad` dice como
+  // leer `pedido` y `entregado` —piezas, bultos o unidades—, porque sumar cajones con
+  // piezas de queso en una misma columna daria un total que no significa nada.
+  //
+  // Los kilos solo los tiene el queso y los litros solo la leche. La columna vacia es
+  // mas honesta que un cero: un cero se suma sin querer.
+  const esc = (v) => {
+    const s = String(v ?? '')
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
   }
-  filas.push(['', 'TOTAL', p.piezas_pedidas, p.piezas, (p.gramos / 1000).toFixed(3)].join(','))
+  const fila = (xs) => xs.map(esc).join(',')
+
+  const filas = [fila(['cliente', 'clase', 'detalle', 'unidad', 'pedido', 'entregado', 'kilos', 'litros'])]
+  for (const l of p.lineas) {
+    filas.push(fila([
+      p.cliente,
+      l.clase,
+      l.descripcion,
+      l.unidad,
+      l.cantidad_pedida,
+      l.entregado,
+      l.clase === 'queso' ? (l.gramos / 1000).toFixed(3) : '',
+      l.clase === 'leche' ? l.litros : '',
+    ]))
+  }
+  filas.push(fila(['', 'TOTAL queso', '', 'piezas', p.piezas_pedidas, p.piezas, (p.gramos / 1000).toFixed(3), '']))
+  if (p.bultos_pedidos) {
+    filas.push(fila(['', 'TOTAL leche', '', 'bultos', p.bultos_pedidos, p.bultos, '', p.litros]))
+  }
+  if (p.unidades_yogur_pedidas) {
+    filas.push(fila(['', 'TOTAL yogur', '', 'unidades', p.unidades_yogur_pedidas, p.unidades_yogur, '', '']))
+  }
   res.type('text/csv').attachment(`pedido-${p.id}-${p.cliente}.csv`).send(filas.join('\n'))
 })
 

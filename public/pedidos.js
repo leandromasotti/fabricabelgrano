@@ -24,6 +24,7 @@ const est = {
   pedido: null,
   linea: null,
   gramosStr: '',
+  contarStr: '',
   // alta de un pedido nuevo
   nuevo: null,
   quesoNuevo: null,
@@ -32,18 +33,18 @@ const est = {
   timer: null,
 }
 
-const mostrar = hacerPasos(
-  ['operario', 'lista', 'armado', 'pesaje', 'cliente', 'nuevo-queso', 'nuevo-cant', 'listo'],
-  ['lista', 'armado', 'pesaje', 'cliente', 'nuevo-queso', 'nuevo-cant']
-)
+const PASOS = ['operario', 'lista', 'armado', 'pesaje', 'contar', 'cliente', 'nuevo-queso', 'nuevo-cant', 'listo']
+const PASOS_ANCHOS = ['lista', 'armado', 'pesaje', 'contar', 'cliente', 'nuevo-queso', 'nuevo-cant']
+
+const mostrar = hacerPasos(PASOS, PASOS_ANCHOS)
 
 const kg = (gramos) => (gramos / 1000).toFixed(3).replace('.', ',')
 
 function irA(paso) {
   mostrar(paso)
   $('btn-reiniciar').hidden = paso !== 'lista'
-  $('btn-volver').hidden = !['armado', 'pesaje', 'cliente', 'nuevo-queso', 'nuevo-cant'].includes(paso)
-  pintarMigas([est.operario?.nombre, est.pedido?.cliente ?? est.nuevo?.cliente?.nombre, est.linea?.queso])
+  $('btn-volver').hidden = !['armado', 'pesaje', 'contar', 'cliente', 'nuevo-queso', 'nuevo-cant'].includes(paso)
+  pintarMigas([est.operario?.nombre, est.pedido?.cliente ?? est.nuevo?.cliente?.nombre, est.linea?.descripcion])
 }
 
 function volver() {
@@ -52,7 +53,7 @@ function volver() {
     est.nuevo = null
     return abrirLista()
   }
-  if (pasoActual() === 'pesaje') {
+  if (['pesaje', 'contar'].includes(pasoActual())) {
     est.linea = null
     return pintarArmado()
   }
@@ -60,9 +61,7 @@ function volver() {
   abrirLista()
 }
 
-const pasoActual = () =>
-  ['operario', 'lista', 'armado', 'pesaje', 'cliente', 'nuevo-queso', 'nuevo-cant', 'listo']
-    .find((p) => !$(`paso-${p}`).hidden)
+const pasoActual = () => PASOS.find((p) => !$(`paso-${p}`).hidden)
 
 // ---------------------------------------------------------------- lista
 
@@ -94,6 +93,32 @@ async function abrirLista() {
   cont.replaceChildren(...abiertos.map(tarjetaPedido))
 }
 
+// Como se resume un pedido en una linea. Un pedido puede ser de queso, de leche, de
+// yogur o de las tres, y mostrar siempre "piezas / kg" dejaba un "0 / 0 · sin pesar"
+// arriba de un pedido de leche entero.
+//
+// Trabaja con los totales que ya manda el servidor, no con las lineas: la lista de
+// pedidos no las trae.
+function resumen(p) {
+  const partes = []
+  const avance = []
+  if (p.piezas_pedidas) {
+    avance.push(`${p.piezas} / ${p.piezas_pedidas} pz`)
+    partes.push(p.gramos ? `${kg(p.gramos)} kg` : 'sin pesar')
+  }
+  if (p.bultos_pedidos) {
+    avance.push(`${p.bultos} / ${p.bultos_pedidos} bultos`)
+    if (p.litros) partes.push(`${p.litros} L`)
+  }
+  if (p.unidades_yogur_pedidas) {
+    avance.push(`${p.unidades_yogur} / ${p.unidades_yogur_pedidas} u`)
+  }
+  return {
+    avance: avance.join(' · ') || '—',
+    total: partes.join(' · ') || 'sin preparar',
+  }
+}
+
 function tarjetaPedido(p) {
   const b = document.createElement('button')
   b.className = `tarjeta-pedido${p.estado === 'armando' ? ' en-curso' : ''}`
@@ -109,8 +134,9 @@ function tarjetaPedido(p) {
   const meta = document.createElement('span')
   meta.className = 'meta'
   const fuerte = document.createElement('strong')
-  fuerte.textContent = `${p.piezas} / ${p.piezas_pedidas}`
-  meta.append(fuerte, document.createTextNode(p.gramos ? `${kg(p.gramos)} kg` : 'sin pesar'))
+  const r = resumen(p)
+  fuerte.textContent = r.avance
+  meta.append(fuerte, document.createTextNode(r.total))
 
   b.append(cliente, chip, meta)
   b.onclick = () => abrirPedido(p.id)
@@ -138,30 +164,65 @@ function pintarArmado() {
 
   $('lista-lineas').replaceChildren(...p.lineas.map((l) => {
     const b = document.createElement('button')
-    const completa = l.piezas === l.cantidad_pedida
-    const difiere = l.piezas > 0 && l.piezas !== l.cantidad_pedida
+    // `entregado` en vez de `piezas`: el servidor ya resolvio si eso son piezas pesadas
+    // o bultos contados, y la tablet no tiene por que volver a decidirlo.
+    const completa = l.entregado === l.cantidad_pedida
+    const difiere = l.entregado > 0 && l.entregado !== l.cantidad_pedida
     b.className = `linea${completa ? ' completa' : ''}${difiere ? ' difiere' : ''}`
 
     const queso = document.createElement('span')
     queso.className = 'queso'
-    queso.textContent = l.queso
+    queso.textContent = l.descripcion
 
     const prog = document.createElement('span')
     prog.className = 'progreso'
-    prog.textContent = `${l.piezas} / ${l.cantidad_pedida}`
+    prog.textContent = `${l.entregado} / ${l.cantidad_pedida}`
 
     const kilos = document.createElement('span')
     kilos.className = 'kilos'
-    kilos.textContent = l.gramos ? `${kg(l.gramos)} kg` : '—'
+    kilos.textContent =
+      l.clase === 'queso' ? (l.gramos ? `${kg(l.gramos)} kg` : '—')
+      : l.clase === 'leche' ? (l.litros ? `${l.litros} L` : '—')
+      : l.unidad
 
     b.append(queso, prog, kilos)
-    b.onclick = () => abrirPesaje(l)
+    // El queso se pesa, la leche y el yogur se cuentan. Es la unica bifurcacion del
+    // flujo, y ocurre aca.
+    b.onclick = () => (l.clase === 'queso' ? abrirPesaje(l) : abrirContar(l))
     return b
   }))
 
-  $('total-piezas').textContent = p.piezas
-  $('total-kilos').textContent = kg(p.gramos)
-  $('btn-cerrar').disabled = p.piezas === 0
+  // El pie muestra lo que el pedido realmente tiene. Un pedido de sola leche mostraba
+  // "0 piezas · 0,000 kg", que se lee como que no se armo nada.
+  //
+  // Los totales se SUMAN DE LAS LINEAS y no se leen de p.gramos / p.litros. Esos dos
+  // vienen del servidor y quedan viejos: las cargas optimistas actualizan la linea para
+  // que el operario vea el cambio al instante, y el pie mostraba 0 L con 25 cajones ya
+  // contados. Derivarlos no puede desincronizarse.
+  const suma = (f) => p.lineas.reduce((n, l) => n + f(l), 0)
+  const entregado = suma((l) => l.entregado)
+  const gramos = suma((l) => l.gramos)
+  const litros = suma((l) => l.litros)
+  const soloQueso = p.lineas.every((l) => l.clase === 'queso')
+  const soloLeche = p.lineas.every((l) => l.clase === 'leche')
+
+  $('total-piezas').textContent = entregado
+  $('total-piezas-u').textContent = soloQueso ? 'piezas' : soloLeche ? 'bultos' : 'preparado'
+
+  if (soloQueso) {
+    $('total-kilos').textContent = kg(gramos)
+    $('total-kilos-u').textContent = 'kilos'
+  } else if (soloLeche) {
+    $('total-kilos').textContent = litros || '—'
+    $('total-kilos-u').textContent = 'litros'
+  } else {
+    // Mixto: sumar kilos de queso con litros de leche no da nada, asi que se muestran
+    // los dos por separado en vez de un total inventado.
+    $('total-kilos').textContent = `${kg(gramos)} kg · ${litros} L`
+    $('total-kilos-u').textContent = 'queso · leche'
+  }
+
+  $('btn-cerrar').disabled = entregado === 0
 }
 
 // ---------------------------------------------------------------- pesaje
@@ -170,10 +231,124 @@ function abrirPesaje(linea) {
   est.linea = linea
   est.gramosStr = ''
   irA('pesaje')
-  $('titulo-pesaje').textContent = `${linea.queso} · pedidas ${linea.cantidad_pedida}`
+  $('titulo-pesaje').textContent = `${linea.descripcion} · pedidas ${linea.cantidad_pedida}`
   $('pesadas-pedidas').textContent = linea.cantidad_pedida
   pintarPeso()
   pintarPesadas()
+}
+
+// ---------------------------------------------------------------- contar
+//
+// Leche y yogur no pasan por balanza: un carton de 1 L es 1 L. Lo que puede variar es
+// cuantos bultos se llegaron a preparar, que es el caso que describio el cliente —"a lo
+// ultimo de la produccion puede pedir un pallet con 20 cajones solamente"—.
+//
+// Es el mismo teclado numerico que el resto del sistema, pero SIN la entrada por la
+// derecha del pesaje: ahi los digitos entran como en una balanza porque hay decimales.
+// Un cajon no tiene medio cajon, asi que aca se teclea derecho.
+
+function abrirContar(linea) {
+  est.linea = linea
+  est.contarStr = ''
+  irA('contar')
+  $('titulo-contar').textContent = `${linea.descripcion} · pedidos ${linea.cantidad_pedida}`
+  $('contar-unidad').textContent = linea.unidad
+  $('contar-pedidas').textContent = linea.cantidad_pedida
+  pintarCantidad()
+  pintarCargas()
+}
+
+function pintarCantidad() {
+  const n = Number(est.contarStr || '0')
+  const v = $('contar-valor')
+  v.textContent = n
+  v.classList.toggle('cero', n === 0)
+  $('tecla-contar-ok').disabled = n < 1
+
+  // Los litros mientras se teclea, igual que en lecheria: es donde todavia se puede
+  // notar que 400 cajones eran 40.
+  const l = est.linea
+  const porBulto = (l.unidades_por_bulto ?? 0) * Number(l.litros_por_unidad ?? 0)
+  $('linea-litros').textContent =
+    l.clase === 'leche' && porBulto ? `${Math.round(n * porBulto)} L` : ''
+}
+
+function teclaContar(valor) {
+  if (valor === 'borrar') est.contarStr = est.contarStr.slice(0, -1)
+  // 5 digitos: nadie prepara 100.000 cajones. El tope esta para que un dedo trabado no
+  // cargue un numero absurdo, igual que en el pesaje.
+  else if (est.contarStr.length < 5) est.contarStr = (est.contarStr + valor).replace(/^0+/, '')
+  pintarCantidad()
+}
+
+function pintarCargas() {
+  const l = est.linea
+  $('contar-n').textContent = l.entregado
+
+  $('lista-cargas').replaceChildren(...l.cantidades.map((c, i) => {
+    const d = document.createElement('div')
+    d.className = 'pesada'
+    const idx = document.createElement('span')
+    idx.className = 'i'
+    idx.textContent = `${i + 1}.`
+    const val = document.createElement('span')
+    val.className = 'kg'
+    val.textContent = `${c.cantidad} ${l.unidad}`
+    const x = document.createElement('button')
+    x.textContent = '✕'
+    x.title = 'Quitar esta carga'
+    x.onclick = () => quitarCarga(c)
+    d.append(idx, val, x)
+    return d
+  }).reverse())
+}
+
+async function agregarCantidad() {
+  const cantidad = Number(est.contarStr || '0')
+  if (cantidad < 1) return
+
+  const fecha = horaServidor()
+  const cuerpo = { client_id: crypto.randomUUID(), linea_id: est.linea.id, cantidad }
+
+  // Optimista, igual que el pesaje: el operario ya movio los cajones.
+  est.linea.cantidades.push({ id: null, client_id: cuerpo.client_id, cantidad })
+  est.linea.entregado += cantidad
+  const porBulto = (est.linea.unidades_por_bulto ?? 0) * Number(est.linea.litros_por_unidad ?? 0)
+  if (est.linea.clase === 'leche') est.linea.litros += Math.round(cantidad * porBulto)
+  est.contarStr = ''
+  pintarCantidad()
+  pintarCargas()
+
+  try {
+    if (!red.hay) throw new Error('sin red')
+    const r = await postear('/api/pedidos/cantidades', cuerpo)
+    const guardada = est.linea.cantidades.find((c) => c.client_id === cuerpo.client_id)
+    if (guardada) guardada.id = r.id
+  } catch (e) {
+    if (!e.definitivo) {
+      cola.agregar({
+        ruta: '/api/pedidos/cantidades',
+        cuerpo: { ...cuerpo, fecha_hora_cliente: fecha.toISOString() },
+      })
+      red.hay = false
+    }
+  }
+  pintarEstado()
+}
+
+async function quitarCarga(carga) {
+  est.linea.cantidades = est.linea.cantidades.filter((c) => c.client_id !== carga.client_id)
+  est.linea.entregado -= carga.cantidad
+  const porBulto = (est.linea.unidades_por_bulto ?? 0) * Number(est.linea.litros_por_unidad ?? 0)
+  if (est.linea.clase === 'leche') est.linea.litros -= Math.round(carga.cantidad * porBulto)
+  pintarCargas()
+
+  if (carga.id) {
+    await fetch(`/api/pedidos/cantidades/${carga.id}/anular`, { method: 'POST' }).catch(() => {})
+  } else {
+    cola.quitar(carga.client_id)
+  }
+  pintarEstado()
 }
 
 function pintarPeso() {
@@ -273,10 +448,10 @@ async function cerrarPedido() {
   try {
     const cerrado = await postear(`/api/pedidos/${p.id}/cerrar`, { operario_id: est.operario.id })
     est.ultimo = cerrado
+    const r = resumen(cerrado)
     $('listo-titulo').textContent = 'PEDIDO LISTO'
-    $('listo-kilos').textContent = `${kg(cerrado.gramos)} kg`
-    $('listo-detalle').textContent =
-      `${cerrado.cliente} · ${cerrado.piezas} piezas · ya lo ve el encargado`
+    $('listo-kilos').textContent = r.total
+    $('listo-detalle').textContent = `${cerrado.cliente} · ${r.avance} · ya lo ve el encargado`
     irA('listo')
     clearInterval(est.timer)
     est.timer = cuentaRegresiva(VENTANA_DESHACER, $('deshacer-seg'), abrirLista)
@@ -345,6 +520,8 @@ function pintarQuesosNuevo(quesos) {
 }
 
 function pintarCant() {
+  // Ojo: `cant-valor` es el del alta de pedido nuevo; el del conteo de leche es
+  // `contar-valor`. Son dos pantallas distintas y llegaron a tener el mismo id.
   const v = $('cant-valor')
   v.textContent = est.cantStr || '0'
   v.classList.toggle('vacio', !est.cantStr)
@@ -439,6 +616,7 @@ pintarQuesosNuevo(catalogo.quesos)
 
 armarTeclado($('teclado-peso'), teclaPeso, 'tecla-agregar', 'AGREGAR', 'agregar').onclick = agregarPeso
 armarTeclado($('teclado-cant'), teclaCant, 'tecla-cant-ok', 'LISTO', 'ok').onclick = agregarLineaNueva
+armarTeclado($('teclado-contar'), teclaContar, 'tecla-contar-ok', 'AGREGAR', 'agregar').onclick = agregarCantidad
 
 $('btn-nuevo').addEventListener('click', empezarNuevo)
 $('btn-cerrar').addEventListener('click', cerrarPedido)

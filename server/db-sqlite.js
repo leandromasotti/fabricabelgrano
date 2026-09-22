@@ -182,14 +182,40 @@ sqlite.exec(`
   -- peso real de cada pieza entregada. Si se termina facturando por pieza y no por
   -- kilo (pregunta A2 sin responder), los pesos sobran pero no molestan; al reves
   -- habria que rehacer todo.
+  -- Una linea es de QUESO o de PRODUCTO (leche / yogur), nunca de las dos:
+  --
+  --   queso  ->  tipo_queso_id             cantidad_pedida = piezas     cumple con pesos
+  --   leche  ->  producto + marca + envase  cantidad_pedida = bultos     cumple con cantidades
+  --   yogur  ->  producto + marca           cantidad_pedida = unidades   cumple con cantidades
+  --
+  -- El queso se pesa pieza por pieza porque cada uno pesa distinto; la leche no, un
+  -- carton de 1 L es 1 L. La leche se pide en CAJONES (confirmado 2026-09-22), que es lo
+  -- que hace que elegir "x 18" o "x 20" signifique algo.
   CREATE TABLE IF NOT EXISTS pedido_lineas (
     id             INTEGER PRIMARY KEY,
     pedido_id      INTEGER NOT NULL REFERENCES pedidos(id) ON DELETE CASCADE,
-    tipo_queso_id  INTEGER NOT NULL REFERENCES tipos_queso(id),
-    cantidad_pedida INTEGER NOT NULL
+    tipo_queso_id  INTEGER REFERENCES tipos_queso(id),
+    producto_id    INTEGER REFERENCES productos(id),
+    marca_id       INTEGER REFERENCES marcas(id),
+    envase_id      INTEGER REFERENCES envases(id),
+    cantidad_pedida INTEGER NOT NULL,
+    CHECK (
+      (tipo_queso_id IS NOT NULL AND producto_id IS NULL
+       AND marca_id IS NULL AND envase_id IS NULL)
+      OR
+      (tipo_queso_id IS NULL AND producto_id IS NOT NULL AND marca_id IS NOT NULL)
+    )
   );
 
   CREATE INDEX IF NOT EXISTS idx_lineas_pedido ON pedido_lineas(pedido_id);
+
+  -- Un producto no se repite dentro del mismo pedido: si se carga dos veces se suma en
+  -- la linea que ya existe. Va como indice parcial porque solo aplica a las lineas de
+  -- producto. COALESCE sobre envase_id porque NULL nunca es igual a NULL, y sin eso dos
+  -- lineas de yogur del mismo sabor y marca no chocarian.
+  CREATE UNIQUE INDEX IF NOT EXISTS pedido_lineas_producto_uk
+      ON pedido_lineas (pedido_id, producto_id, marca_id, COALESCE(envase_id, 0))
+   WHERE producto_id IS NOT NULL;
 
   -- Una fila por pieza pesada. En GRAMOS y entero: los kilos con decimales en punto
   -- flotante acumulan error al sumar, y este numero termina en una factura.
@@ -205,6 +231,22 @@ sqlite.exec(`
   );
 
   CREATE INDEX IF NOT EXISTS idx_pesos_linea ON pedido_pesos(linea_id);
+
+  -- Lo que el armador preparo de una linea de leche o yogur. Una fila por carga y no un
+  -- total en la linea, por lo mismo que los pesos son filas: deshacer de a una, cola
+  -- offline idempotente por client_id, y a que hora se preparo cada cosa.
+  CREATE TABLE IF NOT EXISTS pedido_cantidades (
+    id        INTEGER PRIMARY KEY,
+    client_id TEXT NOT NULL UNIQUE,
+    linea_id  INTEGER NOT NULL REFERENCES pedido_lineas(id) ON DELETE CASCADE,
+    cantidad  INTEGER NOT NULL,
+    fecha_hora TEXT NOT NULL,
+    origen    TEXT NOT NULL DEFAULT 'online',
+    anulado   INTEGER NOT NULL DEFAULT 0,
+    anulado_en TEXT
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_cantidades_linea ON pedido_cantidades(linea_id);
 
   -- Envasado. El queso sale del saladero "desnudo", espera en la camara de desnudo y
   -- de ahi se envasa; envasado equivale a "listo para vender, en la camara de
