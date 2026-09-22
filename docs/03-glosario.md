@@ -74,7 +74,7 @@ muestran con “≈”.
 El yogur se registra **bin por bin**, no por pallet: es otra tablet, en otro sector, con otros
 operarios.
 
-**Marcas** (A2 00:47): Central Lechera, **Lácteos Belgrano**, Ovenac❓ *(declarada como propia)*.
+**Marcas** (A2 00:47): Central Lechera, **Lácteos Belgrano**, Obenac *(declarada como propia)*.
 
 **Variantes** (A2 00:52-01:00): ✅ confirmadas contra el catálogo — **Leche Entera**, **Leche Entera
 Largavida**, **Leche Descremada**.
@@ -104,7 +104,7 @@ Largavida**, **Leche Descremada**.
   dice eso. Releído en contexto probablemente **no sea un error**: suena a muletilla (*"marcan, cómo
   es el truco, ¿viste?"* = "así es la movida"). Igual conviene preguntar qué se marca exactamente en
   el cartón — la foto del cartón lo resuelve.
-- **"Ovenac"** — declarada como marca propia en el audio. **No aparece en el sitio oficial** ni en
+- **"Obenac"** (confirmado 2026-09-22, con B) — declarada como marca propia en el audio. **No aparece en el sitio oficial** ni en
   búsquedas. Único término que sigue sin resolverse; requiere confirmación del cliente.
 - **"mar del plata"** — las dos pasadas coinciden y es un tipo de queso argentino real, pero **no
   figura en el catálogo web**. Confirmar si se produce (¿para terceros?).

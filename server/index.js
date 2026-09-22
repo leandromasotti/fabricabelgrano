@@ -85,7 +85,7 @@ const qCatalogo = {
   operarios: db.prepare(
     'SELECT id, nombre FROM operarios WHERE activo = 1 AND sector = ? ORDER BY orden, nombre'
   ),
-  // Las marcas se filtran por familia: el yogur va en dos marcas, Ovenac no lo hace.
+  // Las marcas se filtran por familia: el yogur va en dos marcas, Obenac no lo hace.
   marcas: db.prepare(`
     SELECT m.id, m.nombre
       FROM marcas m
@@ -863,10 +863,11 @@ app.put('/api/envases/:id', async (req, res) => {
 
 // Alta de un formato.
 //
-// Hasta ahora agregar un cajón nuevo necesitaba un desarrollador, y la planta tiene al
-// menos cinco tipos —lácteos, Sancor, La Serenísima, palanganas, bandejones— que además
-// están en camino de desaparecer conforme pasan todo a cajas. Que lo cargue y lo dé de
-// baja el encargado es la diferencia entre acompañar ese cambio o quedar atrás de él.
+// Hasta ahora agregar un cajón nuevo necesitaba un desarrollador, y la lista se mueve: el
+// 2026-09-22 salieron "Sancor" y "La Serenísima" —eran el mismo cajón con el nombre del
+// cliente— y entró la distinción que sí importa, x 18 contra x 20. Además todos están en
+// camino de desaparecer conforme pasan de cajones a cajas. Que lo cargue y lo dé de baja
+// el encargado es la diferencia entre acompañar ese cambio o quedar atrás de él.
 app.post('/api/envases', async (req, res) => {
   const nombre = String(req.body?.nombre ?? '').trim()
   if (!nombre) return res.status(400).json({ error: 'falta el nombre' })

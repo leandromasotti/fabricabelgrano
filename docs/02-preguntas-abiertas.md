@@ -20,13 +20,14 @@ lechería, que es justamente la fase 1.
 | "lácteos del grano" | **Lácteos Belgrano** (razón social: Lácteos Del Salado SRL) | ✅ resuelto por la web |
 | "el gavida" | **Leche Entera Largavida** — es un producto del catálogo | ✅ resuelto por la web |
 | "el screma" | **Leche Descremada** | ✅ resuelto por la web |
-| "marca ovenac" | sin identificar | ❌ **pendiente** |
+| "marca ovenac" | **Obenac**, con B — confirmado por el cliente el 2026-09-22 | ✅ resuelto |
 | "Central Lechera" | marca de terceros, razón social sin verificar | ⚠️ menor |
 
-**La única que queda es "Ovenac".** Y ahora la pregunta correcta no es cómo se escribe, sino:
+**La grafía ya está cerrada: es "Obenac".** Corregida en las dos bases y en el seed con
+`migraciones/002-cajones-y-obenac.js`. Queda en pie la parte que siempre importó más:
 
 > **¿Cuáles marcas son propias y cuáles de terceros?** La empresa es *Lácteos Del Salado SRL* y la
-> marca comercial es *Lácteos Belgrano*, pero en el audio se dice *"marca Ovenac, **que es
+> marca comercial es *Lácteos Belgrano*, pero en el audio se dice *"marca Obenac, **que es
 > nuestra**"*, lo que sugiere **más de una marca propia**. Hay que mapear: marca → ¿propia o
 > maquila para terceros?
 
@@ -57,7 +58,7 @@ peso de cada pieza → kilos totales → precio por kilo.
 medida. Cambia el diseño de toda la pantalla de armado.
 
 ### A3. ¿Producen para terceros (maquila)? — **casi confirmado**
-Se mencionan al menos tres marcas ("Central Lechera", "Lácteos Belgrano", "Ovenac") y el sitio
+Se mencionan al menos tres marcas ("Central Lechera", "Lácteos Belgrano", "Obenac") y el sitio
 oficial solo publica productos bajo **Lácteos Belgrano**. Eso hace muy probable que se produzca
 para terceros. Si es así:
 - ¿Hay que poder reportarle a cada marca su producción por separado?

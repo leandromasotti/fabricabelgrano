@@ -1,6 +1,37 @@
 # Cajones: formatos variables y pallets incompletos
 
 **Fecha:** 2026-09-16 · **Fuente:** mensajes de Alexis Giuliatti del 16/9, 09:01–09:05
+**Actualizado:** 2026-09-22 — cambió la lista de formatos, ver abajo.
+
+---
+
+## ⚠️ Actualización del 2026-09-22
+
+La lista de abajo es lo que el cliente dijo el 16/9 y se deja como está, porque es el
+registro de lo que se pidió. **Pero los formatos ya no son esos.** El 22/9 el cliente
+resolvió nombrar los cajones por lo que realmente los distingue —cuántas unidades
+entran— en vez de por el cliente que se los lleva:
+
+| Antes | Ahora |
+|---|---|
+| Cajón lácteo (40 × 18) | **Cajón lácteo x 18** (40 × 18 = 720 L) — mismo registro, renombrado |
+| Cajón Sancor (40 × 18) | de baja |
+| Cajón La Serenísima (40 × 18) | de baja |
+| — | **Cajón lácteo x 20** (40 × 20 = 800 L) — nuevo, **provisorio** |
+
+Los tres eran el mismo cajón de 40 × 18 con distinto nombre, así que la distinción no
+aportaba nada y sí ocupaba tres tarjetas en la tablet. La que sí importa es x 18 contra
+x 20, que es la que cambia los litros del pallet.
+
+Las bajas son bajas, no borrados: en Supabase ya hay un pallet registrado como "Cajón
+Sancor" y tiene que seguir llamándose así en el historial.
+
+**Los 40 bultos del x 20 son deducción, no dato.** Salen de que el cliente lo justificó
+diciendo "en un solo pallet meten más litros", lo que implica el mismo pallet con más
+unidades adentro. Por eso queda marcado como provisorio hasta que Alexis lo confirme
+desde `/app/envases`.
+
+Aplicado a las dos bases con `migraciones/002-cajones-y-obenac.js --confirmar`.
 
 ---
 

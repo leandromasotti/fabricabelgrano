@@ -173,10 +173,10 @@ ver, aunque no lo hayan pedido.
   - 🔸 La equivalencia se guarda **por producto** (no como constante) y se **congela en cada
     registro**: si mañana cambia el tamaño de la caja, los pallets históricos conservan la
     equivalencia que era cierta el día que se armaron, y los reportes viejos no se reescriben solos.
-- Por **marca**: Central Lechera, **Lácteos Belgrano**, y **Ovenac❓ (marca propia)**.
+- Por **marca**: Central Lechera, **Lácteos Belgrano**, y **Obenac (marca propia)**.
 - Por **tipo**: ✅ **confirmado contra el catálogo web** — **Leche Entera**, **Leche Entera
   Largavida**, **Leche Descremada** **[A2 00:41-01:00]**.
-- ❓ Queda una sola marca sin identificar ("Ovenac"). Ver pregunta **A1**.
+- ❓ La grafía de **Obenac** quedó confirmada por el cliente el 2026-09-22 (con B). Ver pregunta **A1**.
 
 🔸 **Inferencia importante:** que produzcan bajo marcas de terceros *y* una propia sugiere trabajo
 de **maquila para terceros**. Si es así, la trazabilidad por marca/cliente tiene implicancias
@@ -187,7 +187,7 @@ regulatorias y contractuales que no aparecieron en los audios. Ver pregunta **A3
 
 - Es **otra tablet**: dos puestos distintos, dos pantallas (`/lecheria.html` y `/yogures.html`).
 - Solo **dos sabores**: vainilla y frutilla.
-- Se produce en **dos marcas**. ⚠️ **Ovenac NO hace yogur** — el sistema lo modela como "qué
+- Se produce en **dos marcas**. ⚠️ **Obenac NO hace yogur** — el sistema lo modela como "qué
   familia de producto hace cada marca", no como un caso especial.
 - Se registra **caja por caja**, no por pallet. Cada caja lleva ~500 sachets.
 - ❓ El cliente dio las 500 unidades como **aproximadas** y decidió dejarlas fijas. Queda

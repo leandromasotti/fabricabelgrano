@@ -106,10 +106,11 @@ export function Envases() {
 /**
  * Alta de un formato.
  *
- * Hasta ahora agregar un cajón necesitaba un desarrollador, y la planta tiene al menos
- * cinco tipos —lácteos, Sancor, La Serenísima, palanganas, bandejones— que además están
- * en camino de desaparecer conforme pasan todo a cajas. Que los cargue y los dé de baja
- * el encargado es lo que permite acompañar ese cambio en vez de ir atrás.
+ * Hasta ahora agregar un cajón necesitaba un desarrollador, y la lista se mueve: el
+ * 2026-09-22 salieron "Sancor" y "La Serenísima" —eran el mismo cajón con el nombre del
+ * cliente— y entró la distinción que sí importa, x 18 contra x 20. Además todos están en
+ * camino de desaparecer conforme pasan de cajones a cajas. Que los cargue y los dé de
+ * baja el encargado es lo que permite acompañar ese cambio en vez de ir atrás.
  */
 function AltaFormato() {
   const [abierto, setAbierto] = useState(false)

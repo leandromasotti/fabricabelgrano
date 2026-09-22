@@ -86,7 +86,7 @@ anulado_en        timestamp
 ```
 
 **Datos iniciales conocidos:**
-- Marcas: Central Lechera, Lácteos Belgrano, Ovenac *(pendiente de confirmar — pregunta A1)*
+- Marcas: Central Lechera, Lácteos Belgrano, Obenac *(grafía confirmada 2026-09-22)*
 - Productos: Leche Entera, Leche Entera Largavida, Leche Descremada ✅ *(confirmados contra el
   catálogo oficial)*
 - Operarios: **falta la lista** — es el único dato que bloquea el arranque.

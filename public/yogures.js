@@ -11,7 +11,7 @@
 // precisión. Por eso los derivados se muestran con "≈": un número redondo sin marcar
 // se lee como medido, y alguien va a terminar facturando o planificando con él.
 //
-// Solo dos sabores (vainilla y frutilla) y dos marcas: Ovenac no hace yogur. El
+// Solo dos sabores (vainilla y frutilla) y dos marcas: Obenac no hace yogur. El
 // catálogo ya viene filtrado por el servidor, así que acá no hay ninguna regla escrita
 // a mano.
 

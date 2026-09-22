@@ -267,10 +267,10 @@ sqlite.exec(`
   CREATE INDEX IF NOT EXISTS idx_yogur_fecha ON registros_yogur(fecha_hora);
 
   -- Que familia de producto hace cada marca. El yogur se produce en dos marcas y
-  -- Ovenac no lo hace; la leche la hacen las tres.
+  -- Obenac no lo hace; la leche la hacen las tres.
   --
   -- Va como tabla y no como un flag "hace_yogur" porque la regla real es "esta marca
-  -- hace estas familias": si manana Ovenac arranca con yogur, o aparece una cuarta
+  -- hace estas familias": si manana Obenac arranca con yogur, o aparece una cuarta
   -- marca que solo hace yogur, es una fila y no un cambio de codigo.
   -- Tambos: los proveedores de leche cruda. La fabrica los identifica por numero
   -- (se ven el 2, 4, 5, 6, 14 y 15 en la planilla).

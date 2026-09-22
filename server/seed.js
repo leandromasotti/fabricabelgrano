@@ -1,11 +1,12 @@
 import { db } from './db.js'
 
-// Marcas: dos confirmadas en el audio 2, la tercera pendiente de confirmacion (pregunta A1).
-// es_propia sale de "marca Ovenac, que es nuestra" [A2 00:47] - falta mapear el resto.
+// Marcas. es_propia sale de "marca Obenac, que es nuestra" [A2 00:47] - falta mapear el resto.
+// La grafia de Obenac quedo confirmada por el cliente el 2026-09-22 (se escribe con B, no
+// con V como se habia transcrito del audio). Cierra la pregunta A1.
 const marcas = [
   { nombre: 'Lácteos Belgrano', es_propia: 1, orden: 1 },
   { nombre: 'Central Lechera', es_propia: 0, orden: 2 },
-  { nombre: 'Ovenac', es_propia: 1, orden: 3 },
+  { nombre: 'Obenac', es_propia: 1, orden: 3 },
 ]
 
 // Confirmados contra el catalogo oficial de lacteosbelgrano.com.ar (2026-09-11).
@@ -58,21 +59,42 @@ const seccionesTablero = [
   { orden: 6, clave: 'alertas',   nombre: 'Atención',              descripcion: 'Tinas demoradas y quesos desnudos hace mucho' },
 ]
 
+// Formatos actualizados por el cliente el 2026-09-22.
+//
+// OJO con el orden si aparece una base vieja: este seed inserta por nombre, así que sobre
+// una base que todavía tenga "Cajón lácteo" / "Cajón Sancor" / "Cajón La Serenísima"
+// agregaría los nuevos SIN sacar los viejos, y quedarían los cinco activos. Primero
+// `node migraciones/002-cajones-y-obenac.js --confirmar`, después el seed. Las bases de
+// Docker y Supabase ya están migradas; esto aplica a cualquier otra que aparezca.
+//
+// Salieron "Cajón Sancor" y "Cajón La Serenísima": eran el mismo cajón de 40 × 18 con el
+// nombre del cliente que se lo llevaba, y lo que distingue a un cajon de otro no es el
+// cliente sino cuantas unidades entran. Quedan los dos que importan, x 18 y x 20.
+//
+// El x 20 va marcado como provisorio porque los 40 bultos por pallet son deduccion, no
+// dato: Alexis dijo que el cajon x 20 existe "porque en un solo pallet meten mas litros",
+// lo que implica el mismo pallet de 40 cajones con mas unidades en cada uno (800 L en vez
+// de 720). Se confirma desde /app/envases destildando "provisorio", sin tocar codigo.
+//
+// OJO: hoy `provisorio` se ve SOLO en /app/envases, como el tag "a confirmar". La tablet
+// muestra "800 litros" sin ninguna marca, asi que el operario no tiene forma de saber que
+// ese numero es estimado. Existe una clase .aviso-provisorio en styles.css que nadie usa,
+// justamente para esto. Mientras no se muestre, el flag sirve al encargado y no al
+// operario — que es la mitad del valor que deberia tener.
 const envases = [
   { nombre: 'Caja 12 × 1 L',       bultos: 70, unidades: 12, litros: 1, provisorio: 0, orden: 1 },
-  { nombre: 'Cajón lácteo',        bultos: 40, unidades: 18, litros: 1, provisorio: 0, orden: 2 },
-  { nombre: 'Cajón Sancor',        bultos: 40, unidades: 18, litros: 1, provisorio: 0, orden: 3 },
-  { nombre: 'Cajón La Serenísima', bultos: 40, unidades: 18, litros: 1, provisorio: 0, orden: 4 },
-  { nombre: 'Palangana 30',        bultos: 30, unidades: 18, litros: 1, provisorio: 0, orden: 5 },
-  { nombre: 'Bandejón de colores', bultos: 30, unidades: 18, litros: 1, provisorio: 0, orden: 6 },
+  { nombre: 'Cajón lácteo x 18',   bultos: 40, unidades: 18, litros: 1, provisorio: 0, orden: 2 },
+  { nombre: 'Cajón lácteo x 20',   bultos: 40, unidades: 20, litros: 1, provisorio: 1, orden: 3 },
+  { nombre: 'Palangana 30',        bultos: 30, unidades: 18, litros: 1, provisorio: 0, orden: 4 },
+  { nombre: 'Bandejón de colores', bultos: 30, unidades: 18, litros: 1, provisorio: 0, orden: 5 },
 ]
 
-// Que familia hace cada marca. El yogur va en dos marcas: Ovenac NO hace yogur
+// Que familia hace cada marca. El yogur va en dos marcas: Obenac NO hace yogur
 // (confirmado por el cliente 2026-09-14).
 const marcasFamilias = [
   { marca: 'Lácteos Belgrano', familias: ['leche', 'yogur'] },
   { marca: 'Central Lechera', familias: ['leche', 'yogur'] },
-  { marca: 'Ovenac', familias: ['leche'] },
+  { marca: 'Obenac', familias: ['leche'] },
 ]
 
 // Unidades por caja de yogur. El cliente lo dio como "aproximadamente 500" y decidio

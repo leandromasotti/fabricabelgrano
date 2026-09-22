@@ -132,7 +132,7 @@ export const MAESTROS = {
       const es_propia =
         cuerpo?.es_propia === undefined ? Boolean(actual?.es_propia) : Boolean(cuerpo.es_propia)
       // Qué familias produce esta marca. La lechería las usa para filtrar: el yogur va
-      // en dos marcas y Ovenac no lo hace, y sin esto la tablet ofrece marcas que no
+      // en dos marcas y Obenac no lo hace, y sin esto la tablet ofrece marcas que no
       // corresponden.
       const familias = Array.isArray(cuerpo?.familias)
         ? cuerpo.familias.filter((f) => FAMILIAS.includes(f))

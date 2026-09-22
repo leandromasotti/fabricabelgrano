@@ -70,7 +70,7 @@ CREATE TABLE marcas (
   orden     INTEGER NOT NULL DEFAULT 0
 );
 
--- Qué familia de producto hace cada marca. El yogur va en dos marcas: Ovenac no
+-- Qué familia de producto hace cada marca. El yogur va en dos marcas: Obenac no
 -- hace yogur. Va como tabla y no como flag para que sumar una marca o una familia
 -- sea una fila y no un cambio de código.
 CREATE TABLE marcas_familias (
