@@ -17,6 +17,7 @@ Sistema de seguimiento de producción para fábrica de lácteos y quesos, con ta
 | [09-cajones.md](09-cajones.md) | Formatos de cajón, pallets incompletos y el cambio a x 18 / x 20 |
 | [10-online-vercel-supabase.md](10-online-vercel-supabase.md) | La versión pública en Vercel + Supabase |
 | [11-pedidos-leche-yogur.md](11-pedidos-leche-yogur.md) | **Los pedidos dejan de ser sólo de queso** |
+| [12-circuitos-del-queso.md](12-circuitos-del-queso.md) | **Los tres circuitos reales (respuesta a B3) y qué hay que cambiar** |
 
 ## Fuente
 

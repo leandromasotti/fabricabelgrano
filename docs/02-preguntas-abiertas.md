@@ -115,24 +115,51 @@ Esta es **la decisión estructural del sistema**. Hoy los audios mezclan los tre
 física (etiqueta, código). Si alcanza con cantidades, el sistema es mucho más simple. **Es la
 pregunta que más cambia el presupuesto.**
 
-### B3. El circuito envasado / maduración — **hay un supuesto en el código**
+### B3. El circuito envasado / maduración — ✅ **respondida el 2026-09-22**
 
-⚠️ Para poder construir, asumí este circuito: **sal → maduración → envasado**. Un queso que madura
-entra a cámara al salir de sal, y recién cuando sale de cámara queda disponible para envasar. El
-sardo, que no se envasa, sale de cámara y ya está listo.
+El cliente dio los tres circuitos reales. **Ver [12-circuitos-del-queso.md](12-circuitos-del-queso.md)**,
+que tiene el detalle, el mapeo contra el catálogo y qué hay que cambiar.
 
-Es una inferencia, no un dato. **Si el circuito real es otro, se cambia en un solo lugar**
-(`DISPONIBLE_ENVASAR` en `server/index.js`); nada más depende de eso. Pero mientras tanto el sistema
-va a impedir envasar un pategrás que no pasó por cámara, así que conviene confirmarlo antes del
-piloto de esos sectores.
+Resumen de lo que cambió respecto del supuesto:
 
-Lo que sigue sin quedar claro:
-- El sardo **no se envasa** pero **sí madura**. ¿Va de saladero directo a maduración?
-- Los que sí se envasan (barras, cremoso), ¿maduran antes o después de envasarse?
+- El supuesto (**sal → maduración → envasado**) era correcto, pero **sólo para 7 quesos**.
+- Hay dos circuitos más que el modelo no tiene: quesos que **no pasan por saladero** (Por
+  salut sin sal) y quesos **a base de masa que se envasan en el momento** (las muzzarellas,
+  Cremoso procesado).
+- La pregunta *"¿maduran antes o después de envasarse?"* de la lista de abajo resultó ser
+  **la pregunta clave**: `madura` en el código significa "madura antes de envasarse", y para
+  Cremoso, Tybo y Provoleta eso es falso — maduran después. Hoy eso los deja fuera de la
+  lista de envasado para siempre.
+
+Lo que sigue abierto:
+- Tres quesos del catálogo que el cliente no clasificó: **Cheddar en barra**, **Mar del
+  Plata** y **Ricota**.
+- **Cremoso procesado** está en su lista y no existe en el catálogo.
 - ¿La "cámara de desnudo" y la "cámara de maduración" son la misma o distintas?
 - ¿Hay quesos que salgan a la venta sin madurar?
 
-Un diagrama de las cámaras físicas de la planta resolvería esto en dos minutos.
+Un diagrama de las cámaras físicas de la planta cerraría lo que queda en dos minutos.
+
+### B7. Observaciones en quesería — **surgió el 2026-09-22**
+
+El cliente las pidió para producción de quesería, con **teclado de letras**:
+
+> *"que tenga un apartado de observaciones y ahí si le pongo un teclado con letras también
+> porque acá es importante por ejemplo que aclaren si no levantó el ph necesario el queso"*
+
+Es el **primer texto libre en una tablet**: hoy el único campo de texto del sistema es la
+nota del pedido, y se escribe desde el escritorio con teclado de verdad. `tinas` no tiene
+dónde guardarlo.
+
+**La tensión a resolver:** el mismo cliente puso como restricción *"que no se convierta en
+algo engorroso"*, y un teclado QWERTY con guantes y las manos mojadas es lo más engorroso
+que hay. Lo que hay que definir con él:
+
+- ¿Es **opcional** —un botón "Agregar observación" después de registrar la tina, como el
+  "No fue un pallet completo" de lechería— o un paso obligatorio del flujo?
+- ¿Conviene una lista de **motivos frecuentes** ("no levantó el pH", "cuajó lento") con el
+  texto libre sólo para lo que no entra en la lista? Serían dos toques en vez de treinta.
+- ¿Quién la lee, y cuándo? Una observación que nadie mira no justifica el teclado.
 
 ### B6. ¿Cuánto tarda normalmente una tina en entrar a sal? — **surgió al construir**
 El sistema ya calcula el intervalo entre producción e ingreso al saladero, porque es
