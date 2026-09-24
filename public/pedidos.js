@@ -63,6 +63,21 @@ function volver() {
 
 const pasoActual = () => PASOS.find((p) => !$(`paso-${p}`).hidden)
 
+// Vuelve al paso 1 y suelta el operario.
+//
+// Esta tablet, como el resto, es un puesto compartido: si el nombre queda elegido al
+// terminar un pedido, el siguiente que pasa arma a nombre del anterior. Reportado desde
+// la planta el 2026-09-24.
+//
+// El DESHACER del cierre NO pasa por aca a proposito: ahi es la misma persona volviendo
+// sobre el pedido que acaba de cerrar.
+function volverAOperario() {
+  est.operario = null
+  est.pedido = null
+  est.linea = null
+  irA('operario')
+}
+
 // ---------------------------------------------------------------- lista
 
 async function abrirLista() {
@@ -454,7 +469,7 @@ async function cerrarPedido() {
     $('listo-detalle').textContent = `${cerrado.cliente} · ${r.avance} · ya lo ve el encargado`
     irA('listo')
     clearInterval(est.timer)
-    est.timer = cuentaRegresiva(VENTANA_DESHACER, $('deshacer-seg'), abrirLista)
+    est.timer = cuentaRegresiva(VENTANA_DESHACER, $('deshacer-seg'), volverAOperario)
   } catch (e) {
     red.hay = false
     pintarEstado()
@@ -624,13 +639,10 @@ $('btn-crear').addEventListener('click', crearPedido)
 $('btn-deshacer').addEventListener('click', deshacerCierre)
 $('btn-seguir').addEventListener('click', () => {
   clearInterval(est.timer)
-  abrirLista()
+  volverAOperario()
 })
 $('btn-volver').addEventListener('click', volver)
-$('btn-reiniciar').addEventListener('click', () => {
-  est.operario = null
-  irA('operario')
-})
+$('btn-reiniciar').addEventListener('click', volverAOperario)
 red.alCambiar = () => {}
 
 irA('operario')

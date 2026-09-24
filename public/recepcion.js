@@ -39,7 +39,17 @@ function irA(paso) {
   pintarMigas([est.operario?.nombre, est.tambo && `Tambo ${est.tambo.numero}`])
 }
 
-function reiniciar(conservarOperario = true) {
+// Vuelve a pedir el operario POR DEFECTO.
+//
+// Las tablets son puestos compartidos colgados de la pared: si el nombre queda elegido
+// despues de registrar, el siguiente que pasa carga a nombre del anterior sin enterarse.
+// Reportado desde la planta el 2026-09-24.
+//
+// El default es el comportamiento seguro a proposito: un llamador nuevo que se olvide de
+// pasar el parametro vuelve a preguntar el nombre, que es el error barato. La unica
+// excepcion es el DESHACER, que pasa `true` porque ahi es la misma persona corrigiendo
+// lo que acaba de cargar.
+function reiniciar(conservarOperario = false) {
   clearInterval(est.timer)
   est.tambo = null
   est.litrosStr = ''
@@ -159,7 +169,7 @@ async function registrar() {
 async function deshacer() {
   clearInterval(est.timer)
   const u = est.ultimo
-  if (!u) return reiniciar()
+  if (!u) return reiniciar(true)
   if (u.id) {
     await fetch(`/api/recepciones/${u.id}/anular`, { method: 'POST' }).catch(() => {})
   } else {
@@ -168,7 +178,7 @@ async function deshacer() {
   est.ultimo = null
   pintarEstado()
   refrescarHoy()
-  reiniciar()
+  reiniciar(true)
 }
 
 // ---------------------------------------------------------------- historial
