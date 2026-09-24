@@ -59,8 +59,17 @@ const cache = new Map()
 
 // Nombres de columnas booleanas. En SQLite eran 0/1 y las consultas dicen `= 1`;
 // en Postgres son BOOLEAN de verdad y hay que comparar contra true/false.
+//
+// AGREGAR ACÁ CUALQUIER COLUMNA BOOLEANA NUEVA. Si falta, la consulta anda perfecto en
+// SQLite y revienta en Postgres con "operator does not exist: boolean = integer" — o sea,
+// pasa los tests locales y falla en producción. Pasó con `pasa_por_sal` y
+// `madura_antes_de_envasar` el 2026-09-24.
+//
+// Las más largas van primero: `madura` antes que `madura_antes_de_envasar` funciona igual
+// por backtracking, pero ponerlas al revés hace obvio que son dos columnas distintas.
 const BOOLEANAS =
-  'anulado|activo|provisorio|es_propia|se_envasa|madura|dias_provisorios|datos_provisorios'
+  'anulado|activo|provisorio|es_propia|se_envasa|madura_antes_de_envasar|madura|' +
+  'pasa_por_sal|dias_provisorios|datos_provisorios'
 
 function traducir(sql) {
   if (cache.has(sql)) return cache.get(sql)

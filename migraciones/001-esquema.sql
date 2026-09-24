@@ -122,12 +122,27 @@ ALTER TABLE envases ADD COLUMN litros_por_pallet INTEGER
          ELSE (bultos_por_pallet * unidades_por_bulto * litros_por_unidad)::INTEGER END
   ) STORED;
 
+-- Los tres circuitos del queso, que el cliente dio el 2026-09-22. Ver
+-- docs/12-circuitos-del-queso.md.
+--
+-- `pasa_por_sal` y `madura_antes_de_envasar` son dos preguntas INDEPENDIENTES, y juntas
+-- deciden cuándo una tina queda disponible para envasar:
+--
+--   madura_antes_de_envasar  -> va a cámara desnudo; disponible al SALIR DE CÁMARA
+--   pasa_por_sal             -> disponible al SALIR DE SAL
+--   ninguna de las dos       -> de masa; disponible APENAS SE PRODUCE
+--
+-- `madura` NO es lo mismo que `madura_antes_de_envasar`: el cremoso y el tybo maduran,
+-- pero después de envasarse, así que su maduración no bloquea el envasado. `madura` sirve
+-- para el reporte de días de cámara; el otro, para el circuito.
 CREATE TABLE tipos_queso (
   id                INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   nombre            TEXT    NOT NULL UNIQUE,
   familia           TEXT    NOT NULL,         -- 'blando' | 'semiduro' | 'duro'
   se_envasa         BOOLEAN NOT NULL DEFAULT true,
   madura            BOOLEAN NOT NULL DEFAULT false,
+  pasa_por_sal            BOOLEAN NOT NULL DEFAULT true,
+  madura_antes_de_envasar BOOLEAN NOT NULL DEFAULT false,
   -- Tres días, no uno: un queso no pasa de "no apto" a "apto" de golpe. Con un solo
   -- umbral el sistema falla justo en los bordes, que es donde se decide.
   dias_minimos      INTEGER,

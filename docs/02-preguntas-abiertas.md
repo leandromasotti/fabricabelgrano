@@ -115,7 +115,7 @@ Esta es **la decisión estructural del sistema**. Hoy los audios mezclan los tre
 física (etiqueta, código). Si alcanza con cantidades, el sistema es mucho más simple. **Es la
 pregunta que más cambia el presupuesto.**
 
-### B3. El circuito envasado / maduración — ✅ **respondida el 2026-09-22**
+### B3. El circuito envasado / maduración — ✅ **cerrada el 2026-09-24**
 
 El cliente dio los tres circuitos reales. **Ver [12-circuitos-del-queso.md](12-circuitos-del-queso.md)**,
 que tiene el detalle, el mapeo contra el catálogo y qué hay que cambiar.
@@ -126,17 +126,22 @@ Resumen de lo que cambió respecto del supuesto:
 - Hay dos circuitos más que el modelo no tiene: quesos que **no pasan por saladero** (Por
   salut sin sal) y quesos **a base de masa que se envasan en el momento** (las muzzarellas,
   Cremoso procesado).
-- La pregunta *"¿maduran antes o después de envasarse?"* de la lista de abajo resultó ser
-  **la pregunta clave**: `madura` en el código significa "madura antes de envasarse", y para
-  Cremoso, Tybo y Provoleta eso es falso — maduran después. Hoy eso los deja fuera de la
-  lista de envasado para siempre.
+- La pregunta *"¿maduran antes o después de envasarse?"* resultó ser **la pregunta clave**:
+  `madura` en el código significaba "madura antes de envasarse", y para Cremoso, Tybo y
+  Provoleta eso es falso — maduran después. Eso los dejaba fuera de la lista de envasado
+  para siempre.
 
-Lo que sigue abierto:
-- Tres quesos del catálogo que el cliente no clasificó: **Cheddar en barra**, **Mar del
-  Plata** y **Ricota**.
-- **Cremoso procesado** está en su lista y no existe en el catálogo.
+Los tres quesos sin clasificar se cerraron el 24/9: **Mar del Plata es el Pategrás** (mismo
+queso, otro nombre) y **Cheddar y Ricota** no se están produciendo. Los tres van de baja.
+**Cremoso procesado** se dio de alta, con el circuito de las muzzarellas.
+
+Implementado en `migraciones/004-circuitos-del-queso.js` y aplicado a las tres bases.
+
+Lo que sigue abierto, ya fuera de B3:
 - ¿La "cámara de desnudo" y la "cámara de maduración" son la misma o distintas?
 - ¿Hay quesos que salgan a la venta sin madurar?
+- ¿Se quiere que las 7 tinas de "Mar del Plata" pasen a contar como Pategrás? Hoy su
+  historial queda bajo su propio nombre.
 
 Un diagrama de las cámaras físicas de la planta cerraría lo que queda en dos minutos.
 

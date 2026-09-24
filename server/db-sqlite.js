@@ -407,6 +407,16 @@ agregarColumna('tipos_queso', 'dias_minimos', 'INTEGER')
 agregarColumna('tipos_queso', 'dias_optimos', 'INTEGER')
 agregarColumna('tipos_queso', 'dias_maximos', 'INTEGER')
 agregarColumna('tipos_queso', 'dias_provisorios', 'INTEGER NOT NULL DEFAULT 1')
+// Los dos ejes del circuito (2026-09-22). Ver docs/12-circuitos-del-queso.md.
+//
+//   madura_antes_de_envasar -> va a camara DESNUDO: disponible al salir de camara
+//   pasa_por_sal            -> disponible al salir de sal
+//   ninguna de las dos      -> de masa: disponible apenas se produce
+//
+// `madura` NO es lo mismo que `madura_antes_de_envasar`: el cremoso madura, pero despues
+// de envasarse. Los defaults reproducen el comportamiento viejo.
+agregarColumna('tipos_queso', 'pasa_por_sal', 'INTEGER NOT NULL DEFAULT 1')
+agregarColumna('tipos_queso', 'madura_antes_de_envasar', 'INTEGER NOT NULL DEFAULT 0')
 
 // Equivalencia de un pallet en litros, confirmada por el cliente (2026-09-13):
 // 70 cajas de 12 litros = 840 litros por pallet.

@@ -126,32 +126,50 @@ const operarios = [
   { nombre: 'Madurador 1', sector: 'maduracion', orden: 1 },
 ]
 
-// Catalogo oficial de lacteosbelgrano.com.ar (2026-09-11) + "Mar del Plata", que se
-// menciona en el audio 5 pero no figura en la web (pregunta C7).
-// dias_maduracion queda en null: no lo sabemos todavia (pregunta C2).
+// Catalogo oficial de lacteosbelgrano.com.ar (2026-09-11), con los circuitos que dio el
+// cliente el 2026-09-22 y las correcciones del 24/9. Detalle en docs/12-circuitos-del-queso.md.
+//
+// Las DOS columnas de circuito son independientes y hay que leerlas juntas:
+//
+//   pasa_por_sal = 0             -> no va al saladero: disponible apenas se produce
+//   madura_antes_de_envasar = 1  -> va a camara DESNUDO: disponible al salir de camara
+//
+// Ojo con `madura` vs `madura_antes_de_envasar`: el cremoso y el tybo maduran, pero
+// DESPUES de envasarse, asi que su maduracion no bloquea el envasado. Confundir las dos
+// cosas es lo que tenia al cremoso fuera de la lista de envasado para siempre.
+//
+// activo = 0 en tres: Cheddar y Ricota no se estan produciendo, y "Mar del Plata" es el
+// MISMO queso que el Pategras (confirmado 2026-09-24). Se dan de baja, no se borran: el
+// Cheddar tiene 9 tinas registradas y el Mar del Plata 7.
+//
 // se_envasa: el sardo NO se envasa, confirmado en el audio 4.
 const tiposQueso = [
-  { nombre: 'Cremoso',           familia: 'blando',   se_envasa: 1, orden: 1 },
-  { nombre: 'Cremoso Extra',     familia: 'blando',   se_envasa: 1, orden: 2 },
-  { nombre: 'Mozzarella barra',  familia: 'blando',   se_envasa: 1, orden: 3 },
-  { nombre: 'Mozzarella cilindro', familia: 'blando', se_envasa: 1, orden: 4 },
-  { nombre: 'Por Salut',         familia: 'blando',   se_envasa: 1, orden: 5 },
-  { nombre: 'Por Salut sin sal', familia: 'blando',   se_envasa: 1, orden: 6 },
-  { nombre: 'Pategrás',          familia: 'semiduro', se_envasa: 1, orden: 7 },
-  { nombre: 'Fontina',           familia: 'semiduro', se_envasa: 1, orden: 8 },
-  { nombre: 'Gouda',             familia: 'semiduro', se_envasa: 1, orden: 9 },
-  { nombre: 'Tybo',              familia: 'semiduro', se_envasa: 1, orden: 10 },
-  { nombre: 'Cheddar en barra',  familia: 'semiduro', se_envasa: 1, orden: 11 },
-  { nombre: 'Mar del Plata',     familia: 'semiduro', se_envasa: 1, orden: 12 },
-  // Figura en el catalogo oficial entre los semiduros, pero la ricota se hace del
-  // SUERO: no pasa por tina, saladero ni maduracion como los demas. Se carga para
-  // que exista en las listas, pero su circuito real esta sin definir (pregunta C7).
-  { nombre: 'Ricota',            familia: 'semiduro', se_envasa: 1, orden: 13 },
-  { nombre: 'Sardo',             familia: 'duro',     se_envasa: 0, orden: 14 },
-  { nombre: 'Reggianito',        familia: 'duro',     se_envasa: 1, orden: 15 },
-  { nombre: 'Parmesano',         familia: 'duro',     se_envasa: 1, orden: 16 },
-  { nombre: 'Provolone',         familia: 'duro',     se_envasa: 1, orden: 17 },
-  { nombre: 'Provoleta',         familia: 'duro',     se_envasa: 1, orden: 18 },
+  // masa: se envasan en el momento de elaboracion, sin pasar por sal
+  { nombre: 'Mozzarella barra',    familia: 'blando',   se_envasa: 1, sal: 0, madura_antes: 0, orden: 1 },
+  { nombre: 'Mozzarella cilindro', familia: 'blando',   se_envasa: 1, sal: 0, madura_antes: 0, orden: 2 },
+  { nombre: 'Cremoso procesado',   familia: 'blando',   se_envasa: 1, sal: 0, madura_antes: 0, orden: 3 },
+  // tampoco pasa por sal, aunque no sea de masa: el nombre lo dice
+  { nombre: 'Por Salut sin sal',   familia: 'blando',   se_envasa: 1, sal: 0, madura_antes: 0, orden: 4 },
+  // se salan y de ahi esperan envasado
+  { nombre: 'Cremoso',             familia: 'blando',   se_envasa: 1, sal: 1, madura_antes: 0, orden: 5 },
+  { nombre: 'Cremoso Extra',       familia: 'blando',   se_envasa: 1, sal: 1, madura_antes: 0, orden: 6 },
+  { nombre: 'Por Salut',           familia: 'blando',   se_envasa: 1, sal: 1, madura_antes: 0, orden: 7 },
+  { nombre: 'Tybo',                familia: 'semiduro', se_envasa: 1, sal: 1, madura_antes: 0, orden: 8 },
+  { nombre: 'Provoleta',           familia: 'duro',     se_envasa: 1, sal: 1, madura_antes: 0, orden: 9 },
+  // van a camara de maduracion SIN envasar antes
+  { nombre: 'Pategrás',            familia: 'semiduro', se_envasa: 1, sal: 1, madura_antes: 1, orden: 10 },
+  { nombre: 'Fontina',             familia: 'semiduro', se_envasa: 1, sal: 1, madura_antes: 1, orden: 11 },
+  { nombre: 'Gouda',               familia: 'semiduro', se_envasa: 1, sal: 1, madura_antes: 1, orden: 12 },
+  { nombre: 'Sardo',               familia: 'duro',     se_envasa: 0, sal: 1, madura_antes: 1, orden: 13 },
+  { nombre: 'Reggianito',          familia: 'duro',     se_envasa: 1, sal: 1, madura_antes: 1, orden: 14 },
+  { nombre: 'Parmesano',           familia: 'duro',     se_envasa: 1, sal: 1, madura_antes: 1, orden: 15 },
+  { nombre: 'Provolone',           familia: 'duro',     se_envasa: 1, sal: 1, madura_antes: 1, orden: 16 },
+  // de baja: no se estan produciendo, o son duplicados
+  { nombre: 'Cheddar en barra',    familia: 'semiduro', se_envasa: 1, sal: 1, madura_antes: 1, orden: 17, activo: 0 },
+  { nombre: 'Mar del Plata',       familia: 'semiduro', se_envasa: 1, sal: 1, madura_antes: 1, orden: 18, activo: 0 },
+  // La ricota se hace del SUERO: no pasa por tina, saladero ni maduracion. Hoy no se
+  // produce, asi que queda de baja y su circuito real sigue sin definir (pregunta C7).
+  { nombre: 'Ricota',              familia: 'semiduro', se_envasa: 1, sal: 0, madura_antes: 0, orden: 19, activo: 0 },
 ]
 
 // ---------------------------------------------------------------------------
@@ -231,8 +249,8 @@ const insertCliente = db.prepare(
   'INSERT INTO clientes (nombre, orden) VALUES (@nombre, @orden)'
 )
 const insertTipoQueso = db.prepare(
-  `INSERT INTO tipos_queso (nombre, familia, se_envasa, orden)
-   VALUES (@nombre, @familia, @se_envasa, @orden)`
+  `INSERT INTO tipos_queso (nombre, familia, se_envasa, pasa_por_sal, madura_antes_de_envasar, activo, orden)
+   VALUES (@nombre, @familia, @se_envasa, @sal, @madura_antes, @activo, @orden)`
 )
 
 async function cargar() {
@@ -256,7 +274,9 @@ async function cargar() {
   const existeQueso = db.prepare('SELECT 1 FROM tipos_queso WHERE nombre = ?')
   const nuevosQuesos = []
   for (const q of tiposQueso) if (!(await existeQueso.get(q.nombre))) nuevosQuesos.push(q)
-  for (const q of nuevosQuesos) await insertTipoQueso.run(q)
+  // `activo` viene sólo en los que van de baja, así que el resto se completa acá en vez
+  // de repetir `activo: 1` en dieciséis líneas.
+  for (const q of nuevosQuesos) await insertTipoQueso.run({ activo: 1, ...q })
   if (nuevosQuesos.length) console.log(`  quesos:    +${nuevosQuesos.length}`)
   if ((await db.prepare('SELECT COUNT(*) n FROM clientes').get()).n === 0) {
     for (const c of clientes) await insertCliente.run(c)

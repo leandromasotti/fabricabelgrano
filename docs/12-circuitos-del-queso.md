@@ -87,28 +87,27 @@ columnas nuevas en `tipos_queso`, editables desde el ABM.
 
 ---
 
-## Lo que falta antes de tocar código
+## Lo que faltaba, y cómo se cerró (2026-09-24)
 
-### Un queso que no existe en el catálogo
+Las tres preguntas que bloqueaban el cambio las respondió el cliente:
 
-**Cremoso procesado** está en la lista de Alexis y **no está en `tipos_queso`**. Hay que
-darlo de alta.
-
-### Tres quesos que Alexis no clasificó
-
-Están en el catálogo y no aparecen en ninguno de los tres grupos:
-
-| Queso | `madura` hoy | Días |
+| Pregunta | Respuesta | Qué se hizo |
 |---|---|---|
-| Cheddar en barra | true | 65 / 95 / 180 confirmados |
-| Mar del Plata | true | 32 / 48 / 70 confirmados |
-| Ricota | false | — |
+| ¿Cremoso procesado? | *"es un queso nuevo, con similares características a la muzzarella"* | Alta, circuito de masa |
+| ¿Mar del Plata? | *"es el Pategrás"* | Baja: es el mismo queso con otro nombre |
+| ¿Cheddar y Ricota? | *"por ahora no están haciendo"* | Baja |
 
-Por los días confirmados, Cheddar y Mar del Plata **parecen** del grupo 1, y Ricota del
-grupo 4. Pero es inferencia, y es exactamente el tipo de inferencia que generó B3. **Hay
-que preguntarlo.**
+**Las bajas son bajas, no borrados.** Cheddar tiene 9 tinas registradas y Mar del Plata 7
+(948 piezas): esa producción tiene que seguir mostrando su nombre en el historial.
 
-### Dos nombres que no coinciden
+> ⚠️ **Mar del Plata queda con su historial aparte.** Si el cliente quiere que esas 7 tinas
+> pasen a contar como Pategrás, es una decisión suya: reasignarlas reescribiría producción
+> ya registrada, y eso no lo decide el código. Mientras tanto, los reportes muestran los
+> dos por separado.
+
+### Dos nombres que siguen sin coincidir
+
+No se tocaron porque el cliente no los confirmó:
 
 - La base dice **Parmesano**; Alexis dice **Sbrinz (parmesano)**
 - La base dice **Por Salut**; Alexis distingue **Por salut con sal** y **sin sal** (las dos
@@ -116,7 +115,33 @@ que preguntarlo.**
 
 ---
 
+## Cómo quedó implementado
+
+Dos columnas nuevas en `tipos_queso`, editables desde el ABM:
+
+```js
+const DISPONIBLE_ENVASAR = `
+  CASE WHEN madura_antes_de_envasar = 1 THEN salio_camara
+       WHEN pasa_por_sal = 1            THEN salio_de_sal
+       ELSE cantidad END`
+```
+
+Y un detalle que salió al probarlo: `espera_desde` era
+`COALESCE(salida_camara_fecha, ultima_salida)`, y para los quesos de masa las dos son NULL
+—no tienen salida de cámara ni de sal—, así que quedaban sin fecha y el `ORDER BY` los
+mandaba a un extremo de la lista. Justo a los que hay que envasar en el momento. Ahora cae
+a `fecha_hora`, que es cuando se produjeron.
+
+```
+node migraciones/004-circuitos-del-queso.js --confirmar
+```
+
+Aplicada a Docker, Supabase y el SQLite local. Verificada en los **dos motores** con los
+cuatro casos: masa disponible al producirse, cremoso al salir de sal, pategrás recién al
+salir de cámara, y sardo que nunca aparece.
+
+---
+
 ## Estado de B3
 
-**Respondida en lo esencial.** Queda cerrar los tres quesos sin clasificar y el alta de
-Cremoso procesado antes de cambiar `DISPONIBLE_ENVASAR`.
+✅ **Cerrada.**

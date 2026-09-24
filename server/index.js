@@ -1414,6 +1414,7 @@ app.put('/api/quesos/:id/dias', async (req, res) => {
 // pregunta B3. Si resulta que en la planta se envasa antes de madurar, se cambia acá.
 const ENVASADO_SALDOS = `
   SELECT t.id, t.fecha_hora, t.cantidad, q.nombre AS queso, q.familia, q.se_envasa, q.madura,
+         q.pasa_por_sal, q.madura_antes_de_envasar,
          (SELECT COALESCE(SUM(m.cantidad), 0)
             FROM movimientos_saladero m
            WHERE m.tina_id = t.id AND m.tipo = 'salida' AND m.anulado = 0) AS salio_de_sal,
@@ -1434,14 +1435,33 @@ const ENVASADO_SALDOS = `
    WHERE t.anulado = 0
 `
 
-const DISPONIBLE_ENVASAR = 'CASE WHEN madura = 1 THEN salio_camara ELSE salio_de_sal END'
+// Cuándo una tina queda disponible para envasar. Son TRES circuitos, no dos, y los dio
+// el cliente el 22/9 (ver docs/12-circuitos-del-queso.md):
+//
+//   madura desnudo  -> pategrás, reggianito, sardo...  disponible al SALIR DE CÁMARA
+//   pasa por sal    -> cremoso, tybo, provoleta...     disponible al SALIR DE SAL
+//   ni una ni otra  -> muzzarellas, cremoso procesado  disponible APENAS SE PRODUCE
+//
+// El eje que faltaba es que `madura` y "madura antes de envasarse" no son lo mismo. El
+// cremoso madura, pero DESPUÉS de envasarse, así que su maduración no bloquea nada. Con
+// la versión anterior —`CASE WHEN madura = 1 THEN salio_camara ELSE salio_de_sal END`—
+// el cremoso, el tybo y la provoleta esperaban para siempre una salida de cámara que en
+// su circuito no ocurre, y no aparecían nunca en la lista de envasado.
+const DISPONIBLE_ENVASAR = `
+  CASE WHEN madura_antes_de_envasar = 1 THEN salio_camara
+       WHEN pasa_por_sal = 1            THEN salio_de_sal
+       ELSE cantidad END`
 
 const qEnv = {
   // Solo lo que efectivamente se envasa Y ya está disponible segun su circuito.
   // El sardo (se_envasa = 0) nunca aparece: sale de cámara y ya está listo.
   pendientes: db.prepare(`
     SELECT *, ${DISPONIBLE_ENVASAR} AS disponible,
-           COALESCE(salida_camara_fecha, ultima_salida) AS espera_desde
+           -- Desde cuándo está esperando. El tercer COALESCE es por los quesos de masa:
+           -- no tienen salida de cámara ni de sal, así que esperan desde que se
+           -- produjeron. Sin él quedaban en NULL y el ORDER BY los mandaba a un extremo
+           -- de la lista, justo a los que hay que envasar en el momento.
+           COALESCE(salida_camara_fecha, ultima_salida, fecha_hora) AS espera_desde
       FROM (${ENVASADO_SALDOS}) s
      WHERE se_envasa = 1 AND ${DISPONIBLE_ENVASAR} > envasado
      ORDER BY espera_desde
