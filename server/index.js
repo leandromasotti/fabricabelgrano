@@ -1150,11 +1150,16 @@ app.post('/api/saladero/:id/anular', async (req, res) => {
 // El reloj arranca al ENTRAR a la cámara, no al producir: entre producir y madurar hay
 // saladero, y contar esos días como maduración declararía apto un queso todavía verde.
 //
-// SUPUESTO DE CIRCUITO (pregunta B3, sin confirmar): sal → maduración → envasado.
-// Un queso que madura entra a cámara al salir de sal, y recién cuando sale de cámara
-// queda disponible para envasar. El sardo, que no se envasa, sale de cámara y ya está
-// listo. Si el circuito real resulta ser otro, se cambia en esta sección y en
-// ENVASADO_SALDOS; nada más depende de esto.
+// QUIÉN ENTRA A CÁMARA lo decide `madura`, y sólo eso. Es una pregunta distinta de
+// `madura_antes_de_envasar`, que decide si esa maduración bloquea el envasado:
+//
+//   madura = 0                       -> no aparece nunca acá (cremoso, tybo, muzzarellas)
+//   madura = 1, madura_antes = 1     -> entra desnudo y se envasa al salir (pategrás)
+//   madura = 1, madura_antes = 0     -> madura después de envasarse (provoleta)
+//
+// El tybo tenía `madura = 1` con días de referencia de semiduro y por eso aparecía acá,
+// pero es un queso barra y funciona como el cremoso: sale de sal y espera envasado
+// (corregido 2026-09-24). Ver docs/12-circuitos-del-queso.md.
 
 const MADURACION_SALDOS = `
   SELECT t.id, t.fecha_hora, t.cantidad, q.nombre AS queso, q.familia,
@@ -1407,11 +1412,8 @@ app.put('/api/quesos/:id/dias', async (req, res) => {
 //
 // Disponible para envasar = lo que salio de sal - lo ya envasado.
 
-// De dónde toma el envasado depende de si el queso madura:
-//   - no madura (cremoso, mozzarella): se envasa apenas sale de sal
-//   - madura (pategrás, reggianito): primero pasa por cámara, se envasa al salir
-// Ese "disponible" es el único lugar donde vive el supuesto de circuito de la
-// pregunta B3. Si resulta que en la planta se envasa antes de madurar, se cambia acá.
+// De dónde toma el envasado depende del circuito del queso — son tres, y los dio el
+// cliente el 22/9 (pregunta B3, ya cerrada). Ver DISPONIBLE_ENVASAR más abajo.
 const ENVASADO_SALDOS = `
   SELECT t.id, t.fecha_hora, t.cantidad, q.nombre AS queso, q.familia, q.se_envasa, q.madura,
          q.pasa_por_sal, q.madura_antes_de_envasar,
@@ -1498,14 +1500,28 @@ const qEnv = {
   ),
 }
 
+// El mismo criterio que DISPONIBLE_ENVASAR, pero en JS.
+//
+// Existen por separado porque uno filtra la lista en SQL y el otro valida una carga
+// puntual, y TIENEN QUE DECIR LO MISMO. Cuando divergen pasa lo peor: la pantalla ofrece
+// envasar una tina y el servidor la rechaza, sin que el operario entienda por qué. Pasó
+// justamente cuando se agregaron los tres circuitos y esta validación quedó con la lógica
+// vieja de `madura`.
+function circuitoDe(s) {
+  if (s.madura_antes_de_envasar) return { base: s.salio_camara, viene_de: 'maduración' }
+  if (s.pasa_por_sal) return { base: s.salio_de_sal, viene_de: 'saladero' }
+  return { base: s.cantidad, viene_de: 'producción' }
+}
+
 app.get('/api/envasado/pendientes', async (_req, res) => {
   res.json({
     pendientes: (await qEnv.pendientes.all()).map((t) => ({
       ...t,
       falta: t.disponible - t.envasado,
       minutos_desde_sal: t.espera_desde ? minutosDesde(t.espera_desde) : null,
-      // De dónde viene: cambia el texto que ve el operario.
-      viene_de: t.madura ? 'maduración' : 'saladero',
+      // De dónde viene: cambia el texto que ve el operario. Los de masa vienen de
+      // producción, no de un sector intermedio.
+      viene_de: circuitoDe(t).viene_de,
     })),
   })
 })
@@ -1531,14 +1547,14 @@ app.post('/api/envasado', async (req, res) => {
     return res.status(409).json({ error: `el ${saldo.queso} no se envasa` })
   }
 
-  // No se puede envasar mas de lo disponible segun el circuito del queso.
-  const base = saldo.madura ? saldo.salio_camara : saldo.salio_de_sal
+  // No se puede envasar mas de lo disponible segun el circuito del queso. Usa el MISMO
+  // criterio que la lista (circuitoDe), para que no haya forma de que una tina aparezca
+  // como disponible y despues se rechace.
+  const { base, viene_de } = circuitoDe(saldo)
   const disponible = base - saldo.envasado
   if (cantidad > disponible) {
-    return res.status(409).json({
-      error: saldo.madura ? 'excede lo que salió de la cámara' : 'excede lo que salió de sal',
-      disponible,
-    })
+    const de = { maduración: 'salió de la cámara', saladero: 'salió de sal', producción: 'se produjo' }
+    return res.status(409).json({ error: `excede lo que ${de[viene_de]}`, disponible })
   }
 
   const info = await qEnv.insertar.run({

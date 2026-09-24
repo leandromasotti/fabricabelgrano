@@ -142,6 +142,55 @@ salir de cámara, y sardo que nunca aparece.
 
 ---
 
+## Corrección del 2026-09-24: el tybo no va a cámara
+
+> *"El queso tybo No debe aparecer en Maduracion, es un queso barra que funciona como el
+> cremoso."*
+
+Venía con `madura = 1` y días de referencia de semiduro (25/40/65), que el seed carga como
+punto de partida para que el sistema arranque mostrando algo — nunca salieron de la
+fábrica. Ese flag lo hacía aparecer en la tablet de maduración esperando entrar a cámara.
+
+Su circuito de **envasado** ya era correcto desde la migración 004 (sal → espera
+envasado). Lo que faltaba era sacarlo de la **cámara**, que es una pregunta distinta.
+
+Son tres flags y conviene tenerlos separados en la cabeza:
+
+| Flag | Pregunta que responde |
+|---|---|
+| `pasa_por_sal` | ¿va al saladero? |
+| `madura` | ¿aparece en la tablet de maduración? |
+| `madura_antes_de_envasar` | ¿esa maduración bloquea el envasado? |
+
+Aplicado con `migraciones/005-tybo-no-madura.js` a las tres bases.
+
+### ⚠️ Dos que quedan raros, y hay que preguntar
+
+**Cremoso** —el queso que el cliente usó como referencia para el tybo— **sí aparece hoy en
+maduración**: `madura = 1`, con días 10/15/20 marcados como **confirmados por una persona**
+desde el ABM. Si el tybo "funciona como el cremoso" y el tybo no va a cámara, entonces el
+cremoso tampoco debería. No se tocó porque alguien confirmó esos días a mano y deshacerlo
+sin preguntar sería pisar una decisión.
+
+**Provoleta** está exactamente en la misma situación en que estaba el tybo: `madura = 1`,
+`madura_antes_de_envasar = 0`, días provisorios. Nadie dijo nada de ella.
+
+---
+
+## Un hueco que esta corrección destapó
+
+La migración 004 cambió `DISPONIBLE_ENVASAR` —que arma la **lista** de lo que falta
+envasar— pero **no** la validación del `POST /api/envasado`, que seguía con la lógica vieja
+de `madura`. Resultado: para un queso con `madura = 1` y `madura_antes_de_envasar = 0`
+(provoleta, cremoso) la pantalla lo ofrecía y el servidor lo rechazaba con "excede lo que
+salió de la cámara", sin que el operario pudiera entender por qué.
+
+El criterio vive ahora en una sola función, `circuitoDe()`, que usan la lista y la
+validación. Y hay un test que recorre varios quesos comparando las dos respuestas: si
+alguna vez vuelven a divergir, falla.
+
+---
+
 ## Estado de B3
 
 ✅ **Cerrada.**

@@ -192,11 +192,15 @@ const maduracion = {
   'Por Salut':           { madura: 0 },
   'Por Salut sin sal':   { madura: 0 },
   'Ricota':              { madura: 0 },   // es fresca, no madura pese a figurar entre los semiduros
+  'Cremoso procesado':   { madura: 0 },
+  // El tybo es un queso BARRA y funciona como el cremoso: sale de sal y espera envasado,
+  // no pasa por camara (confirmado por el cliente 2026-09-24). Estaba en 1 con dias de
+  // referencia de semiduro, que lo hacian aparecer en la tablet de maduracion.
+  'Tybo':                { madura: 0 },
   // Semiduros
   'Pategrás':            { madura: 1, min: 30,  opt: 45,  max: 75 },
   'Fontina':             { madura: 1, min: 30,  opt: 45,  max: 70 },
   'Gouda':               { madura: 1, min: 30,  opt: 60,  max: 90 },
-  'Tybo':                { madura: 1, min: 25,  opt: 40,  max: 65 },
   'Cheddar en barra':    { madura: 1, min: 60,  opt: 90,  max: 180 },
   'Mar del Plata':       { madura: 1, min: 30,  opt: 45,  max: 70 },
   // Duros
