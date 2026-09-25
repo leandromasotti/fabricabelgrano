@@ -172,6 +172,19 @@ CREATE TABLE tambos (
   orden  INTEGER NOT NULL DEFAULT 0
 );
 
+-- Por qué puede quedar observada una entrega de leche cruda: cortada, con olor, aguada.
+--
+-- Va como tabla y no como lista fija en el código porque la conoce la fábrica, no
+-- nosotros. Y va como catálogo en vez de texto libre porque es lo que permite contar
+-- ("¿qué tambo nos manda leche cortada seguido?"): tres operarios escribiendo "cortada",
+-- "Cortada" y "venía cortada" son tres cosas distintas para una consulta.
+CREATE TABLE motivos_recepcion (
+  id     INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  nombre TEXT    NOT NULL UNIQUE,
+  activo BOOLEAN NOT NULL DEFAULT true,
+  orden  INTEGER NOT NULL DEFAULT 0
+);
+
 -- ============================================================================
 -- COLUMNAS COMUNES A TODO REGISTRO DE PLANTA
 -- ============================================================================
@@ -210,6 +223,11 @@ CREATE TABLE recepciones (
   litros        INTEGER     NOT NULL,
   temperatura   NUMERIC(4,1),
   remito        TEXT,
+  -- Qué tuvo de raro esta entrega. Las dos opcionales y casi siempre vacías: la leche
+  -- que llega bien es la enorme mayoría. Por eso se cargan DESPUÉS de registrar, y el
+  -- camino normal no paga ningún paso extra.
+  motivo_id     INTEGER     REFERENCES motivos_recepcion(id),
+  observacion   TEXT,
   anulado       BOOLEAN     NOT NULL DEFAULT false,
   anulado_en    TIMESTAMPTZ,
   -- El rango no es validación de tipo: atrapa el cero de más o de menos antes de
@@ -482,6 +500,7 @@ ALTER TABLE envases                ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tipos_queso            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE clientes               ENABLE ROW LEVEL SECURITY;
 ALTER TABLE tambos                 ENABLE ROW LEVEL SECURITY;
+ALTER TABLE motivos_recepcion      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE recepciones            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE registros_pallet       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE registros_yogur        ENABLE ROW LEVEL SECURITY;

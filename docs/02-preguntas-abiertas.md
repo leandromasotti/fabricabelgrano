@@ -145,7 +145,36 @@ Lo que sigue abierto, ya fuera de B3:
 
 Un diagrama de las cámaras físicas de la planta cerraría lo que queda en dos minutos.
 
-### B7. Observaciones en quesería — **surgió el 2026-09-22**
+### B9. Observaciones al recibir la leche — ✅ **resuelta el 2026-09-25**
+
+> *"Necesitamos poder registrar al momento de la entrada de leche del tambo, poder ponerle una
+> observación, por ejemplo puede entrar una leche del tambo, y que esté cortada, hoy no tenemos
+> dónde guardar esa información."*
+
+Resuelta con **dos** campos y no uno, que es lo que la vuelve útil:
+
+- **`motivo_id`** — de una lista corta y configurable desde `/app/maestros` (Cortada, Con olor,
+  Temperatura alta, Aguada, Con sedimento, Remito no coincide). Un toque, y **se puede contar**:
+  "¿qué tambo nos manda leche cortada seguido?" es la pregunta que da el valor, y un texto libre
+  no la contesta — "cortada", "Cortada" y "venía cortada" son tres cosas distintas para una
+  consulta.
+- **`observacion`** — texto libre, para lo que no entra en la lista. Ahí sí aparece el teclado de
+  letras, que es el primero del sistema.
+
+Va **después** de registrar, no antes: la leche que llega bien es la enorme mayoría y no puede
+pagar un paso extra por la excepción. Mismo criterio que el "No fue un pallet completo".
+
+**Los seis motivos sembrados son un punto de partida, no un dato de la fábrica.** Sólo "cortada"
+salió del cliente; el resto son los problemas habituales de la leche cruda. Conviene revisarlos
+con Alexis y ajustarlos desde el ABM.
+
+Implementado en `migraciones/006-observaciones-recepcion.js`.
+
+### B8. Observaciones en quesería — **surgió el 2026-09-22**
+
+> Nota: el **teclado de letras ya existe** (`armarTecladoLetras` en `public/comun.js`), construido
+> para B9. Lo que falta para quesería es la lista de motivos frecuentes —"no levantó el pH",
+> "cuajó lento"— y decidir si la observación cuelga de la tina o del queso.
 
 El cliente las pidió para producción de quesería, con **teclado de letras**:
 

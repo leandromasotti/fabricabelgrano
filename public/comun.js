@@ -243,6 +243,69 @@ export function registrarSW() {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {})
 }
 
+// ---------------------------------------------------------------- teclado de letras
+//
+// El unico teclado alfabetico del sistema. Todo lo demas se toca, y esta bien que asi
+// sea: con guantes y las manos mojadas, escribir es lento y se equivoca.
+//
+// Por eso NO esta en el camino de nadie. Se llega solo si el operario decide que la
+// observacion no entra en ninguno de los motivos, que es el caso raro. El camino normal
+// —"cortada"— es un toque.
+//
+// Distribucion QWERTY porque es la que la gente reconoce, aunque para textos cortos el
+// alfabetico seria mas rapido de barrer con la vista: aprender una distribucion nueva
+// cuesta mas que lo que ahorra.
+
+const FILAS_TECLADO = ['qwertyuiop', 'asdfghjklñ', 'zxcvbnm']
+
+export function armarTecladoLetras(nodo, alCambiar, opciones = {}) {
+  const { maximo = 200 } = opciones
+  let texto = ''
+
+  const escribir = (t) => {
+    texto = t.slice(0, maximo)
+    alCambiar(texto)
+  }
+
+  nodo.replaceChildren()
+  for (const fila of FILAS_TECLADO) {
+    const f = document.createElement('div')
+    f.className = 'fila-teclas'
+    for (const letra of fila) {
+      const b = document.createElement('button')
+      b.className = 'tecla-letra'
+      b.textContent = letra.toUpperCase()
+      b.onclick = () => escribir(texto + letra.toUpperCase())
+      f.append(b)
+    }
+    nodo.append(f)
+  }
+
+  const ultima = document.createElement('div')
+  ultima.className = 'fila-teclas'
+
+  const espacio = document.createElement('button')
+  espacio.className = 'tecla-letra ancha'
+  espacio.textContent = 'ESPACIO'
+  espacio.onclick = () => escribir(texto + ' ')
+
+  const borrar = document.createElement('button')
+  borrar.className = 'tecla-letra borrar'
+  borrar.textContent = '⌫'
+  borrar.onclick = () => escribir(texto.slice(0, -1))
+
+  ultima.append(espacio, borrar)
+  nodo.append(ultima)
+
+  return {
+    get texto() {
+      return texto
+    },
+    poner: (t) => escribir(t ?? ''),
+    limpiar: () => escribir(''),
+  }
+}
+
 // ---------------------------------------------------------------- totales del dia
 //
 // El desglose por marca+producto: lo que el operario leia del carton colgado. Antes de

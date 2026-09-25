@@ -97,6 +97,24 @@ const marcasFamilias = [
   { marca: 'Obenac', familias: ['leche'] },
 ]
 
+// Por que puede quedar observada una entrega de leche cruda.
+//
+// PUNTO DE PARTIDA, NO DATO DE LA FABRICA: solo "cortada" salio del cliente ("puede
+// entrar una leche del tambo y que este cortada", 25/9); el resto son los problemas
+// habituales de la leche cruda. Se editan desde /app/maestros sin tocar codigo.
+//
+// Va como catalogo y no como texto libre porque es lo que permite contar: tres operarios
+// escribiendo "cortada", "Cortada" y "venia cortada" son tres cosas distintas para una
+// consulta, y la pregunta que importa es "que tambo nos manda leche cortada seguido".
+const motivosRecepcion = [
+  'Cortada',
+  'Con olor',
+  'Temperatura alta',
+  'Aguada',
+  'Con sedimento',
+  'Remito no coincide',
+]
+
 // Unidades por caja de yogur. El cliente lo dio como "aproximadamente 500" y decidio
 // dejarlo fijo. Queda configurable y marcado como provisorio: si al contarlas resulta
 // que varian, conviene que el operario cargue la cantidad real — igual que el rinde de
@@ -286,6 +304,19 @@ async function cargar() {
     for (const c of clientes) await insertCliente.run(c)
     console.log(`  clientes:  ${clientes.length}  <-- PLACEHOLDER, reemplazar`)
   }
+
+  // Idempotente por nombre, como los quesos: si el encargado agregó un motivo propio o
+  // dio de baja alguno de estos, un seed posterior no se lo pisa.
+  const existeMotivo = db.prepare('SELECT 1 FROM motivos_recepcion WHERE nombre = ?')
+  const insertMotivo = db.prepare(
+    'INSERT INTO motivos_recepcion (nombre, activo, orden) VALUES (@nombre, true, @orden)'
+  )
+  const nuevosMotivos = []
+  for (const [i, nombre] of motivosRecepcion.entries()) {
+    if (!(await existeMotivo.get(nombre))) nuevosMotivos.push({ nombre, orden: i + 1 })
+  }
+  for (const m of nuevosMotivos) await insertMotivo.run(m)
+  if (nuevosMotivos.length) console.log(`  motivos:   +${nuevosMotivos.length}  <-- punto de partida, revisar`)
 
   const existeTambo = db.prepare('SELECT 1 FROM tambos WHERE numero = ?')
   const nuevosTambos = []

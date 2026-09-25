@@ -64,6 +64,31 @@
           <button class="btn-deshacer" id="btn-deshacer">DESHACER · <span id="deshacer-seg">60</span>s</button>
           <button class="btn-seguir" id="btn-seguir">SEGUIR</button>
         </div>
+        <!-- La leche que llega con algo raro —cortada, con olor— es la excepción, así
+             que va DESPUÉS de registrar: la entrega normal no paga ningún toque extra.
+             Mismo criterio que el "No fue un pallet completo" de lechería. -->
+        <button class="btn-ajustar" id="btn-observar">Agregar una observación</button>
+      </div>
+    </section>
+
+    <!-- 6. la observación: un motivo de la lista, o una nota escrita -->
+    <section class="paso" id="paso-observacion" hidden>
+      <p class="pregunta">¿Qué pasó con esta entrega?</p>
+      <div class="opciones" id="op-motivos"></div>
+      <div class="acciones-observacion">
+        <button class="btn-obs" id="btn-escribir">Escribir una nota</button>
+        <button class="btn-obs suave" id="btn-sin-observacion">Quitar la observación</button>
+      </div>
+    </section>
+
+    <section class="paso" id="paso-nota" hidden>
+      <p class="pregunta">Escribí la observación</p>
+      <div class="centrado">
+        <div class="nota-valor vacio" id="nota-valor">…</div>
+        <div class="teclado-letras" id="teclado-nota"></div>
+        <div class="acciones-observacion">
+          <button class="btn-obs principal" id="btn-nota-ok">GUARDAR</button>
+        </div>
       </div>
     </section>
 

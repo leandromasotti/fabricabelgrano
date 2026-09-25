@@ -38,9 +38,9 @@ export function Maestros() {
       <header className="mb-5">
         <h1 className="text-[23px] font-semibold">Datos maestros</h1>
         <p className="text-[14px] text-tinta-2">
-          Quién trabaja en cada sector, a quién se le vende, qué tambos entregan y qué
-          marcas se producen. Nada se borra: dar de baja lo saca de las pantallas, no del
-          historial.
+          Quién trabaja en cada sector, a quién se le vende, qué tambos entregan, qué
+          marcas se producen y por qué puede quedar observada una entrega. Nada se borra:
+          dar de baja lo saca de las pantallas, no del historial.
         </p>
       </header>
 
@@ -49,6 +49,7 @@ export function Maestros() {
         <Clientes clientes={data.clientes} />
         <Tambos tambos={data.tambos} />
         <Marcas marcas={data.marcas} />
+        <MotivosRecepcion motivos={data.motivos_recepcion} />
       </div>
     </>
   )
@@ -329,6 +330,76 @@ function Clientes({ clientes }: { clientes: ClienteMaestro[] }) {
         <Entrada valor={nuevo} alCambiar={setNuevo} etiqueta="Nombre del cliente" placeholder="Nombre" ancho="w-72" />
       </Alta>
     </Panel>
+  )
+}
+
+// ---------------------------------------------------------------- motivos de recepción
+
+/**
+ * Por qué puede quedar observada una entrega de leche cruda.
+ *
+ * Son los botones que ve el operario de recepción, así que el orden y la brevedad
+ * importan: el que más pasa arriba, y nombres que entren en un botón.
+ */
+function MotivosRecepcion({ motivos }: { motivos: ClienteMaestro[] }) {
+  const crear = useCrearMaestro()
+  const [nuevo, setNuevo] = useState('')
+
+  return (
+    <Panel
+      titulo="Motivos de observación"
+      nota="Por qué puede quedar observada una entrega de leche cruda. Son los botones de la tablet de recepción"
+    >
+      <ul className="flex flex-col">
+        {motivos.map((m) => (
+          <FilaMotivo key={m.id} motivo={m} />
+        ))}
+      </ul>
+      <Alta
+        titulo="Agregar motivo"
+        crear={crear}
+        puedeCrear={nuevo.trim().length > 0}
+        alCrear={() =>
+          crear.mutate(
+            { tipo: 'motivos_recepcion', datos: { nombre: nuevo.trim() } },
+            { onSuccess: () => setNuevo('') },
+          )
+        }
+      >
+        <Entrada
+          valor={nuevo}
+          alCambiar={setNuevo}
+          etiqueta="Nombre del motivo"
+          placeholder="Cortada"
+          ancho="w-72"
+        />
+      </Alta>
+    </Panel>
+  )
+}
+
+function FilaMotivo({ motivo: m }: { motivo: ClienteMaestro }) {
+  const [nombre, setNombre] = useState(m.nombre)
+  const cambio = nombre.trim() !== m.nombre && nombre.trim().length > 0
+
+  return (
+    <Fila
+      tipo="motivos_recepcion"
+      id={m.id}
+      activo={Boolean(m.activo)}
+      usos={m.usos}
+      sustantivo="entregas"
+      puedeGuardar={cambio}
+      alGuardar={(editar, avisar) =>
+        cambio &&
+        editar.mutate(
+          { tipo: 'motivos_recepcion', id: m.id, datos: { nombre: nombre.trim() } },
+          { onSuccess: () => avisar('guardado') },
+        )
+      }
+    >
+      <Entrada valor={nombre} alCambiar={setNombre} etiqueta={`Nombre de ${m.nombre}`} ancho="w-72" />
+    </Fila>
   )
 }
 

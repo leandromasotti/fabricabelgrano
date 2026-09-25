@@ -122,6 +122,10 @@ app.get('/api/catalogo', async (req, res) => {
     productos: await qCatalogo.productos.all(familia),
     envases: await qCatalogo.envases.all(),
     quesos: await qCatalogo.quesos.all(),
+    // Los motivos de observación de la leche que entra. Van en el catálogo porque la
+    // tablet de recepción los necesita al arrancar y funciona sin red: pedirlos aparte
+    // en el momento de usarlos sería justo cuando puede no haber conexión.
+    motivos_recepcion: await qRec.motivos.all(),
     // Las opciones viajan con el catálogo, que la tablet ya pide al arrancar: una
     // preferencia no merece su propia ida y vuelta.
     opciones: Object.fromEntries(
@@ -152,28 +156,46 @@ const qRec = {
   insertar: db.prepare(`
     INSERT INTO recepciones
       (client_id, fecha_hora, registrado_en, origen, sincronizado, operario_id, tambo_id,
-       litros, temperatura, remito)
+       litros, temperatura, remito, motivo_id, observacion)
     VALUES
       (@client_id, @fecha_hora, @registrado_en, @origen, @sincronizado, @operario_id, @tambo_id,
-       @litros, @temperatura, @remito)
+       @litros, @temperatura, @remito, @motivo_id, @observacion)
   `),
+  // LEFT JOIN al motivo: la enorme mayoría de las entregas no tiene ninguno, y con un
+  // JOIN normal desaparecerían todas menos las que vinieron con problema.
   detalle: db.prepare(`
     SELECT r.id, r.client_id, r.fecha_hora, r.origen, r.litros, r.temperatura, r.remito,
-           r.anulado, o.nombre AS operario, t.numero AS tambo
-      FROM recepciones r
-      JOIN operarios o ON o.id = r.operario_id
-      JOIN tambos    t ON t.id = r.tambo_id
-     WHERE r.id = ?
-  `),
-  delDia: db.prepare(`
-    SELECT r.id, r.fecha_hora, r.origen, r.litros, r.temperatura, r.remito, r.anulado,
+           r.anulado, r.observacion, mo.nombre AS motivo,
            o.nombre AS operario, t.numero AS tambo
       FROM recepciones r
       JOIN operarios o ON o.id = r.operario_id
       JOIN tambos    t ON t.id = r.tambo_id
+      LEFT JOIN motivos_recepcion mo ON mo.id = r.motivo_id
+     WHERE r.id = ?
+  `),
+  delDia: db.prepare(`
+    SELECT r.id, r.fecha_hora, r.origen, r.litros, r.temperatura, r.remito, r.anulado,
+           r.observacion, mo.nombre AS motivo,
+           o.nombre AS operario, t.numero AS tambo
+      FROM recepciones r
+      JOIN operarios o ON o.id = r.operario_id
+      JOIN tambos    t ON t.id = r.tambo_id
+      LEFT JOIN motivos_recepcion mo ON mo.id = r.motivo_id
      WHERE date(r.fecha_hora, 'localtime') = ?
      ORDER BY r.fecha_hora DESC
   `),
+  porClientIdCompleto: db.prepare(
+    'SELECT id, client_id FROM recepciones WHERE client_id = ? AND anulado = 0'
+  ),
+  // La observación se agrega DESPUÉS de registrar, y por client_id: la entrega puede
+  // seguir en la cola offline y todavía no tener id del servidor.
+  observar: db.prepare(`
+    UPDATE recepciones SET motivo_id = @motivo_id, observacion = @observacion
+     WHERE client_id = @client_id AND anulado = 0
+  `),
+  motivos: db.prepare(
+    'SELECT id, nombre FROM motivos_recepcion WHERE activo = 1 ORDER BY orden, nombre'
+  ),
   anular: db.prepare(
     'UPDATE recepciones SET anulado = 1, anulado_en = ? WHERE id = ? AND anulado = 0'
   ),
@@ -215,10 +237,11 @@ const qRec = {
   // no tenía arreglo por ningún lado (le pasó al cliente probando, 2026-09-25).
   detallePeriodo: db.prepare(`
     SELECT r.id, r.fecha_hora, t.numero AS tambo, r.litros, r.temperatura, r.remito,
-           o.nombre AS operario
+           r.observacion, mo.nombre AS motivo, o.nombre AS operario
       FROM recepciones r
       JOIN tambos    t ON t.id = r.tambo_id
       JOIN operarios o ON o.id = r.operario_id
+      LEFT JOIN motivos_recepcion mo ON mo.id = r.motivo_id
      WHERE r.anulado = 0
        AND date(r.fecha_hora, 'localtime') BETWEEN ? AND ?
        AND (? = '' OR t.numero = ?)
@@ -229,8 +252,10 @@ const qRec = {
 app.get('/api/tambos', async (_req, res) => res.json(await qRec.tambos.all()))
 
 app.post('/api/recepciones', async (req, res) => {
-  const { client_id, operario_id, tambo_id, litros, temperatura, remito, fecha_hora_cliente } =
-    req.body ?? {}
+  const {
+    client_id, operario_id, tambo_id, litros, temperatura, remito,
+    motivo_id, observacion, fecha_hora_cliente,
+  } = req.body ?? {}
 
   if (!client_id || !operario_id || !tambo_id) {
     return res.status(400).json({ error: 'faltan campos obligatorios' })
@@ -251,6 +276,13 @@ app.post('/api/recepciones', async (req, res) => {
 
   if (!(await existe('operarios', operario_id))) return res.status(400).json({ error: 'operario inexistente' })
   if (!(await existe('tambos', tambo_id))) return res.status(400).json({ error: 'tambo inexistente' })
+  // La observación puede llegar acá y no por el PUT: si la tablet estaba sin red, la
+  // cola la mezcló en el alta y el registro viaja una sola vez, ya completo.
+  if (motivo_id != null && !(await existe('motivos_recepcion', motivo_id))) {
+    return res.status(400).json({ error: 'motivo inexistente' })
+  }
+  const nota = typeof observacion === 'string' ? observacion.trim() : ''
+  if (nota.length > 500) return res.status(400).json({ error: 'observación demasiado larga' })
 
   const marca = marcaDeTiempo(fecha_hora_cliente)
   const info = await qRec.insertar.run({
@@ -262,6 +294,8 @@ app.post('/api/recepciones', async (req, res) => {
     litros,
     temperatura: temperatura ?? null,
     remito: remito ?? null,
+    motivo_id: motivo_id ?? null,
+    observacion: nota || null,
   })
   res.status(201).json(await qRec.detalle.get(info.lastInsertRowid))
 })
@@ -276,6 +310,33 @@ app.get('/api/recepciones', async (req, res) => {
     litros: vivas.reduce((n, r) => n + r.litros, 0),
     recepciones,
   })
+})
+
+// Agregar la observación a una entrega recién registrada.
+//
+// Va por client_id, igual que la corrección de cantidades de lechería: la entrega puede
+// seguir en la cola offline y no tener todavía id del servidor. Es la misma clave que
+// hace idempotente la sincronización, así que llega bien haya viajado el alta o no.
+//
+// El motivo sale de una lista corta y configurable, y la nota es texto libre opcional.
+// Los dos pueden venir vacíos: así se BORRA una observación puesta por error.
+app.put('/api/recepciones/observacion', async (req, res) => {
+  const { client_id } = req.body ?? {}
+  if (!client_id) return res.status(400).json({ error: 'falta client_id' })
+
+  const motivoId = req.body?.motivo_id ?? null
+  if (motivoId !== null && !(await existe('motivos_recepcion', motivoId))) {
+    return res.status(400).json({ error: 'motivo inexistente' })
+  }
+
+  const texto = typeof req.body?.observacion === 'string' ? req.body.observacion.trim() : ''
+  if (texto.length > 500) return res.status(400).json({ error: 'observación demasiado larga' })
+
+  const actual = await qRec.porClientIdCompleto.get(client_id)
+  if (!actual) return res.status(404).json({ error: 'no existe o ya estaba anulado' })
+
+  await qRec.observar.run({ client_id, motivo_id: motivoId, observacion: texto || null })
+  res.json(await qRec.detalle.get(actual.id))
 })
 
 app.post('/api/recepciones/:id/anular', async (req, res) => {

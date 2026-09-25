@@ -68,6 +68,30 @@ export const MAESTROS = {
     maxOrden: 'SELECT COALESCE(MAX(orden), 0) AS n FROM operarios WHERE sector = @sector',
   },
 
+  // Los motivos por los que una entrega de leche cruda queda observada. Van acá porque
+  // la lista la conoce la fábrica, no el código: el sembrado ("cortada", "con olor"...)
+  // es un punto de partida y el encargado lo ajusta a lo que realmente pasa.
+  motivos_recepcion: {
+    etiqueta: 'motivo',
+    listar: `
+      SELECT m.id, m.nombre, m.activo, m.orden,
+             (SELECT COUNT(*) FROM recepciones r WHERE r.motivo_id = m.id AND r.anulado = 0) AS usos
+        FROM motivos_recepcion m
+       ORDER BY m.orden, m.nombre
+    `,
+    leer(cuerpo, actual) {
+      const nombre = texto(cuerpo?.nombre) || actual?.nombre
+      if (!nombre) return { error: 'falta el nombre' }
+      // Corto a propósito: son botones en una tablet, y un motivo largo no entra.
+      if (nombre.length > 40) return { error: 'nombre demasiado largo' }
+      return { valores: { nombre } }
+    },
+    duplicado: 'SELECT id FROM motivos_recepcion WHERE nombre = @nombre',
+    insertar: 'INSERT INTO motivos_recepcion (nombre, activo, orden) VALUES (@nombre, true, @orden)',
+    actualizar: 'UPDATE motivos_recepcion SET nombre = @nombre WHERE id = @id',
+    maxOrden: 'SELECT COALESCE(MAX(orden), 0) AS n FROM motivos_recepcion',
+  },
+
   clientes: {
     etiqueta: 'cliente',
     listar: `

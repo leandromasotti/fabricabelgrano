@@ -205,6 +205,25 @@ const columnasDetalle = (
   },
   { titulo: 'Operario', celda: (r) => r.operario },
   {
+    // La observación es lo primero que hay que ver antes de liquidarle al tambo: una
+    // entrega cortada no se paga igual. Por eso el motivo va resaltado y no como texto
+    // suelto — en una tabla de 40 filas, gris entre gris no lo ve nadie.
+    titulo: 'Observación',
+    celda: (r) =>
+      r.motivo || r.observacion ? (
+        <span className="flex flex-wrap items-baseline gap-1.5">
+          {r.motivo && (
+            <span className="rounded bg-alerta/15 px-1.5 py-0.5 text-[12px] font-semibold text-alerta">
+              {r.motivo}
+            </span>
+          )}
+          {r.observacion && <span className="text-[13px] text-tinta-2">{r.observacion}</span>}
+        </span>
+      ) : (
+        <span className="text-tinta-suave">—</span>
+      ),
+  },
+  {
     titulo: '',
     // print:hidden porque esta pantalla se imprime para liquidarle al tambo, y una
     // columna de botones en el papel es ruido.

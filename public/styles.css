@@ -164,6 +164,69 @@ h1 {
 
 /* ------------------------------------------------------------ historial */
 
+/* ------------------------------------------------------------ observación */
+/* Botones propios y no .btn-seguir: ese está pensado para el fondo VERDE de la
+   confirmación (texto blanco sobre un velo claro) y acá el fondo es el panel oscuro,
+   donde queda casi invisible. Ya pasó una vez con el "No fue un pallet completo". */
+
+.acciones-observacion { display: flex; gap: 14px; align-items: center; margin-top: 18px; flex-wrap: wrap; }
+
+.btn-obs {
+  min-height: 78px;
+  padding: 0 34px;
+  font: 800 22px/1 inherit;
+  color: var(--texto);
+  background: var(--panel-alto);
+  border: 2px solid var(--borde);
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.btn-obs:active { transform: scale(0.97); }
+.btn-obs.principal { background: var(--acento); border-color: var(--acento-alto); }
+.btn-obs.suave { color: var(--texto-tenue); font-weight: 700; font-size: 19px; }
+.btn-obs:disabled { opacity: 0.35; cursor: default; }
+
+/* ------------------------------------------------------------ teclado de letras */
+/* Teclas más chicas que las numéricas a propósito: son 30 y tienen que entrar sin
+   scroll. Igual quedan sobre los 44 px que hacen falta para no errar con el dedo. */
+
+.teclado-letras { display: flex; flex-direction: column; gap: 8px; align-items: center; }
+.fila-teclas { display: flex; gap: 7px; justify-content: center; width: 100%; }
+
+.tecla-letra {
+  flex: 1;
+  min-width: 0;
+  max-width: 86px;
+  min-height: 62px;
+  font: 700 25px/1 inherit;
+  color: var(--texto);
+  background: var(--panel-alto);
+  border: 2px solid var(--borde);
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.tecla-letra:active { transform: scale(0.95); background: var(--acento); }
+.tecla-letra.ancha { max-width: none; flex: 4; font-size: 17px; letter-spacing: 1px; }
+.tecla-letra.borrar { flex: 1.4; max-width: 120px; font-size: 24px; color: var(--texto-tenue); }
+
+/* Lo que se va escribiendo. Alto fijo para que el teclado no salte al pasar de renglón. */
+.nota-valor {
+  min-height: 64px;
+  width: 100%;
+  background: var(--panel);
+  border: 2px solid var(--borde);
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 23px;
+  line-height: 1.3;
+  color: var(--texto);
+  word-break: break-word;
+}
+
+.nota-valor.vacio { color: var(--texto-tenue); font-style: italic; }
+
 /* ------------------------------------------------------------ totales del día */
 /* Lo que reemplaza al cartón colgado: cuántos pallets lleva y de qué.
    Va siempre visible, a diferencia del historial, y por eso tiene que ser BAJO — cada

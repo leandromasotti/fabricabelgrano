@@ -324,6 +324,16 @@ sqlite.exec(`
     orden  INTEGER NOT NULL DEFAULT 0
   );
 
+  -- Por que puede quedar observada una entrega de leche cruda: cortada, con olor, etc.
+  -- Va como tabla y no como lista fija en el codigo porque la conoce la fabrica, no
+  -- nosotros: el sembrado es un punto de partida y se edita desde /app/maestros.
+  CREATE TABLE IF NOT EXISTS motivos_recepcion (
+    id     INTEGER PRIMARY KEY,
+    nombre TEXT NOT NULL UNIQUE,
+    activo INTEGER NOT NULL DEFAULT 1,
+    orden  INTEGER NOT NULL DEFAULT 0
+  );
+
   -- Recepcion de leche cruda. Es el inicio real del circuito: hasta ahora el sistema
   -- sabia cuantas piezas salian, pero no de cuanta leche.
   --
@@ -415,6 +425,11 @@ agregarColumna('tipos_queso', 'dias_provisorios', 'INTEGER NOT NULL DEFAULT 1')
 //
 // `madura` NO es lo mismo que `madura_antes_de_envasar`: el cremoso madura, pero despues
 // de envasarse. Los defaults reproducen el comportamiento viejo.
+// Observaciones de la leche que entra (2026-09-25). El motivo sale de una lista corta
+// —se puede contar por tambo— y la nota es texto libre para lo que no entre en ella.
+agregarColumna('recepciones', 'motivo_id', 'INTEGER REFERENCES motivos_recepcion(id)')
+agregarColumna('recepciones', 'observacion', 'TEXT')
+
 agregarColumna('tipos_queso', 'pasa_por_sal', 'INTEGER NOT NULL DEFAULT 1')
 agregarColumna('tipos_queso', 'madura_antes_de_envasar', 'INTEGER NOT NULL DEFAULT 0')
 

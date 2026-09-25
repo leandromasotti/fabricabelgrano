@@ -84,6 +84,8 @@ export interface Catalogo {
   productos: Producto[]
   quesos: TipoQueso[]
   envases: Envase[]
+  /** Por qué puede quedar observada una entrega de leche cruda. */
+  motivos_recepcion: Marca[]
 }
 
 // ---------------------------------------------------------------- reportes
@@ -296,6 +298,10 @@ export interface EntregaLeche {
   litros: number
   temperatura: number | null
   remito: string | null
+  /** De la lista corta y configurable: "Cortada", "Con olor"… Casi siempre null. */
+  motivo: string | null
+  /** Texto libre, para lo que no entra en la lista. */
+  observacion: string | null
   operario: string
 }
 
@@ -410,8 +416,9 @@ export interface Maestros {
   sectores: Sector[]
   operarios: OperarioMaestro[]
   clientes: ClienteMaestro[]
+  motivos_recepcion: ClienteMaestro[]
   tambos: TamboMaestro[]
   marcas: MarcaMaestro[]
 }
 
-export type TipoMaestro = 'operarios' | 'clientes' | 'tambos' | 'marcas'
+export type TipoMaestro = 'operarios' | 'clientes' | 'tambos' | 'marcas' | 'motivos_recepcion'
