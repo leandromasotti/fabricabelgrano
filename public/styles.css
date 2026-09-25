@@ -164,6 +164,77 @@ h1 {
 
 /* ------------------------------------------------------------ historial */
 
+/* ------------------------------------------------------------ totales del día */
+/* Lo que reemplaza al cartón colgado: cuántos pallets lleva y de qué.
+   Va siempre visible, a diferencia del historial, y por eso tiene que ser BAJO — cada
+   píxel que ocupa se lo saca a los botones, que son lo que el operario viene a tocar.
+   Una franja de dos renglones alcanza para orientarse sin competir. */
+
+.totales {
+  background: var(--panel);
+  border: 1px solid var(--borde);
+  border-radius: var(--radio);
+  padding: 10px 16px;
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 22px;
+}
+
+.totales-cifras {
+  display: flex;
+  gap: 18px;
+  align-items: baseline;
+  font-size: 14px;
+  color: var(--texto-tenue);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  white-space: nowrap;
+}
+
+.totales-cifras strong {
+  font-size: 26px;
+  color: var(--texto);
+  font-variant-numeric: tabular-nums;
+}
+
+/* El desglose por marca+producto. Se muestran SOLO las combinaciones con producción:
+   3 marcas × 3 leches son 9 casillas posibles y en un día normal se usan tres. Llenar la
+   pantalla de ceros haría ilegible justo lo que sí pasó. */
+.desglose {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  flex: 1;
+  min-width: 0;
+}
+
+.desglose .chip-total {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  background: var(--panel-alto);
+  border: 1px solid var(--borde);
+  border-radius: 999px;
+  padding: 5px 13px;
+  font-size: 16px;
+  color: var(--texto-tenue);
+  white-space: nowrap;
+}
+
+.desglose .chip-total b {
+  font-size: 19px;
+  color: var(--texto);
+  font-variant-numeric: tabular-nums;
+}
+
+.desglose .vacio-total {
+  font-size: 15px;
+  color: var(--texto-tenue);
+  font-style: italic;
+}
+
 .historial {
   background: var(--panel);
   border: 1px solid var(--borde);

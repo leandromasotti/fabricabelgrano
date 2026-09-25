@@ -18,6 +18,7 @@
 import {
   $, hhmm, cola, red, horaServidor, pintarEstado, postear, sincronizar,
   cargarCatalogo, configurarTablet, botones, hacerPasos, pintarMigas, cuentaRegresiva, registrarSW,
+  pintarDesglose, sumarDesglose,
 } from '/comun.js'
 
 const VENTANA_DESHACER = 60
@@ -126,20 +127,28 @@ function fila(r, pendiente = false) {
   return el
 }
 
+// Igual que en lecheria: se guarda aparte del DOM para poder sumarle de a uno sin red.
+let desgloseHoy = []
+
 function agregarFila(r, pendiente) {
   $('lista-hoy').prepend(fila(r, pendiente))
   $('bins-hoy').textContent = Number($('bins-hoy').textContent) + 1
   $('unidades-hoy').textContent =
     (Number($('unidades-hoy').textContent.replace(/\./g, '')) + r.unidades).toLocaleString('es-AR')
+  desgloseHoy = sumarDesglose(desgloseHoy, r.marca, r.producto)
+  pintarDesglose($('desglose-hoy'), desgloseHoy, 'bins')
 }
 
 async function refrescarHoy() {
   if (!red.hay) return
   try {
-    const { registros, bins, unidades, kilos } = await (await fetch('/api/yogur')).json()
+    const { registros, bins, unidades, kilos, por_marca_producto } =
+      await (await fetch('/api/yogur')).json()
     $('bins-hoy').textContent = bins
     $('unidades-hoy').textContent = unidades.toLocaleString('es-AR')
     $('kilos-hoy').textContent = kilos ? ` · ≈ ${kilos.toLocaleString('es-AR')} kg` : ''
+    desgloseHoy = por_marca_producto ?? []
+    pintarDesglose($('desglose-hoy'), desgloseHoy, 'bins')
     $('lista-hoy').replaceChildren(...registros.slice(0, 20).map((r) => fila(r)))
   } catch {
     red.hay = false

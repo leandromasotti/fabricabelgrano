@@ -5,6 +5,7 @@
 import {
   $, hhmm, cola, red, horaServidor, pintarEstado, postear, sincronizar,
   cargarCatalogo, configurarTablet, botones, hacerPasos, pintarMigas, cuentaRegresiva, registrarSW,
+  pintarDesglose, sumarDesglose,
 } from '/comun.js'
 
 const VENTANA_DESHACER = 60
@@ -264,6 +265,9 @@ function fila(r, pendiente = false) {
 function agregarFila(r, pendiente) {
   $('lista-hoy').prepend(fila(r, pendiente))
   $('total-hoy').textContent = Number($('total-hoy').textContent) + 1
+  const l = Number($('litros-hoy').textContent.replace(/[^0-9]/g, '')) + Number(r.litros ?? 0)
+  $('litros-hoy').textContent = l.toLocaleString('es-AR')
+  sumarAlDesglose(r.marca, r.producto)
 }
 
 // Repinta la fila del pallet que se acaba de corregir, sin esperar al refresco: el
@@ -273,12 +277,24 @@ function actualizarFila(r) {
   if (vieja) vieja.replaceWith(fila({ ...r, bultos_formato: est.envase?.bultos_por_pallet }, true))
 }
 
+// Se guarda aparte del DOM para poder sumarle de a uno sin red: cuando la tablet esta
+// offline refrescarHoy() no corre, y es justo cuando el operario mas necesita ver como va.
+let desgloseHoy = []
+
+function sumarAlDesglose(marca, producto) {
+  desgloseHoy = sumarDesglose(desgloseHoy, marca, producto)
+  pintarDesglose($('desglose-hoy'), desgloseHoy)
+}
+
 async function refrescarHoy() {
   if (!red.hay) return
   try {
-    const { registros, total, litros } = await (await fetch('/api/registros')).json()
+    const { registros, total, litros, por_marca_producto } =
+      await (await fetch('/api/registros')).json()
     $('total-hoy').textContent = total
     $('litros-hoy').textContent = (litros ?? 0).toLocaleString('es-AR')
+    desgloseHoy = por_marca_producto ?? []
+    pintarDesglose($('desglose-hoy'), desgloseHoy)
     $('lista-hoy').replaceChildren(...registros.slice(0, 20).map((r) => fila(r)))
   } catch {
     red.hay = false

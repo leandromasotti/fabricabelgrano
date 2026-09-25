@@ -289,6 +289,8 @@ export interface FilaTambo {
 }
 
 export interface EntregaLeche {
+  /** Necesario para poder anularla: la corrección que queda fuera de la ventana de 60 s. */
+  id: number
   fecha_hora: string
   tambo: number
   litros: number

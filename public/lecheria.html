@@ -75,10 +75,20 @@
       </div>
     </section>
 
+    <!-- Los totales reemplazan al cartón que el operario tenía colgado para saber cómo
+         venía. Van SIEMPRE visibles y fuera de .historial: la opción de configuración
+         oculta el detalle de cargas anteriores, que es ruido, no la orientación. -->
+    <section class="totales">
+      <div class="totales-cifras">
+        <span><strong id="total-hoy">0</strong> pallets</span>
+        <span><strong id="litros-hoy">0</strong> litros</span>
+      </div>
+      <div class="desglose" id="desglose-hoy"></div>
+    </section>
+
     <section class="historial">
       <div class="historial-titulo">
-        <span>Hoy · <span id="litros-hoy">0</span> L</span>
-        <strong id="total-hoy">0</strong>
+        <span>Cargas anteriores</span>
       </div>
       <div id="lista-hoy"></div>
     </section>

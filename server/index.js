@@ -209,8 +209,12 @@ const qRec = {
      GROUP BY fecha
      ORDER BY fecha
   `),
+  // `r.id` va en el SELECT porque sin él la fila no se puede anular desde la pantalla:
+  // el endpoint de anular existía desde el principio pero sólo lo usaba la tablet,
+  // dentro de su ventana de 60 s. Una entrega mal cargada que se descubría más tarde
+  // no tenía arreglo por ningún lado (le pasó al cliente probando, 2026-09-25).
   detallePeriodo: db.prepare(`
-    SELECT r.fecha_hora, t.numero AS tambo, r.litros, r.temperatura, r.remito,
+    SELECT r.id, r.fecha_hora, t.numero AS tambo, r.litros, r.temperatura, r.remito,
            o.nombre AS operario
       FROM recepciones r
       JOIN tambos    t ON t.id = r.tambo_id
@@ -419,6 +423,20 @@ const qPallet = {
      GROUP BY p.id, p.nombre
      ORDER BY n DESC
   `),
+  // Lo mismo pero abierto por MARCA además de producto, que es como lo cuenta el operario
+  // de lechería: "descremada de Obenac" y "descremada de Belgrano" son dos pilas
+  // distintas en el piso. Va aparte y no reemplaza a porProducto porque el reporte del
+  // encargado sí quiere el total por producto, sin abrir por marca.
+  porMarcaProducto: db.prepare(`
+    SELECT m.nombre AS marca, p.nombre AS producto,
+           COUNT(*) AS n, COALESCE(SUM(r.litros), 0) AS litros
+      FROM registros_pallet r
+      JOIN productos p ON p.id = r.producto_id
+      JOIN marcas    m ON m.id = r.marca_id
+     WHERE r.anulado = 0 AND date(r.fecha_hora, 'localtime') BETWEEN ? AND ?
+     GROUP BY m.id, m.nombre, p.id, p.nombre
+     ORDER BY n DESC
+  `),
   anular: db.prepare(
     'UPDATE registros_pallet SET anulado = 1, anulado_en = ? WHERE id = ? AND anulado = 0'
   ),
@@ -547,6 +565,9 @@ app.get('/api/registros', async (req, res) => {
     litros: Number(resumen.litros),
     sin_litros: Number(resumen.sin_litros ?? 0),
     por_producto: await qPallet.porProducto.all(desde, hasta),
+    // Para la tablet: cuántos pallets lleva de cada marca+producto. Reemplaza al cartón
+    // que el operario tenía colgado para saber cómo viene.
+    por_marca_producto: await qPallet.porMarcaProducto.all(desde, hasta),
     pagina,
     por_pagina: porPagina,
     paginas,
@@ -662,11 +683,25 @@ app.get('/api/yogur', async (req, res) => {
   const fecha = req.query.fecha ?? hoyLocal()
   const registros = await qYogur.delDia.all(fecha)
   const vivos = registros.filter((r) => !r.anulado)
+
+  // El desglose por marca+sabor, para que el yogurtero vea cómo viene sin tener que
+  // contar la lista. Se arma en JS y no en SQL porque acá ya están todas las filas del
+  // día: en lechería no, que está paginado, y por eso allá va como consulta.
+  const porMarcaProducto = new Map()
+  for (const r of vivos) {
+    const clave = `${r.marca}\u0000${r.producto}`
+    const acc = porMarcaProducto.get(clave) ?? { marca: r.marca, producto: r.producto, n: 0, unidades: 0 }
+    acc.n += 1
+    acc.unidades += r.unidades
+    porMarcaProducto.set(clave, acc)
+  }
+
   res.json({
     fecha,
     bins: vivos.length,
     unidades: vivos.reduce((n, r) => n + r.unidades, 0),
     kilos: vivos.reduce((n, r) => n + (r.kilos ?? 0), 0),
+    por_marca_producto: [...porMarcaProducto.values()].sort((a, b) => b.n - a.n),
     registros,
   })
 })

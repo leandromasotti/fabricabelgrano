@@ -149,6 +149,21 @@ export function useAnularPallet() {
   })
 }
 
+/**
+ * Lo mismo para una entrega de leche cruda.
+ *
+ * El endpoint existía desde el principio pero sólo lo usaba la tablet, dentro de su
+ * ventana de 60 s. Una entrega mal cargada que se descubría más tarde —el tambo
+ * equivocado, los litros de otra— no se podía arreglar desde ninguna pantalla.
+ */
+export function useAnularEntrega() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: number) => enviar<unknown>(`/api/recepciones/${id}/anular`),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['leche-cruda'] }),
+  })
+}
+
 export function useSeccionesTablero() {
   return useQuery({
     queryKey: claves.secciones(),

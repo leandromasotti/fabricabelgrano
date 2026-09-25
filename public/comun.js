@@ -189,10 +189,22 @@ export function configurarTablet(catalogo) {
 export function hacerPasos(nombres, pantallaCompleta = []) {
   return (cual) => {
     for (const n of nombres) $(`paso-${n}`).hidden = n !== cual
+    const completa = pantallaCompleta.includes(cual)
+
     const historial = document.querySelector('.historial')
     // Las dos condiciones se combinan: la opcion decide si existe, el paso decide si
     // estorba. Con la opcion apagada no hay paso que lo vuelva a mostrar.
-    if (historial) historial.hidden = !mostrarHistorial || pantallaCompleta.includes(cual)
+    if (historial) historial.hidden = !mostrarHistorial || completa
+
+    // Los totales NO dependen de la opcion, solo del paso.
+    //
+    // La opcion se llama "mostrar el detalle de cargas anteriores" y eso es lo que
+    // apaga: la lista. Los totales son otra cosa — son el carton que el operario tenia
+    // colgado para saber como venia, y apagarlos junto con la lista fue justamente lo
+    // que dejo a la gente sin referencia. En los pasos a pantalla completa se ocultan
+    // igual, porque ahi cada pixel se lo sacan a los botones.
+    const totales = document.querySelector('.totales')
+    if (totales) totales.hidden = completa
   }
 }
 
@@ -229,4 +241,46 @@ export function cuentaRegresiva(segundos, elSpan, alTerminar) {
 
 export function registrarSW() {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {})
+}
+
+// ---------------------------------------------------------------- totales del dia
+//
+// El desglose por marca+producto: lo que el operario leia del carton colgado. Antes de
+// esto la tablet le decia cuantos pallets llevaba en total, pero no DE QUE, que es lo que
+// necesita para saber si ya termino la descremada de Obenac.
+//
+// Se pintan SOLO las combinaciones con produccion. Tres marcas por tres leches son nueve
+// casillas posibles y en un dia normal se usan tres: llenar la franja de ceros haria
+// ilegible justo lo que si paso, y en una pantalla donde cada pixel se lo saca a los
+// botones eso no es gratis.
+
+export function pintarDesglose(nodo, filas, unidad = '') {
+  if (!filas?.length) {
+    const v = document.createElement('span')
+    v.className = 'vacio-total'
+    v.textContent = 'todavía no se cargó nada hoy'
+    nodo.replaceChildren(v)
+    return
+  }
+  nodo.replaceChildren(...filas.map((f) => {
+    const c = document.createElement('span')
+    c.className = 'chip-total'
+    const n = document.createElement('b')
+    n.textContent = f.n
+    const t = document.createElement('span')
+    // Producto primero: es lo que el operario busca. La marca desambigua.
+    t.textContent = `${f.producto} · ${f.marca}${unidad ? ` ${unidad}` : ''}`
+    c.append(n, t)
+    return c
+  }))
+}
+
+// Suma uno a la combinacion, creandola si es la primera del dia. Devuelve una lista
+// nueva ya ordenada: lo mas cargado primero, que es lo que el operario mira.
+export function sumarDesglose(filas, marca, producto) {
+  const copia = filas.map((f) => ({ ...f }))
+  const f = copia.find((x) => x.marca === marca && x.producto === producto)
+  if (f) f.n += 1
+  else copia.push({ marca, producto, n: 1 })
+  return copia.sort((a, b) => b.n - a.n)
 }

@@ -13,7 +13,7 @@
 // en 2,5 s (planta con WiFi al limite, o camara frigorifica sin senal) se sirve el
 // cache en vez de dejar la pantalla colgada esperando.
 
-const CACHE = 'fb-v11'
+const CACHE = 'fb-v12'
 const TIMEOUT = 2500
 
 const SHELL = [

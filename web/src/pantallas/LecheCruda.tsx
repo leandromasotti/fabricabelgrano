@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useLecheCruda, useTambos } from '../api/cliente'
+import { useAnularEntrega, useLecheCruda, useTambos } from '../api/cliente'
 import { decimal, diasAtras, fechaCorta, hhmm, hoy, num } from '../ui/formato'
 import { Boton, Kpi, Panel, Tabla, Vacio, type Columna } from '../ui/primitivos'
 import type { EntregaLeche, FilaTambo } from '../api/tipos'
@@ -32,6 +32,7 @@ export function LecheCruda() {
 
   const { data, isError, error, isFetching } = useLecheCruda({ desde, hasta, tambo })
   const { data: tambos } = useTambos()
+  const anular = useAnularEntrega()
 
   const preset = (dias: number) => {
     setDesde(diasAtras(dias - 1))
@@ -143,9 +144,9 @@ export function LecheCruda() {
             nota={`${num(data.detalle.length)} entregas`}
           >
             <Tabla
-              columnas={COLUMNAS_DETALLE}
+              columnas={columnasDetalle(anular)}
               filas={data.detalle}
-              claveDe={(r, i) => `${r.fecha_hora}-${i}`}
+              claveDe={(r) => r.id}
               sinDatos="Sin entregas con estos filtros."
               altoMax={460}
             />
@@ -182,7 +183,13 @@ const COLUMNAS_TAMBO: Columna<FilaTambo>[] = [
   { titulo: 'Última entrega', celda: (r) => fechaCorta(r.ultima) },
 ]
 
-const COLUMNAS_DETALLE: Columna<EntregaLeche>[] = [
+/**
+ * Las columnas del detalle se arman con la mutación adentro, igual que en Consulta: la
+ * de anular necesita el hook, que sólo existe dentro del componente.
+ */
+const columnasDetalle = (
+  anular: ReturnType<typeof useAnularEntrega>,
+): Columna<EntregaLeche>[] => [
   { titulo: 'Fecha', celda: (r) => new Date(r.fecha_hora).toLocaleDateString('es-AR') },
   { titulo: 'Hora', celda: (r) => hhmm(r.fecha_hora) },
   { titulo: 'Tambo', celda: (r) => String(r.tambo) },
@@ -197,4 +204,25 @@ const COLUMNAS_DETALLE: Columna<EntregaLeche>[] = [
     ),
   },
   { titulo: 'Operario', celda: (r) => r.operario },
+  {
+    titulo: '',
+    // print:hidden porque esta pantalla se imprime para liquidarle al tambo, y una
+    // columna de botones en el papel es ruido.
+    celda: (r) => (
+      <span className="print:hidden">
+        <Boton
+          deshabilitado={anular.isPending}
+          onClick={() => {
+            // El diálogo dice el tambo y los litros, no sólo "¿confirma?": es lo único
+            // que distingue una entrega de la de al lado, y anular la equivocada saldría
+            // más caro que el error original.
+            const q = `¿Anular la entrega del tambo ${r.tambo}, ${num(r.litros)} litros de las ${hhmm(r.fecha_hora)}?`
+            if (confirm(q)) anular.mutate(r.id)
+          }}
+        >
+          Anular
+        </Boton>
+      </span>
+    ),
+  },
 ]
