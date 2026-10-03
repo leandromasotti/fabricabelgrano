@@ -28,11 +28,26 @@ const grados = (t: number | null) => (t == null ? '—' : `${decimal(t)} °C`)
 export function LecheCruda() {
   const [desde, setDesde] = useState(() => diasAtras(29))
   const [hasta, setHasta] = useState(hoy)
-  const [tambo, setTambo] = useState('')
+  /**
+   * Varios tambos a la vez, no uno.
+   *
+   * "Quiero seleccionar tambo 1, 7, 8 y que sólo me aparezcan las entregas de estos."
+   * Con un desplegable de uno solo, comparar tres tambos eran tres pantallas y una suma
+   * a mano — que es exactamente lo que este reporte vino a sacar.
+   *
+   * Vacío = todos, que es el caso habitual y por eso es el estado inicial.
+   */
+  const [elegidos, setElegidos] = useState<number[]>([])
 
+  const tambo = elegidos.join(',')
   const { data, isError, error, isFetching } = useLecheCruda({ desde, hasta, tambo })
   const { data: tambos } = useTambos()
   const anular = useAnularEntrega()
+
+  const alternar = (numero: number) =>
+    setElegidos((prev) =>
+      prev.includes(numero) ? prev.filter((n) => n !== numero) : [...prev, numero].sort((a, b) => a - b),
+    )
 
   const preset = (dias: number) => {
     setDesde(diasAtras(dias - 1))
@@ -81,25 +96,6 @@ export function LecheCruda() {
             </Boton>
           ))}
 
-          <label className="ml-2 text-[13px] text-tinta-2" htmlFor="tambo">
-            Tambo
-          </label>
-          {/* El desplegable sale del catálogo de tambos y no del reporte: filtrado por
-              uno, el reporte devuelve ese solo y el control se quedaría sin opciones. */}
-          <select
-            id="tambo"
-            value={tambo}
-            onChange={(e) => setTambo(e.target.value)}
-            className="rounded-md border border-eje bg-superficie px-2.5 py-1.5 text-[14px] text-tinta"
-          >
-            <option value="">Todos</option>
-            {(tambos ?? []).map((t) => (
-              <option key={t.id} value={t.numero}>
-                {t.nombre ? `${t.numero} · ${t.nombre}` : t.numero}
-              </option>
-            ))}
-          </select>
-
           <div className="flex-1" />
           <Boton onClick={() => (window.location.href = `/api/recepciones.csv?${query}`)}>
             Descargar CSV
@@ -107,6 +103,29 @@ export function LecheCruda() {
           <Boton onClick={() => window.print()} variante="primario">
             Imprimir
           </Boton>
+        </div>
+
+        {/* Los tambos van en su propia fila y como botones, no en un desplegable: con un
+            desplegable no se ve de un vistazo CUÁLES están elegidos, que es justo lo que
+            hay que saber antes de leer los números. La lista sale del catálogo y no del
+            reporte: filtrado por tres, el reporte devuelve tres y el control se quedaría
+            sin las demás opciones. */}
+        <div className="mb-5 flex flex-wrap items-center gap-2 rounded-xl border border-borde bg-superficie px-3.5 py-3">
+          <span className="text-[13px] text-tinta-2">Tambos</span>
+          <Boton onClick={() => setElegidos([])} activo={elegidos.length === 0}>
+            Todos
+          </Boton>
+          <span className="mx-1 h-5 w-px bg-eje" />
+          {(tambos ?? []).map((t) => (
+            <Boton key={t.id} onClick={() => alternar(t.numero)} activo={elegidos.includes(t.numero)}>
+              {t.nombre ? `${t.numero} · ${t.nombre}` : t.numero}
+            </Boton>
+          ))}
+          {elegidos.length > 0 && (
+            <span className="ml-1 text-[12.5px] text-tinta-suave">
+              {elegidos.length} de {(tambos ?? []).length} · mostrando sólo esos
+            </span>
+          )}
         </div>
 
         {isError && (

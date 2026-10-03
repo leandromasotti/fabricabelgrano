@@ -204,7 +204,7 @@ const qRec = {
   // El filtro de tambo se aplica a las TRES consultas, no solo al detalle: si la tabla
   // y los totales siguieran mostrando todos los tambos mientras el detalle muestra uno,
   // los numeros de la misma pantalla se contradicen.
-  porTambo: db.prepare(`
+  porTambo: `
     SELECT t.numero AS tambo, t.nombre,
            COUNT(*) AS entregas,
            SUM(r.litros) AS litros,
@@ -216,26 +216,26 @@ const qRec = {
       JOIN tambos t ON t.id = r.tambo_id
      WHERE r.anulado = 0
        AND date(r.fecha_hora, 'localtime') BETWEEN ? AND ?
-       AND (? = '' OR t.numero = ?)
-     GROUP BY t.id
+       /*TAMBOS*/
+     GROUP BY t.id, t.numero, t.nombre
      ORDER BY litros DESC
-  `),
-  porDia: db.prepare(`
+  `,
+  porDia: `
     SELECT date(r.fecha_hora, 'localtime') AS fecha,
            COUNT(*) AS entregas, SUM(r.litros) AS litros
       FROM recepciones r
       JOIN tambos t ON t.id = r.tambo_id
      WHERE r.anulado = 0
        AND date(r.fecha_hora, 'localtime') BETWEEN ? AND ?
-       AND (? = '' OR t.numero = ?)
+       /*TAMBOS*/
      GROUP BY fecha
      ORDER BY fecha
-  `),
+  `,
   // `r.id` va en el SELECT porque sin él la fila no se puede anular desde la pantalla:
   // el endpoint de anular existía desde el principio pero sólo lo usaba la tablet,
   // dentro de su ventana de 60 s. Una entrega mal cargada que se descubría más tarde
   // no tenía arreglo por ningún lado (le pasó al cliente probando, 2026-09-25).
-  detallePeriodo: db.prepare(`
+  detallePeriodo: `
     SELECT r.id, r.fecha_hora, t.numero AS tambo, r.litros, r.temperatura, r.remito,
            r.observacion, mo.nombre AS motivo, o.nombre AS operario
       FROM recepciones r
@@ -244,9 +244,48 @@ const qRec = {
       LEFT JOIN motivos_recepcion mo ON mo.id = r.motivo_id
      WHERE r.anulado = 0
        AND date(r.fecha_hora, 'localtime') BETWEEN ? AND ?
-       AND (? = '' OR t.numero = ?)
+       /*TAMBOS*/
      ORDER BY r.fecha_hora
-  `),
+  `,
+}
+
+// El filtro de tambos pasa de "uno o todos" a "los que elija el encargado".
+//
+// "Quiero seleccionar tambo 1, 7, 8 y que solo me aparezcan las entregas de estos"
+// [Alexis, 1/10]. Antes era un solo tambo, y comparar tres contra el resto obligaba a
+// mirar tres pantallas.
+//
+// Las tres consultas del reporte comparten el filtro a proposito: si la tabla y los
+// totales siguieran mostrando todos los tambos mientras el detalle muestra tres, los
+// numeros de la misma pantalla se contradicen.
+//
+// Se arma con tantos placeholders como tambos y se guarda por cantidad: son pocas formas
+// distintas, y el traductor a Postgres ademas cachea por texto de SQL.
+const sentenciasTambos = new Map()
+
+function conTambos(plantilla, cuantos) {
+  const clave = `${cuantos}|${plantilla}`
+  if (!sentenciasTambos.has(clave)) {
+    const filtro = cuantos
+      ? `AND t.numero IN (${Array(cuantos).fill('?').join(', ')})`
+      : ''
+    sentenciasTambos.set(clave, db.prepare(plantilla.replace('/*TAMBOS*/', filtro)))
+  }
+  return sentenciasTambos.get(clave)
+}
+
+// Lee `?tambo=1,7,8` (o repetido). Devuelve [] = todos, que es el caso habitual.
+//
+// Se filtran los que no son numeros enteros en vez de rechazar el pedido: un parametro
+// con basura tiene que mostrar de mas, nunca una pantalla de error en la cara del
+// encargado.
+function tambosPedidos(req) {
+  const crudo = req.query.tambo ?? req.query.tambos ?? ''
+  const partes = Array.isArray(crudo) ? crudo : String(crudo).split(',')
+  const numeros = partes
+    .map((x) => Number(String(x).trim()))
+    .filter((n) => Number.isInteger(n) && n > 0)
+  return [...new Set(numeros)]
 }
 
 app.get('/api/tambos', async (_req, res) => res.json(await qRec.tambos.all()))
@@ -254,7 +293,7 @@ app.get('/api/tambos', async (_req, res) => res.json(await qRec.tambos.all()))
 app.post('/api/recepciones', async (req, res) => {
   const {
     client_id, operario_id, tambo_id, litros, temperatura, remito,
-    motivo_id, observacion, fecha_hora_cliente,
+    motivo_id, observacion, fecha_entrega, fecha_hora_cliente,
   } = req.body ?? {}
 
   if (!client_id || !operario_id || !tambo_id) {
@@ -285,6 +324,42 @@ app.post('/api/recepciones', async (req, res) => {
   if (nota.length > 500) return res.status(400).json({ error: 'observación demasiado larga' })
 
   const marca = marcaDeTiempo(fecha_hora_cliente)
+
+  // La entrega pudo ocurrir ANTES de cargarse.
+  //
+  // "Los fines de semana que no estamos trabajando los tambos entregan igual y el camión
+  // la trae a la fábrica, pero a sistema recién las pasaría el lunes el del laboratorio"
+  // [Alexis, 1/10]. Sin esto, la leche del sábado cuenta como del lunes y la liquidación
+  // al tambo sale mal.
+  //
+  // Va en un campo PROPIO y no reusando `fecha_hora_cliente`, aunque las dos muevan la
+  // misma columna: `fecha_hora_cliente` significa "esto se cargó sin red y la hora la
+  // puso la tablet", y por eso marca el registro como `offline`. Una entrega del sábado
+  // tipeada el lunes con la tablet conectada NO es offline, y decir que sí sería mentir
+  // sobre de dónde salió el dato.
+  //
+  // `registrado_en` sigue guardando cuándo se tecleó de verdad, así que las dos cosas
+  // quedan: cuándo pasó y cuándo se cargó.
+  if (fecha_entrega != null && fecha_entrega !== '') {
+    const elegida = new Date(fecha_entrega)
+    if (Number.isNaN(elegida.getTime())) {
+      return res.status(400).json({ error: 'fecha de entrega inválida' })
+    }
+    // Hacia adelante no: una entrega futura no existe, y una fecha adelantada por error
+    // desaparece del reporte de hoy sin que nadie entienda por qué.
+    const margen = 6 * 60 * 60 * 1000 // tolerancia por el reloj de la tablet
+    if (elegida.getTime() > Date.now() + margen) {
+      return res.status(400).json({ error: 'la fecha de entrega no puede ser futura' })
+    }
+    // Y hacia atrás, un límite: esto es para la leche del fin de semana, no para cargar
+    // un mes entero a mano. Lo que esté más atrás se corrige desde el escritorio.
+    const TOPE_DIAS = 30
+    if (elegida.getTime() < Date.now() - TOPE_DIAS * 24 * 60 * 60 * 1000) {
+      return res.status(400).json({ error: `la fecha no puede ser de más de ${TOPE_DIAS} días atrás` })
+    }
+    marca.fecha_hora = elegida.toISOString()
+  }
+
   const info = await qRec.insertar.run({
     client_id,
     ...marca,
@@ -350,15 +425,18 @@ app.post('/api/recepciones/:id/anular', async (req, res) => {
 // El reporte por tambo: lo que hoy se hace sumando a mano.
 app.get('/api/recepciones/reporte', async (req, res) => {
   const [desde, hasta] = rango(req)
-  const tambo = req.query.tambo ?? ''
+  const tambos = tambosPedidos(req)
+  const args = [desde, hasta, ...tambos]
 
-  const porTambo = await qRec.porTambo.all(desde, hasta, tambo, tambo)
+  const porTambo = await conTambos(qRec.porTambo, tambos.length).all(...args)
   res.json({
     desde,
     hasta,
+    // Se devuelve lo que se filtró para que la pantalla pueda mostrarlo sin adivinarlo.
+    tambos,
     por_tambo: porTambo,
-    por_dia: await qRec.porDia.all(desde, hasta, tambo, tambo),
-    detalle: await qRec.detallePeriodo.all(desde, hasta, tambo, tambo),
+    por_dia: await conTambos(qRec.porDia, tambos.length).all(...args),
+    detalle: await conTambos(qRec.detallePeriodo, tambos.length).all(...args),
     total: {
       litros: porTambo.reduce((n, r) => n + r.litros, 0),
       entregas: porTambo.reduce((n, r) => n + r.entregas, 0),
@@ -369,8 +447,10 @@ app.get('/api/recepciones/reporte', async (req, res) => {
 
 app.get('/api/recepciones.csv', async (req, res) => {
   const [desde, hasta] = rango(req)
-  const tambo = req.query.tambo ?? ''
-  const filas = await qRec.porTambo.all(desde, hasta, tambo, tambo)
+  // Mismo filtro que la pantalla: el CSV se baja de ahí y tiene que traer lo mismo que
+  // se está viendo, no todo el período.
+  const tambos = tambosPedidos(req)
+  const filas = await conTambos(qRec.porTambo, tambos.length).all(desde, hasta, ...tambos)
   const csv = [
     'tambo,entregas,litros,temp_promedio,temp_maxima,primera,ultima',
     ...filas.map((r) =>

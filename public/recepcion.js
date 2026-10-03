@@ -27,10 +27,19 @@ const est = {
   ultimo: null, timer: null,
   // Lo observado de la entrega que se acaba de registrar.
   motivo: null, nota: '',
+  // De que dia se esta cargando. null = hoy, que es el caso normal.
+  //
+  // Persiste entre cargas A PROPOSITO: el lunes se cargan varias entregas del sabado
+  // seguidas, y volver a elegir el dia en cada una seria la definicion de engorroso.
+  // El precio de que persista es que hay que gritarlo, y por eso el boton cambia de
+  // color mientras no sea hoy.
+  dia: null,
+  // Lo que ya entro hoy, por numero de tambo. Se usa para marcar los botones.
+  cargadoHoy: new Map(),
 }
 
 const mostrar = hacerPasos(
-  ['operario', 'tambo', 'litros', 'temperatura', 'listo', 'observacion', 'nota'],
+  ['operario', 'tambo', 'fecha', 'litros', 'temperatura', 'listo', 'observacion', 'nota'],
   ['litros', 'temperatura', 'observacion', 'nota']
 )
 
@@ -39,8 +48,13 @@ const gradosDe = (str) => (Number(str || '0') / 10).toFixed(1).replace('.', ',')
 function irA(paso) {
   mostrar(paso)
   $('btn-reiniciar').hidden = paso !== 'tambo'
-  $('btn-volver').hidden = !['litros', 'temperatura', 'observacion', 'nota'].includes(paso)
-  pintarMigas([est.operario?.nombre, est.tambo && `Tambo ${est.tambo.numero}`])
+  $('btn-volver').hidden = !['fecha', 'litros', 'temperatura', 'observacion', 'nota'].includes(paso)
+  pintarMigas([
+    est.operario?.nombre,
+    // El dia distinto de hoy tambien va en las migas: es parte de que se esta cargando.
+    est.dia && diaCorto(est.dia),
+    est.tambo && `Tambo ${est.tambo.numero}`,
+  ])
 }
 
 // Vuelve a pedir el operario POR DEFECTO.
@@ -60,6 +74,95 @@ function reiniciar(conservarOperario = false) {
   est.tempStr = ''
   if (!conservarOperario) est.operario = null
   irA(est.operario ? 'tambo' : 'operario')
+}
+
+// ---------------------------------------------------------------- el dia y lo cargado
+//
+// Dos cosas que esta pantalla no tenia y la hacian dificil de usar de verdad:
+//
+//   1. De que DIA se esta cargando. Los tambos entregan el fin de semana y el camion
+//      trae la leche, pero el laboratorio la pasa el lunes. Sin esto, la leche del
+//      sabado cuenta como del lunes y la liquidacion al tambo sale mal.
+//
+//   2. QUE SE CARGO YA. "Justo estan cargando los litros y hay que ir a cambiar una
+//      canilla; lo mas probable es que se olviden por que tambo iban y lo carguen de
+//      nuevo o se lo salteen."
+//
+// Lo segundo se resuelve en los dos lados: el ultimo cargado arriba, y una marca en el
+// boton de cada tambo que ya entro. Con la marca no hay nada que recordar.
+
+const DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado']
+
+// Fecha local de la tablet, no UTC: la tablet esta EN la fabrica, asi que su dia es el
+// dia de la fabrica. `toISOString()` daria el dia de Greenwich y de madrugada se corre.
+const isoLocal = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+
+const diaCorto = (iso) => {
+  const d = new Date(`${iso}T12:00:00`)
+  return `${DIAS[d.getDay()]} ${d.getDate()}/${d.getMonth() + 1}`
+}
+
+function pintarFecha() {
+  const b = $('btn-fecha')
+  b.textContent = est.dia ? diaCorto(est.dia) : 'Hoy'
+  b.classList.toggle('otro-dia', Boolean(est.dia))
+}
+
+function pintarUltimo() {
+  const u = $('ultimo-cargado')
+  const n = est.cargadoHoy.size
+  if (!est.ultimo) {
+    u.textContent = n ? `${n} tambo${n === 1 ? '' : 's'} cargados hoy` : 'Todavía no se cargó ningún tambo hoy'
+    return
+  }
+  u.replaceChildren()
+  const f = document.createElement('strong')
+  f.textContent = `Último: Tambo ${est.ultimo.tambo} · ${Number(est.ultimo.litros).toLocaleString('es-AR')} L`
+  u.append(f, document.createTextNode(` · ${hhmm(est.ultimo.fecha_hora)}`))
+}
+
+// Los botones de tambo se repintan despues de cada carga para que la marca este al dia.
+function pintarTambos() {
+  botones($('op-tambos'), tambos, (t) => {
+    est.tambo = t
+    est.litrosStr = ''
+    pintarLitros()
+    irA('litros')
+  }, (t) => {
+    const partes = [document.createTextNode(t.nombre ? `${t.numero} · ${t.nombre}` : String(t.numero))]
+    const ya = est.cargadoHoy.get(t.numero)
+    if (ya) {
+      const marca = document.createElement('span')
+      marca.className = 'ya-cargado'
+      marca.textContent = `✓ ${ya.litros.toLocaleString('es-AR')} L${ya.veces > 1 ? ` · ${ya.veces} entregas` : ''}`
+      partes.push(marca)
+    }
+    return partes
+  })
+}
+
+// Los ultimos siete dias. Alcanza para el fin de semana largo y evita un calendario.
+function pintarFechas() {
+  const hoy = new Date()
+  const opciones = [{ iso: null, nombre: 'Hoy' }]
+  for (let i = 1; i <= 6; i++) {
+    const d = new Date(hoy)
+    d.setDate(d.getDate() - i)
+    opciones.push({ iso: isoLocal(d), nombre: i === 1 ? `Ayer · ${diaCorto(isoLocal(d))}` : diaCorto(isoLocal(d)) })
+  }
+  botones($('op-fechas'), opciones, (o) => {
+    est.dia = o.iso
+    pintarFecha()
+    irA('tambo')
+    // Las marcas tienen que pasar a ser las de ESE día: si no, elegir el sábado dejaría
+    // los tildes del lunes y el operario saltearía tambos que todavía no cargó.
+    est.cargadoHoy = new Map()
+    est.ultimo = null
+    pintarTambos()
+    pintarUltimo()
+    refrescarHoy()
+  }, (o) => o.nombre)
 }
 
 // ---------------------------------------------------------------- teclados
@@ -193,7 +296,9 @@ function volverAConfirmacion() {
   pintarConfirmacion()
   irA('listo')
   clearInterval(est.timer)
-  est.timer = cuentaRegresiva(VENTANA_DESHACER, $('deshacer-seg'), reiniciar)
+  // Lo mismo que SEGUIR: en recepcion el operario se conserva (ver el comentario de
+  // btn-seguir). El que se va de verdad usa "Cambiar".
+  est.timer = cuentaRegresiva(VENTANA_DESHACER, $('deshacer-seg'), () => reiniciar(true))
 }
 
 async function registrar() {
@@ -208,6 +313,9 @@ async function registrar() {
     tambo_id: est.tambo.id,
     litros,
     temperatura,
+    // Sólo si se está cargando otro día. Va al mediodía local: lo que importa es que
+    // caiga en el día correcto, y el mediodía queda lejos de cualquier borde.
+    ...(est.dia ? { fecha_entrega: new Date(`${est.dia}T12:00:00`).toISOString() } : {}),
   }
   const local = {
     ...cuerpo,
@@ -223,7 +331,9 @@ async function registrar() {
   pintarConfirmacion()
   irA('listo')
   clearInterval(est.timer)
-  est.timer = cuentaRegresiva(VENTANA_DESHACER, $('deshacer-seg'), reiniciar)
+  // Lo mismo que SEGUIR: en recepcion el operario se conserva (ver el comentario de
+  // btn-seguir). El que se va de verdad usa "Cambiar".
+  est.timer = cuentaRegresiva(VENTANA_DESHACER, $('deshacer-seg'), () => reiniciar(true))
   agregarFila(local, true)
 
   try {
@@ -287,15 +397,40 @@ function agregarFila(r, pendiente) {
   $('entregas-hoy').textContent = Number($('entregas-hoy').textContent) + 1
   $('litros-hoy').textContent =
     (Number($('litros-hoy').textContent.replace(/\./g, '')) + r.litros).toLocaleString('es-AR')
+
+  // La marca del tambo y el "último" se actualizan acá y no sólo en refrescarHoy: sin
+  // red refrescarHoy no corre, y sin red es justo cuando no hay otra forma de saber qué
+  // se cargó ya. Es lo mismo que evita cargar dos veces el mismo tambo.
+  const previo = est.cargadoHoy.get(r.tambo) ?? { litros: 0, veces: 0 }
+  est.cargadoHoy.set(r.tambo, { litros: previo.litros + r.litros, veces: previo.veces + 1 })
+  est.ultimo = r
+  pintarTambos()
+  pintarUltimo()
 }
 
 async function refrescarHoy() {
   if (!red.hay) return
   try {
-    const { recepciones, entregas, litros } = await (await fetch('/api/recepciones')).json()
+    // Se pide el día que se está cargando, no siempre hoy: si el lunes se cargan las
+    // entregas del sábado, lo que importa ver es qué tambos del SÁBADO ya entraron.
+    const q = est.dia ? `?fecha=${est.dia}` : ''
+    const { recepciones, entregas, litros } = await (await fetch(`/api/recepciones${q}`)).json()
     $('entregas-hoy').textContent = entregas
     $('litros-hoy').textContent = litros.toLocaleString('es-AR')
     $('lista-hoy').replaceChildren(...recepciones.slice(0, 20).map((r) => fila(r)))
+
+    // Un tambo puede entregar dos veces en el mismo día, así que se acumula en vez de
+    // pisarse: marcar "✓ 1.200 L" cuando entraron 1.200 + 900 escondería la segunda.
+    const vivas = recepciones.filter((r) => !r.anulado)
+    est.cargadoHoy = new Map()
+    for (const r of vivas) {
+      const previo = est.cargadoHoy.get(r.tambo) ?? { litros: 0, veces: 0 }
+      est.cargadoHoy.set(r.tambo, { litros: previo.litros + r.litros, veces: previo.veces + 1 })
+    }
+    // `recepciones` viene ordenado por fecha_hora DESC: el primero es el último cargado.
+    est.ultimo = vivas[0] ?? null
+    pintarTambos()
+    pintarUltimo()
   } catch {
     red.hay = false
     pintarEstado()
@@ -317,12 +452,11 @@ botones($('op-operarios'), catalogo.operarios, (o) => {
 // que poder cargarse sin red, y pedir la lista justo en ese momento seria pedirla
 // exactamente cuando puede no haber conexion.
 botones($('op-motivos'), catalogo.motivos_recepcion ?? [], elegirMotivo)
-botones($('op-tambos'), tambos, (t) => {
-  est.tambo = t
-  est.litrosStr = ''
-  pintarLitros()
-  irA('litros')
-}, (t) => (t.nombre ? `${t.numero} · ${t.nombre}` : String(t.numero)))
+pintarTambos()
+pintarFechas()
+pintarFecha()
+pintarUltimo()
+$('btn-fecha').addEventListener('click', () => irA('fecha'))
 
 armarTeclado($('teclado-litros'), teclaLitros, 'tecla-litros', 'SIGUE').onclick = () => {
   est.tempStr = ''
@@ -332,17 +466,31 @@ armarTeclado($('teclado-litros'), teclaLitros, 'tecla-litros', 'SIGUE').onclick 
 armarTeclado($('teclado-temp'), teclaTemp, 'tecla-temp', 'LISTO').onclick = registrar
 
 $('btn-deshacer').addEventListener('click', deshacer)
+
+// EXCEPCIÓN a la regla del resto de las tablets, pedida por el cliente el 1/10:
+//
+//   "No es como en la armada de pallets porque solo son 2 personas en laboratorio.
+//    Luego de la carga, quiero que la pantalla que aparezca sean los nombres de los
+//    tambos."
+//
+// En las demás tablets el operario se vuelve a pedir después de cada registro, porque
+// son puestos compartidos y el riesgo es cargar a nombre de otro. Acá son dos personas
+// y el camión descarga tambo tras tambo: volver a elegir el nombre en cada entrega
+// cuesta más que el riesgo que evita.
+//
+// Para cambiar de operario sigue estando "Cambiar", que es lo que pasa `false`.
 $('btn-seguir').addEventListener('click', () => {
   clearInterval(est.timer)
-  reiniciar()
+  reiniciar(true)
 })
 $('btn-volver').addEventListener('click', () => {
   // Desde la observación se vuelve a la confirmación, no al flujo de carga: la entrega
   // ya está registrada y volver a los litros daría a entender que se está rehaciendo.
-  const paso = ['operario', 'tambo', 'litros', 'temperatura', 'listo', 'observacion', 'nota']
+  const paso = ['operario', 'tambo', 'fecha', 'litros', 'temperatura', 'listo', 'observacion', 'nota']
     .find((p) => !$(`paso-${p}`).hidden)
   if (paso === 'nota') return irA('observacion')
   if (paso === 'observacion') return volverAConfirmacion()
+  if (paso === 'fecha') return irA('tambo')
   irA(est.tempStr !== '' ? 'litros' : 'tambo')
 })
 $('btn-reiniciar').addEventListener('click', () => reiniciar(false))

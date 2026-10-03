@@ -31,7 +31,23 @@
          sin tener que buscar. -->
     <section class="paso" id="paso-tambo" hidden>
       <p class="pregunta">¿Qué tambo?</p>
+      <!-- Lo que acaba de cargar, y de qué día está cargando.
+           "Justo están cargando los litros y hay que ir a cambiar una canilla; lo más
+           probable es que se olviden por qué tambo iban y lo carguen de nuevo o se lo
+           salteen" [Alexis, 1/10]. Por eso va acá, en el paso donde se elige. -->
+      <div class="franja-recepcion">
+        <button class="btn-fecha" id="btn-fecha">Hoy</button>
+        <div class="ultimo" id="ultimo-cargado"></div>
+      </div>
       <div class="opciones" id="op-tambos"></div>
+    </section>
+
+    <!-- Días sueltos en vez de un calendario: lo que hay que resolver es "la leche del
+         sábado que se carga el lunes", no una fecha cualquiera. Siete botones grandes se
+         tocan con guantes; un selector de fecha del sistema, no. -->
+    <section class="paso" id="paso-fecha" hidden>
+      <p class="pregunta">¿De qué día es la entrega?</p>
+      <div class="opciones" id="op-fechas"></div>
     </section>
 
     <section class="paso" id="paso-litros" hidden>
