@@ -5,6 +5,7 @@
 import {
   $, hhmm, cola, red, horaServidor, pintarEstado, postear, sincronizar,
   cargarCatalogo, configurarTablet, botones, hacerPasos, pintarMigas, cuentaRegresiva, registrarSW,
+  configurarVuelta,
   pintarDesglose, sumarDesglose,
 } from '/comun.js'
 
@@ -306,6 +307,7 @@ async function refrescarHoy() {
 
 const catalogo = await cargarCatalogo('lecheria')
 configurarTablet(catalogo)
+configurarVuelta()
 
 botones($('op-operarios'), catalogo.operarios, (o) => {
   est.operario = o

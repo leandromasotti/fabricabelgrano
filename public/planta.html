@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101418">
+  <title>Planta · Producción</title>
+  <link rel="icon" href="data:,">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>PLANTA</h1>
+      <div class="migas" id="migas"></div>
+      <div class="estado" id="estado"><span class="punto"></span><span id="estado-txt">En línea</span></div>
+    </header>
+
+    <!-- Esta pantalla NO es el lanzador de /index.html, que es para el escritorio del
+         encargado. Es una tablet más: botones del mismo tamaño que el resto, porque la
+         toca la misma persona con los mismos guantes.
+
+         Existe para que una sola tablet pueda atender dos sectores que están uno al lado
+         del otro —quesería y saladero— sin que ninguno pierda su flujo. -->
+    <section class="paso" id="paso-sector">
+      <p class="pregunta">¿Qué vas a cargar?</p>
+      <div class="opciones" id="op-sectores"></div>
+    </section>
+  </div>
+
+  <script type="module" src="/planta.js"></script>
+</body>
+</html>

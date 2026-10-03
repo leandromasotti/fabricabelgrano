@@ -99,7 +99,12 @@ h1 {
 .opcion {
   min-height: var(--toque-min);
   padding: 18px 20px;
-  font: 700 26px/1.2 inherit;
+  /* Longhands y no el atajo `font`: `inherit` NO vale como familia dentro de `font`, asi
+     que `font: 700 26px/1.2 inherit` era una declaracion INVALIDA y el navegador la
+     descartaba entera. Resultado: los botones de todas las tablets venian con la
+     tipografia por defecto, 13,3 px, en pantallas pensadas para leerse con guantes.
+     Solo se notaba abajo de 620 px, donde un media query valido los corregia. */
+  font-family: inherit; font-size: 26px; font-weight: 700; line-height: 1.2;
   color: var(--texto);
   background: var(--panel-alto);
   border: 2px solid var(--borde);
@@ -117,7 +122,7 @@ h1 {
 .btn-txt {
   min-height: 56px;
   padding: 12px 22px;
-  font: 700 17px/1 inherit;
+  font-family: inherit; font-size: 17px; font-weight: 700; line-height: 1;
   color: var(--texto-tenue);
   background: transparent;
   border: 2px solid var(--borde);
@@ -154,7 +159,7 @@ h1 {
      quedar al ras, que a un metro de distancia es lo que se nota. */
   min-height: 88px;
   padding: 0 44px;
-  font: 800 26px/1 inherit;
+  font-family: inherit; font-size: 26px; font-weight: 800; line-height: 1;
   color: #fff;
   background: rgba(0, 0, 0, 0.28);
   border: 2px solid rgba(255, 255, 255, 0.5);
@@ -163,6 +168,10 @@ h1 {
 }
 
 /* ------------------------------------------------------------ historial */
+
+/* El "← Inicio" de una tablet compartida. Se distingue de "Cambiar" porque hace algo
+   distinto: Cambiar se queda en el sector, Inicio se va de él. */
+.btn-txt.inicio { border-color: var(--acento-alto); color: var(--texto); }
 
 /* ------------------------------------------------------------ observación */
 /* Botones propios y no .btn-seguir: ese está pensado para el fondo VERDE de la
@@ -174,7 +183,7 @@ h1 {
 .btn-obs {
   min-height: 78px;
   padding: 0 34px;
-  font: 800 22px/1 inherit;
+  font-family: inherit; font-size: 22px; font-weight: 800; line-height: 1;
   color: var(--texto);
   background: var(--panel-alto);
   border: 2px solid var(--borde);
@@ -199,7 +208,7 @@ h1 {
   min-width: 0;
   max-width: 86px;
   min-height: 62px;
-  font: 700 25px/1 inherit;
+  font-family: inherit; font-size: 25px; font-weight: 700; line-height: 1;
   color: var(--texto);
   background: var(--panel-alto);
   border: 2px solid var(--borde);
@@ -446,7 +455,7 @@ h1 {
 
 .tecla {
   min-height: 82px;
-  font: 800 34px/1 inherit;
+  font-family: inherit; font-size: 34px; font-weight: 800; line-height: 1;
   color: var(--texto);
   background: var(--panel-alto);
   border: 2px solid var(--borde);
@@ -563,7 +572,7 @@ h1 {
 
 .btn-cerrar {
   margin-left: auto; min-height: 72px; padding: 0 32px;
-  font: 800 21px/1 inherit; color: #fff;
+  font-family: inherit; font-size: 21px; font-weight: 800; line-height: 1; color: #fff;
   background: var(--acento); border: 2px solid var(--acento-alto);
   border-radius: 12px; cursor: pointer;
 }
@@ -650,7 +659,7 @@ h1 {
 
 .btn-seguir {
   min-height: 88px; padding: 0 44px;
-  font: 800 26px/1 inherit; color: #fff;
+  font-family: inherit; font-size: 26px; font-weight: 800; line-height: 1; color: #fff;
   background: rgba(255, 255, 255, 0.16);
   border: 2px solid rgba(255, 255, 255, 0.55);
   border-radius: 12px; cursor: pointer;

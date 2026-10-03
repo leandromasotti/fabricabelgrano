@@ -10,6 +10,7 @@
 import {
   $, hhmm, cola, red, horaServidor, pintarEstado, postear, sincronizar,
   cargarCatalogo, configurarTablet, botones, hacerPasos, pintarMigas, cuentaRegresiva, registrarSW,
+  configurarVuelta,
 } from '/comun.js'
 
 const VENTANA_DESHACER = 60
@@ -622,6 +623,7 @@ function aviso(texto) {
 
 const catalogo = await cargarCatalogo('pedidos')
 configurarTablet(catalogo)
+configurarVuelta()
 
 botones($('op-operarios'), catalogo.operarios, (o) => {
   est.operario = o

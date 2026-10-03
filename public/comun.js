@@ -191,6 +191,14 @@ export function hacerPasos(nombres, pantallaCompleta = []) {
     for (const n of nombres) $(`paso-${n}`).hidden = n !== cual
     const completa = pantallaCompleta.includes(cual)
 
+    // El boton de volver al inicio aparece SOLO en el primer paso.
+    //
+    // Irse a mitad de una carga perderia lo tecleado, y en una pantalla que se opera con
+    // guantes el toque equivocado pasa. En el primer paso no hay nada que perder, y para
+    // salir desde mas adentro ya esta "Cambiar", que vuelve justamente ahi.
+    const inicio = document.getElementById('btn-inicio')
+    if (inicio) inicio.hidden = cual !== nombres[0]
+
     const historial = document.querySelector('.historial')
     // Las dos condiciones se combinan: la opcion decide si existe, el paso decide si
     // estorba. Con la opcion apagada no hay paso que lo vuelva a mostrar.
@@ -241,6 +249,33 @@ export function cuentaRegresiva(segundos, elSpan, alTerminar) {
 
 export function registrarSW() {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {})
+}
+
+// ---------------------------------------------------------------- volver al inicio
+//
+// Una tablet puede atender MAS DE UN SECTOR: queseria y saladero estan uno al lado del
+// otro y no siempre justifican dos tablets. En ese caso se abre /planta.html, que
+// pregunta a cual se va, y cada sector recibe en la URL a donde volver.
+//
+// Va por query y no por configuracion a proposito: asi la MISMA pagina sirve para una
+// tablet dedicada (se abre /queseria.html y no hay boton de volver, porque no hay a
+// donde) y para una compartida (se abre /queseria.html?volver=/planta.html y aparece).
+// Lo decide la URL del kiosco, que es justo donde se decide que hace cada tablet.
+
+export function configurarVuelta() {
+  const btn = document.getElementById('btn-inicio')
+  if (!btn) return
+  const destino = new URLSearchParams(location.search).get('volver')
+  // Solo rutas de este mismo sitio. `//otro.com` es una URL absoluta disfrazada de
+  // ruta, asi que se descarta explicitamente.
+  const seguro = destino?.startsWith('/') && !destino.startsWith('//') ? destino : null
+  if (!seguro) {
+    btn.remove()
+    return
+  }
+  btn.onclick = () => {
+    location.href = seguro
+  }
 }
 
 // ---------------------------------------------------------------- teclado de letras

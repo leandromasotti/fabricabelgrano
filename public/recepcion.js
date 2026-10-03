@@ -12,6 +12,7 @@
 import {
   $, hhmm, cola, red, horaServidor, pintarEstado, postear, sincronizar,
   cargarCatalogo, configurarTablet, botones, hacerPasos, pintarMigas, cuentaRegresiva, registrarSW,
+  configurarVuelta,
   armarTecladoLetras,
 } from '/comun.js'
 
@@ -305,6 +306,7 @@ async function refrescarHoy() {
 
 const catalogo = await cargarCatalogo('recepcion')
 configurarTablet(catalogo)
+configurarVuelta()
 const tambos = await (await fetch('/api/tambos')).json().catch(() => [])
 
 botones($('op-operarios'), catalogo.operarios, (o) => {
