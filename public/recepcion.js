@@ -27,6 +27,17 @@ const est = {
   ultimo: null, timer: null,
   // Lo observado de la entrega que se acaba de registrar.
   motivo: null, nota: '',
+  // OJO: `ultimo` y `ultimoDelDia` NO son lo mismo, y confundirlos ya rompio algo.
+  //
+  //   ultimo       la entrega que acaba de registrar ESTA tablet. Lleva client_id, y de
+  //                ahi dependen el DESHACER y la observacion.
+  //   ultimoDelDia la ultima del dia segun el servidor, que puede ser de otra tablet y
+  //                NO trae client_id. Es solo para mostrarla en la franja.
+  //
+  // Al agregar la franja, refrescarHoy pisaba `ultimo` con la fila del servidor y la
+  // observacion salia sin client_id: el servidor la rechazaba con 400 y la nota se
+  // perdia en silencio.
+  ultimoDelDia: null,
   // De que dia se esta cargando. null = hoy, que es el caso normal.
   //
   // Persiste entre cargas A PROPOSITO: el lunes se cargan varias entregas del sabado
@@ -112,14 +123,15 @@ function pintarFecha() {
 function pintarUltimo() {
   const u = $('ultimo-cargado')
   const n = est.cargadoHoy.size
-  if (!est.ultimo) {
+  const ult = est.ultimoDelDia
+  if (!ult) {
     u.textContent = n ? `${n} tambo${n === 1 ? '' : 's'} cargados hoy` : 'Todavía no se cargó ningún tambo hoy'
     return
   }
   u.replaceChildren()
   const f = document.createElement('strong')
-  f.textContent = `Último: Tambo ${est.ultimo.tambo} · ${Number(est.ultimo.litros).toLocaleString('es-AR')} L`
-  u.append(f, document.createTextNode(` · ${hhmm(est.ultimo.fecha_hora)}`))
+  f.textContent = `Último: Tambo ${ult.tambo} · ${Number(ult.litros).toLocaleString('es-AR')} L`
+  u.append(f, document.createTextNode(` · ${hhmm(ult.fecha_hora)}`))
 }
 
 // Los botones de tambo se repintan despues de cada carga para que la marca este al dia.
@@ -158,7 +170,7 @@ function pintarFechas() {
     // Las marcas tienen que pasar a ser las de ESE día: si no, elegir el sábado dejaría
     // los tildes del lunes y el operario saltearía tambos que todavía no cargó.
     est.cargadoHoy = new Map()
-    est.ultimo = null
+    est.ultimoDelDia = null
     pintarTambos()
     pintarUltimo()
     refrescarHoy()
@@ -403,7 +415,7 @@ function agregarFila(r, pendiente) {
   // se cargó ya. Es lo mismo que evita cargar dos veces el mismo tambo.
   const previo = est.cargadoHoy.get(r.tambo) ?? { litros: 0, veces: 0 }
   est.cargadoHoy.set(r.tambo, { litros: previo.litros + r.litros, veces: previo.veces + 1 })
-  est.ultimo = r
+  est.ultimoDelDia = r
   pintarTambos()
   pintarUltimo()
 }
@@ -428,7 +440,9 @@ async function refrescarHoy() {
       est.cargadoHoy.set(r.tambo, { litros: previo.litros + r.litros, veces: previo.veces + 1 })
     }
     // `recepciones` viene ordenado por fecha_hora DESC: el primero es el último cargado.
-    est.ultimo = vivas[0] ?? null
+    // Va a ultimoDelDia y NO a ultimo: esta fila viene del servidor y no trae client_id,
+    // que es lo que necesitan el DESHACER y la observación.
+    est.ultimoDelDia = vivas[0] ?? null
     pintarTambos()
     pintarUltimo()
   } catch {

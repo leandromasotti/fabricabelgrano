@@ -251,6 +251,76 @@ export function registrarSW() {
   if ('serviceWorker' in navigator) navigator.serviceWorker.register('/sw.js').catch(() => {})
 }
 
+// ---------------------------------------------------------------- teclado fisico
+//
+// Las tablets van a tener teclado, y en algunos puestos un pad numerico. Hasta acá todo
+// era solo tactil: tipear los litros con el pad no hacia nada.
+//
+// NO se duplica la logica de carga. Se busca el teclado QUE ESTA EN PANTALLA y se le
+// hace .click() al boton que corresponde, asi que teclear y tocar ejecutan exactamente
+// el mismo codigo. Es lo que hace imposible que una via acepte algo que la otra no, que
+// es como se arruinan estas cosas.
+//
+// Vive en comun.js y se engancha al cargar el modulo, no con una llamada por tablet: ya
+// pasó con el boton de volver al inicio que se agregue a seis pantallas y se olvide en
+// dos. Todas las tablets importan comun.js, asi que todas lo tienen.
+
+const esDigito = (k) => k.length === 1 && k >= '0' && k <= '9'
+
+// El que se ve. `offsetParent` es null para lo que esta oculto, que es como los pasos se
+// esconden. Nunca hay dos teclados visibles a la vez.
+const tecladoVisible = (selector) =>
+  [...document.querySelectorAll(selector)].find((n) => n.offsetParent !== null) ?? null
+
+document.addEventListener('keydown', (e) => {
+  // Ctrl+R, Alt+Tab y companía siguen siendo del navegador.
+  if (e.ctrlKey || e.altKey || e.metaKey) return
+  // Hoy las tablets no tienen ningun campo de texto, pero si alguna vez tienen uno,
+  // escribir ahi no tiene que terminar tocando botones.
+  if (e.target?.closest?.('input, textarea, select')) return
+
+  const numerico = tecladoVisible('.teclado')
+  const letras = tecladoVisible('.teclado-letras')
+  const activo = numerico ?? letras
+  if (!activo) return
+
+  const botones = [...activo.querySelectorAll('button')]
+  const tocar = (b) => {
+    if (!b || b.disabled) return
+    // preventDefault importa: sin el, Backspace puede navegar hacia atras y Enter
+    // disparar dos veces. En una tablet amurada, salir de la pagina es un problema.
+    e.preventDefault()
+    b.click()
+  }
+
+  if (e.key === 'Backspace') {
+    return tocar(botones.find((b) => b.classList.contains('borrar')))
+  }
+
+  if (e.key === 'Enter') {
+    // En el numerico el OK esta adentro del teclado; en el de letras, GUARDAR esta
+    // afuera, al lado del texto que se va escribiendo.
+    return tocar(
+      numerico
+        ? activo.querySelector('.ok, .agregar')
+        : document.getElementById('btn-nota-ok'),
+    )
+  }
+
+  if (numerico && esDigito(e.key)) {
+    return tocar(botones.find((b) => b.textContent === e.key))
+  }
+
+  if (letras) {
+    if (e.key === ' ') return tocar(botones.find((b) => b.classList.contains('ancha')))
+    // La ñ incluida: el teclado en pantalla la tiene y el fisico tambien.
+    if (/^[a-zñáéíóúü]$/i.test(e.key)) {
+      const L = e.key.toUpperCase()
+      return tocar(botones.find((b) => b.textContent === L))
+    }
+  }
+})
+
 // ---------------------------------------------------------------- volver al inicio
 //
 // Una tablet puede atender MAS DE UN SECTOR: queseria y saladero estan uno al lado del
