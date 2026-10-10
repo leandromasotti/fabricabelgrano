@@ -168,6 +168,61 @@ function pintarTambos() {
   })
 }
 
+// Hasta donde se puede ir para atras. Tiene que coincidir con el tope del servidor
+// (TOPE_DIAS en index.js): si la pantalla ofreciera mas, el operario elegiria una fecha
+// que despues se rechaza, y el error aparece recien al final de la carga.
+const TOPE_DIAS_ATRAS = 30
+
+// Elegir un dia cualquiera. Pasa poco —una semana entera sin cargar, un feriado largo—
+// y por eso vive abajo de los botones y no en lugar de ellos.
+function elegirDia(iso) {
+  // Si eligio HOY por el calendario, es "hoy" y no "otro dia": asi no queda el boton
+  // amarillo ni se manda una fecha de entrega que no hace falta.
+  est.dia = iso === isoLocal(new Date()) ? null : iso
+  pintarFecha()
+  irA('tambo')
+  // Las marcas pasan a ser las de ESE dia: si no, quedarian los tildes del dia anterior
+  // y el operario saltearia tambos que todavia no cargo.
+  est.cargadoHoy = new Map()
+  est.ultimoDelDia = null
+  pintarTambos()
+  pintarUltimo()
+  refrescarHoy()
+}
+
+// El texto de abajo del calendario. Vuelve al mensaje normal cada vez que se entra al
+// paso: si no, el error de un intento anterior queda pegado y contradice lo que se ve.
+function avisoLimite() {
+  const tope = new Date()
+  tope.setDate(tope.getDate() - TOPE_DIAS_ATRAS)
+  $('limite-fecha').textContent =
+    `Desde el ${diaCorto(isoLocal(tope))} en adelante. Para algo más viejo, se corrige desde el escritorio.`
+}
+
+function configurarFechaLibre() {
+  const input = $('fecha-libre')
+  const hoy = new Date()
+  const tope = new Date(hoy)
+  tope.setDate(tope.getDate() - TOPE_DIAS_ATRAS)
+
+  input.max = isoLocal(hoy)
+  input.min = isoLocal(tope)
+  input.value = est.dia ?? isoLocal(hoy)
+  avisoLimite()
+
+  $('btn-fecha-libre').addEventListener('click', () => {
+    const v = input.value
+    // El navegador ya respeta min/max al elegir, pero tecleando se puede escribir
+    // cualquier cosa. Mejor no dejarlo pasar que mostrar un error del servidor despues
+    // de cargar los litros.
+    if (!v || v < input.min || v > input.max) {
+      $('limite-fecha').textContent = `Esa fecha no se puede: tiene que estar entre el ${diaCorto(input.min)} y hoy.`
+      return
+    }
+    elegirDia(v)
+  })
+}
+
 // Los ultimos siete dias. Alcanza para el fin de semana largo y evita un calendario.
 function pintarFechas() {
   const hoy = new Date()
@@ -177,18 +232,9 @@ function pintarFechas() {
     d.setDate(d.getDate() - i)
     opciones.push({ iso: isoLocal(d), nombre: i === 1 ? `Ayer · ${diaCorto(isoLocal(d))}` : diaCorto(isoLocal(d)) })
   }
-  botones($('op-fechas'), opciones, (o) => {
-    est.dia = o.iso
-    pintarFecha()
-    irA('tambo')
-    // Las marcas tienen que pasar a ser las de ESE día: si no, elegir el sábado dejaría
-    // los tildes del lunes y el operario saltearía tambos que todavía no cargó.
-    est.cargadoHoy = new Map()
-    est.ultimoDelDia = null
-    pintarTambos()
-    pintarUltimo()
-    refrescarHoy()
-  }, (o) => o.nombre)
+  // Los dos caminos —los botones y el calendario— terminan en elegirDia: si cada uno
+  // hiciera lo suyo, uno de los dos se olvidaría de refrescar las marcas del día.
+  botones($('op-fechas'), opciones, (o) => elegirDia(o.iso), (o) => o.nombre)
 }
 
 // ---------------------------------------------------------------- teclados
@@ -484,7 +530,13 @@ pintarTambos()
 pintarFechas()
 pintarFecha()
 pintarUltimo()
-$('btn-fecha').addEventListener('click', () => irA('fecha'))
+configurarFechaLibre()
+$('btn-fecha').addEventListener('click', () => {
+  // El calendario arranca en el día que está puesto, no en lo último que alguien tecleó.
+  $('fecha-libre').value = est.dia ?? isoLocal(new Date())
+  avisoLimite()
+  irA('fecha')
+})
 
 armarTeclado($('teclado-litros'), teclaLitros, 'tecla-litros', 'SIGUE').onclick = () => {
   est.tempStr = ''

@@ -228,6 +228,46 @@ h1 {
   color: var(--bien, #3fb27f);
 }
 
+/* El calendario del paso de fecha. Secundario a propósito: separado por una línea y más
+   abajo, para que los botones de los últimos días sigan siendo lo primero que se ve. */
+.otra-fecha {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--borde);
+  flex-shrink: 0;
+}
+
+.otra-fecha label {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--texto-tenue);
+}
+
+/* Alto de botón: se toca con el dedo igual que todo lo demás. */
+.otra-fecha input[type='date'] {
+  min-height: 62px;
+  padding: 0 16px;
+  font-family: inherit;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--texto);
+  background: var(--panel-alto);
+  border: 2px solid var(--borde);
+  border-radius: 10px;
+  /* El icono del selector viene oscuro sobre fondo oscuro y no se ve. */
+  color-scheme: dark;
+}
+
+.otra-fecha .nota-limite {
+  font-size: 15px;
+  color: var(--texto-tenue);
+  flex-basis: 100%;
+}
+
 /* ------------------------------------------------------------ observación */
 /* Botones propios y no .btn-seguir: ese está pensado para el fondo VERDE de la
    confirmación (texto blanco sobre un velo claro) y acá el fondo es el panel oscuro,
