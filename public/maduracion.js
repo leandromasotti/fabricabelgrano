@@ -346,7 +346,14 @@ $('btn-seguir').addEventListener('click', () => {
   clearInterval(est.timer)
   reiniciar()
 })
-$('btn-volver').addEventListener('click', () => (est.tipo ? elegirTipo(est.tipo) : irA('tipo')))
+// Un paso para atrás, explícito. Antes era `est.tipo ? elegirTipo(est.tipo) : irA('tipo')`,
+// que desde el paso del LOTE volvía a abrir el paso del lote: el botón no hacía nada y no
+// había forma de corregir si te equivocabas de entrada/salida.
+$('btn-volver').addEventListener('click', () => {
+  const paso = ['operario', 'tipo', 'tina', 'cantidad', 'listo'].find((p) => !$(`paso-${p}`).hidden)
+  if (paso === 'cantidad') return elegirTipo(est.tipo) // vuelve al lote, recargando la lista
+  if (paso === 'tina') return irA('tipo')
+})
 $('btn-reiniciar').addEventListener('click', () => reiniciar(false))
 red.alCambiar = refrescarHoy
 

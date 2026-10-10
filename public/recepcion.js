@@ -49,10 +49,24 @@ const est = {
   cargadoHoy: new Map(),
 }
 
-const mostrar = hacerPasos(
-  ['operario', 'tambo', 'fecha', 'litros', 'temperatura', 'listo', 'observacion', 'nota'],
-  ['litros', 'temperatura', 'observacion', 'nota']
-)
+// La lista de pasos, UNA sola vez. Estaba escrita en tres lugares y al agregar el paso
+// de fecha hubo que acordarse de los tres: justo el tipo de duplicado que se
+// desincroniza sin avisar.
+const PASOS = ['operario', 'tambo', 'fecha', 'litros', 'temperatura', 'listo', 'observacion', 'nota']
+
+// A dónde vuelve cada paso. Explícito y no deducido del estado: antes el botón miraba si
+// había una temperatura tecleada para adivinar dónde estaba parado, y fallaba en los dos
+// sentidos —desde temperatura sin teclear nada se saltaba los litros, y desde litros con
+// una temperatura previa no hacía nada—. Reportado desde la planta el 2026-10-10.
+const PASO_ANTERIOR = {
+  fecha: 'tambo',
+  litros: 'tambo',
+  temperatura: 'litros',
+}
+
+const mostrar = hacerPasos(PASOS, ['litros', 'temperatura', 'observacion', 'nota'])
+
+const pasoActual = () => PASOS.find((p) => !$(`paso-${p}`).hidden)
 
 const gradosDe = (str) => (Number(str || '0') / 10).toFixed(1).replace('.', ',')
 
@@ -498,14 +512,14 @@ $('btn-seguir').addEventListener('click', () => {
   reiniciar(true)
 })
 $('btn-volver').addEventListener('click', () => {
-  // Desde la observación se vuelve a la confirmación, no al flujo de carga: la entrega
-  // ya está registrada y volver a los litros daría a entender que se está rehaciendo.
-  const paso = ['operario', 'tambo', 'fecha', 'litros', 'temperatura', 'listo', 'observacion', 'nota']
-    .find((p) => !$(`paso-${p}`).hidden)
+  const paso = pasoActual()
+  // La observación y la nota son aparte: la entrega YA está registrada, así que volver
+  // al flujo de carga daría a entender que se está rehaciendo.
   if (paso === 'nota') return irA('observacion')
   if (paso === 'observacion') return volverAConfirmacion()
-  if (paso === 'fecha') return irA('tambo')
-  irA(est.tempStr !== '' ? 'litros' : 'tambo')
+  // El resto sale de la tabla, un paso para atrás y sin adivinar.
+  const atras = PASO_ANTERIOR[paso]
+  if (atras) irA(atras)
 })
 $('btn-reiniciar').addEventListener('click', () => reiniciar(false))
 
