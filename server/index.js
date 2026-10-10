@@ -2718,6 +2718,54 @@ app.get('/api/reportes.csv', async (req, res) => {
   res.type('text/csv').attachment(`produccion-${desde}_${hasta}.csv`).send(csv)
 })
 
+// ---------------------------------------------------------------- manifiesto (PWA)
+//
+// Esto es lo que hace que la tablet se abra a PANTALLA COMPLETA, sin barra de
+// direcciones. Chrome en Android solo ofrece "Instalar app" si el manifiesto declara
+// nombre, display e ICONOS de al menos 192 px — sin iconos abre una pestaña comun.
+//
+// Va como ruta y no como archivo porque cada tablet necesita su PROPIO start_url: la
+// amurada en lecheria tiene que abrir en lecheria, no en el indice de escritorio que
+// dice explicitamente que no va en ninguna tablet.
+//
+//   <link rel="manifest" href="/manifest.json?para=lecheria">
+//
+// El scope queda en "/" a proposito: la tablet compartida navega entre sectores, y con
+// un scope mas angosto esas navegaciones saldrian de la app a una pestaña del navegador.
+
+const INICIO_PWA = {
+  planta: { url: '/planta.html', nombre: 'Planta' },
+  recepcion: { url: '/recepcion.html', nombre: 'Recepción' },
+  lecheria: { url: '/lecheria.html', nombre: 'Lechería' },
+  yogures: { url: '/yogures.html', nombre: 'Yogures' },
+  queseria: { url: '/queseria.html', nombre: 'Quesería' },
+  saladero: { url: '/saladero.html', nombre: 'Saladero' },
+  envasado: { url: '/envasado.html', nombre: 'Envasado' },
+  maduracion: { url: '/maduracion.html', nombre: 'Maduración' },
+  pedidos: { url: '/pedidos.html', nombre: 'Pedidos' },
+}
+
+app.get('/manifest.json', (req, res) => {
+  const sector = INICIO_PWA[req.query.para]
+  res.type('application/manifest+json').json({
+    name: sector ? `Belgrano · ${sector.nombre}` : 'Lácteos Belgrano · Producción',
+    // El nombre corto es el que se ve abajo del icono: tiene que decir QUE TABLET es,
+    // porque en una planta con seis iguales el icono solo no alcanza.
+    short_name: sector ? sector.nombre : 'Producción',
+    start_url: sector ? sector.url : '/',
+    scope: '/',
+    display: 'fullscreen',
+    orientation: 'landscape',
+    background_color: '#101418',
+    theme_color: '#101418',
+    icons: [
+      { src: '/icono-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: '/icono-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+      { src: '/icono-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+    ],
+  })
+})
+
 // ---------------------------------------------------------------- estatico
 
 app.use(
