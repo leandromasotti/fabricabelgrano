@@ -196,6 +196,37 @@ const qRec = {
   motivos: db.prepare(
     'SELECT id, nombre FROM motivos_recepcion WHERE activo = 1 ORDER BY orden, nombre'
   ),
+
+  // En cuántos de los últimos días entregó cada tambo.
+  //
+  // Es lo que separa "este tambo no entrega hoy" de "falta cargarlo". Sin eso, una
+  // planilla con 15 tambos y 9 entregas muestra 6 casilleros en rojo todos los días, y
+  // un rojo que siempre está no avisa de nada.
+  diasConEntrega: db.prepare(`
+    SELECT t.numero, COUNT(DISTINCT date(r.fecha_hora, 'localtime')) AS dias
+      FROM recepciones r
+      JOIN tambos t ON t.id = r.tambo_id
+     WHERE r.anulado = 0
+       AND date(r.fecha_hora, 'localtime') BETWEEN date(?, '-14 days') AND ?
+     GROUP BY t.id, t.numero
+  `),
+
+  // Las entregas del día con todo lo que la planilla muestra en cada celda.
+  delDiaCompleto: db.prepare(`
+    SELECT r.id, r.client_id, r.tambo_id, t.numero AS tambo, r.fecha_hora, r.litros,
+           r.temperatura, r.observacion, mo.nombre AS motivo, r.motivo_id
+      FROM recepciones r
+      JOIN tambos t ON t.id = r.tambo_id
+      LEFT JOIN motivos_recepcion mo ON mo.id = r.motivo_id
+     WHERE r.anulado = 0 AND date(r.fecha_hora, 'localtime') = ?
+     ORDER BY r.fecha_hora
+  `),
+
+  // Todos, no sólo los activos: los de baja son los "ocasionales" —otra fábrica que
+  // nos manda leche para elaborar— y tienen que poder agregarse a un día puntual.
+  todosLosTambos: db.prepare(
+    'SELECT id, numero, nombre, activo FROM tambos ORDER BY numero'
+  ),
   anular: db.prepare(
     'UPDATE recepciones SET anulado = 1, anulado_en = ? WHERE id = ? AND anulado = 0'
   ),
@@ -423,6 +454,54 @@ app.post('/api/recepciones/:id/anular', async (req, res) => {
 })
 
 // El reporte por tambo: lo que hoy se hace sumando a mano.
+// La planilla del día: una fila por tambo, con sus entregas.
+//
+// Va en UNA sola llamada y no en tres porque la tablet la pide al abrir y después de
+// cada carga. Con tres llamadas, una que falle deja la pantalla a medias y el operario
+// no sabe si lo que ve está completo.
+//
+// `habitual` lo decide el servidor y no la pantalla: es una regla de negocio —qué tambo
+// se espera hoy— y tiene que salir del mismo lugar para todos.
+app.get('/api/recepciones/planilla', async (req, res) => {
+  const fecha = req.query.fecha ?? hoyLocal()
+
+  const [tambos, entregas, dias] = await Promise.all([
+    qRec.todosLosTambos.all(),
+    qRec.delDiaCompleto.all(fecha),
+    qRec.diasConEntrega.all(fecha, fecha),
+  ])
+
+  // Tres días de los últimos catorce. Con menos, un tambo que entregó una vez queda
+  // marcado como esperado para siempre; con más, uno que entrega semana por medio
+  // nunca entra.
+  const MINIMO_PARA_HABITUAL = 3
+  const porNumero = new Map(dias.map((d) => [d.numero, Number(d.dias)]))
+
+  const porTambo = new Map()
+  for (const e of entregas) {
+    if (!porTambo.has(e.tambo)) porTambo.set(e.tambo, [])
+    porTambo.get(e.tambo).push(e)
+  }
+
+  const filas = tambos.map((t) => ({
+    ...t,
+    activo: Boolean(t.activo),
+    habitual: (porNumero.get(t.numero) ?? 0) >= MINIMO_PARA_HABITUAL,
+    entregas: porTambo.get(t.numero) ?? [],
+  }))
+
+  const vivas = entregas.length
+  res.json({
+    fecha,
+    tambos: filas,
+    total_litros: entregas.reduce((n, e) => n + e.litros, 0),
+    entregas: vivas,
+    // Cuántos tambos ya tienen algo cargado, sobre cuántos se esperan hoy.
+    cargados: filas.filter((f) => f.entregas.length).length,
+    esperados: filas.filter((f) => f.activo && f.habitual).length,
+  })
+})
+
 app.get('/api/recepciones/reporte', async (req, res) => {
   const [desde, hasta] = rango(req)
   const tambos = tambosPedidos(req)
@@ -2736,6 +2815,7 @@ app.get('/api/reportes.csv', async (req, res) => {
 const INICIO_PWA = {
   planta: { url: '/planta.html', nombre: 'Planta' },
   recepcion: { url: '/recepcion.html', nombre: 'Recepción' },
+  'recepcion-planilla': { url: '/recepcion-planilla.html', nombre: 'Recepción' },
   lecheria: { url: '/lecheria.html', nombre: 'Lechería' },
   yogures: { url: '/yogures.html', nombre: 'Yogures' },
   queseria: { url: '/queseria.html', nombre: 'Quesería' },

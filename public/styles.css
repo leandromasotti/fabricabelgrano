@@ -268,6 +268,133 @@ h1 {
   flex-basis: 100%;
 }
 
+/* ------------------------------------------------------------ planilla de recepción */
+/* Dos columnas de tambos y no una: con 15 en una sola columna cada fila queda en ~39 px,
+   demasiado chico hasta con mouse. Partido en dos, van a ~72 px y entra todo sin scroll,
+   que es el punto de la planilla —ver el conjunto—. */
+
+.planilla {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 18px;
+  align-content: start;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+/* Columnas FIJAS y no flex: con flex, la fila que tiene dos entregas corre el "+" a otra
+   posición que la que no tiene ninguna, y la planilla se lee despareja. Acá todas las
+   filas tienen la misma grilla, así que las celdas quedan una abajo de la otra como en
+   una tabla. `--entregas` lo pone el JS según el día: normalmente 2. */
+.fila-tambo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) repeat(var(--entregas, 2), 96px);
+  align-items: stretch;
+  gap: 8px;
+  min-height: 66px;
+}
+
+.fila-tambo .quien {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 0 12px;
+  background: var(--panel);
+  border: 2px solid var(--borde);
+  border-radius: 10px;
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--texto);
+}
+
+.fila-tambo .numero {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--texto-tenue);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.fila-tambo .nombre {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* El semáforo.
+   Verde = cargado. Rojo = se esperaba y falta. Gris = este tambo no entrega siempre, así
+   que su ausencia no es una alarma. Sin esa tercera categoría habría seis rojos todos los
+   días en una jornada normal, y un rojo que siempre está no avisa de nada. */
+.fila-tambo .luz {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--borde);
+}
+
+.fila-tambo.cargado .luz { background: var(--bien, #3fb27f); }
+.fila-tambo.falta .luz { background: var(--alerta, #e0674f); }
+.fila-tambo.cargado .quien { border-color: var(--bien, #3fb27f); }
+
+/* Cada entrega del día es una celda. La segunda sólo aparece cuando hay una primera:
+   los datos dicen que una segunda entrega pasa como mucho una vez por día. */
+.celda {
+  background: var(--panel-alto);
+  border: 2px solid var(--borde);
+  border-radius: 10px;
+  color: var(--texto);
+  font-family: inherit;
+  font-size: 20px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  padding: 0 6px;
+}
+
+.celda:active { transform: scale(0.96); }
+.celda.llena { background: color-mix(in srgb, var(--bien, #3fb27f) 18%, var(--panel-alto)); border-color: var(--bien, #3fb27f); }
+.celda.sumar { font-size: 26px; color: var(--texto-tenue); font-weight: 400; }
+/* Los lugares que sobran de la grilla no son botones: se dejan vacíos para que el "+"
+   sea siempre uno solo por fila, el de la entrega que sigue. */
+.celda.hueco { visibility: hidden; }
+.celda small { display: block; font-size: 12px; font-weight: 600; color: var(--texto-tenue); margin-top: 2px; }
+/* La entrega con observación se marca: es lo que hay que mirar antes de liquidar. */
+.celda.observada { border-color: #c9a227; }
+
+.pie-planilla {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--borde);
+  flex-shrink: 0;
+}
+
+/* Litros y temperatura en la misma pantalla, un solo teclado. El campo activo se
+   resalta, y con el numpad se pasa de uno al otro con Enter. */
+.dos-campos { display: flex; gap: 16px; }
+
+.campo {
+  min-width: 190px;
+  padding: 10px 20px;
+  background: var(--panel);
+  border: 2px solid var(--borde);
+  border-radius: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: center;
+}
+
+.campo.activo { border-color: var(--acento-alto); background: var(--panel-alto); }
+.campo .valor { display: block; font-size: 40px; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--texto); }
+.campo .valor.vacio { color: var(--borde); }
+.campo .unidad { display: block; font-size: 13px; color: var(--texto-tenue); text-transform: uppercase; letter-spacing: 1px; }
+
 /* ------------------------------------------------------------ observación */
 /* Botones propios y no .btn-seguir: ese está pensado para el fondo VERDE de la
    confirmación (texto blanco sobre un velo claro) y acá el fondo es el panel oscuro,
