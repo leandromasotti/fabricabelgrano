@@ -300,10 +300,13 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
     // En el numerico el OK esta adentro del teclado; en el de letras, GUARDAR esta
     // afuera, al lado del texto que se va escribiendo.
+    // En el numerico el OK esta adentro del teclado. En el de letras esta AFUERA, en el
+    // paso, asi que se lo busca ahi y no por un id fijo: hay mas de un paso con teclado
+    // de letras y un id fijo aprieta siempre el mismo, este o no en pantalla.
     return tocar(
       numerico
         ? activo.querySelector('.ok, .agregar')
-        : document.getElementById('btn-nota-ok'),
+        : activo.closest('.paso')?.querySelector('.btn-obs.principal'),
     )
   }
 

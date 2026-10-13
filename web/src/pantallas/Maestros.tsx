@@ -434,11 +434,17 @@ function Tambos({ tambos }: { tambos: TamboMaestro[] }) {
   const crear = useCrearMaestro()
   const [numero, setNumero] = useState('')
   const [nombre, setNombre] = useState('')
+  /*
+   * Un tambo nuevo arranca EXCEPCIONAL. La lista de los que entregan todos los días ya
+   * está cargada, así que el que se da de alta hoy es, por definición, uno que apareció.
+   * Si después entra en la rutina se destilda y pasa a la planilla diaria.
+   */
+  const [ocasional, setOcasional] = useState(true)
 
   return (
     <Panel
       titulo="Tambos"
-      nota="El número es la clave con la que llegan: el remito del caudalímetro dice “tambo 14”, no un nombre"
+      nota="El número es la clave con la que llegan: el remito del caudalímetro dice “tambo 14”, no un nombre. Los habituales van en la planilla diaria; los excepcionales, en “Otros tambos”"
     >
       <ul className="flex flex-col">
         {tambos.map((t) => (
@@ -451,11 +457,12 @@ function Tambos({ tambos }: { tambos: TamboMaestro[] }) {
         puedeCrear={Number(numero) >= 1}
         alCrear={() =>
           crear.mutate(
-            { tipo: 'tambos', datos: { numero: Number(numero), nombre: nombre.trim() } },
+            { tipo: 'tambos', datos: { numero: Number(numero), nombre: nombre.trim(), ocasional } },
             {
               onSuccess: () => {
                 setNumero('')
                 setNombre('')
+                setOcasional(true)
               },
             },
           )
@@ -463,6 +470,10 @@ function Tambos({ tambos }: { tambos: TamboMaestro[] }) {
       >
         <Entrada valor={numero} alCambiar={setNumero} etiqueta="Número de tambo" tipo="number" ancho="w-24" placeholder="14" />
         <Entrada valor={nombre} alCambiar={setNombre} etiqueta="Nombre del tambo" ancho="w-64" placeholder="Nombre (opcional)" />
+        <label className="flex items-center gap-1.5 text-[12.5px] text-tinta-2">
+          <input type="checkbox" checked={ocasional} onChange={(e) => setOcasional(e.target.checked)} />
+          entrega de vez en cuando
+        </label>
       </Alta>
     </Panel>
   )
@@ -471,8 +482,12 @@ function Tambos({ tambos }: { tambos: TamboMaestro[] }) {
 function FilaTambo({ tambo: t }: { tambo: TamboMaestro }) {
   const [numero, setNumero] = useState(String(t.numero))
   const [nombre, setNombre] = useState(t.nombre ?? '')
+  const [ocasional, setOcasional] = useState(Boolean(t.ocasional))
   const cambio =
-    (Number(numero) !== t.numero || nombre.trim() !== (t.nombre ?? '')) && Number(numero) >= 1
+    (Number(numero) !== t.numero ||
+      nombre.trim() !== (t.nombre ?? '') ||
+      ocasional !== Boolean(t.ocasional)) &&
+    Number(numero) >= 1
 
   return (
     <Fila
@@ -485,7 +500,11 @@ function FilaTambo({ tambo: t }: { tambo: TamboMaestro }) {
       alGuardar={(editar, avisar) =>
         cambio &&
         editar.mutate(
-          { tipo: 'tambos', id: t.id, datos: { numero: Number(numero), nombre: nombre.trim() } },
+          {
+            tipo: 'tambos',
+            id: t.id,
+            datos: { numero: Number(numero), nombre: nombre.trim(), ocasional },
+          },
           { onSuccess: () => avisar('guardado') },
         )
       }
@@ -498,6 +517,10 @@ function FilaTambo({ tambo: t }: { tambo: TamboMaestro }) {
         ancho="w-64"
         placeholder="Sin nombre"
       />
+      <label className="flex items-center gap-1.5 text-[12.5px] text-tinta-2">
+        <input type="checkbox" checked={ocasional} onChange={(e) => setOcasional(e.target.checked)} />
+        entrega de vez en cuando
+      </label>
     </Fila>
   )
 }

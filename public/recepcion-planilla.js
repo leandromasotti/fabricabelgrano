@@ -38,6 +38,10 @@ const est = {
   nota: '',
 }
 
+// Como se nombra un tambo en pantalla. El numero primero: es la clave con la que la
+// fabrica los conoce y lo que dice el remito.
+const comoSeLlama = (t) => `${t.numero}${t.nombre ? ` · ${t.nombre}` : ''}`
+
 const PASOS = ['operario', 'planilla', 'carga', 'fecha', 'ocasional', 'observacion', 'nota']
 const PASO_ANTERIOR = {
   carga: 'planilla',
@@ -88,10 +92,13 @@ async function traerPlanilla() {
 
 // Una fila por tambo: el semaforo, el nombre y una celda por entrega.
 //
-// Se muestran los tambos ACTIVOS mas los de baja que hoy tengan algo cargado: un tambo
-// ocasional agregado a mano tiene que seguir viendose el resto del dia.
+// Van los HABITUALES —los de todos los dias— mas cualquiera que hoy tenga algo cargado.
+// Lo segundo importa: un excepcional que se sumo desde "Otros tambos" tiene que seguir
+// viendose el resto del dia, igual que uno dado de baja que entrego antes de darse.
 function filasVisibles() {
-  return (est.planilla?.tambos ?? []).filter((t) => t.activo || t.entregas.length)
+  return (est.planilla?.tambos ?? []).filter(
+    (t) => (t.activo && !t.ocasional) || t.entregas.length,
+  )
 }
 
 function pintarPlanilla() {
@@ -120,7 +127,12 @@ function pintarPlanilla() {
     numero.textContent = t.numero
     const nombre = document.createElement('span')
     nombre.className = 'nombre'
-    nombre.textContent = t.nombre ?? ''
+    // El excepcional que entrego hoy se ve en la planilla como cualquier otro, pero
+    // marcado: quien mira la planilla tiene que poder distinguir una entrega que se
+    // esperaba de una que no.
+    nombre.textContent = t.ocasional
+      ? `${t.nombre ? `${t.nombre} · ` : ''}excepcional`
+      : (t.nombre ?? '')
     quien.append(luz, numero, nombre)
     fila.append(quien)
 
@@ -195,7 +207,7 @@ function abrirCelda(tambo, entrega) {
 
   const cual = entrega ? 'Corregir' : `${tambo.entregas.length + 1}ª entrega`
   $('titulo-carga').textContent =
-    `Tambo ${tambo.numero}${tambo.nombre ? ` · ${tambo.nombre}` : ''} — ${cual}`
+    `Tambo ${comoSeLlama(tambo)} — ${cual}`
   // Borrar sólo tiene sentido sobre algo ya cargado.
   $('btn-borrar-entrega').hidden = !entrega
   pintarCampos()
@@ -396,30 +408,28 @@ function configurarFechaLibre() {
   })
 }
 
-// ---------------------------------------------------------------- tambo ocasional
+// ---------------------------------------------------------------- otros tambos
 //
-// "A veces nos hacen entrega otras fabricas para que nosotros elaboremos esa leche y es
-// algo excepcional." Se resuelve con los tambos dados de BAJA: no ensucian la planilla
-// de todos los dias y se suman al dia en que aparecen.
+// Los que entregan de vez en cuando. No van en la planilla de todos los dias —ahi un
+// casillero que casi nunca se usa es ruido— pero tienen que poder sumarse al dia en que
+// aparecen.
 //
-// PENDIENTE DE DEFINIR: dar de alta una procedencia nueva desde la tablet. Hoy hay que
-// crearla antes en /app/maestros y dejarla de baja.
+// Si el que llego no esta en la lista, hay que darlo de alta en /app/maestros. Es a
+// proposito: un tambo tiene numero, y el numero es la clave con la que llega el dato
+// —el remito del caudalimetro dice "tambo 14", no un nombre—. Inventarlo desde la tablet
+// significaba inventar tambien el numero.
 
 function pintarOcasionales() {
-  const fuera = (est.planilla?.tambos ?? []).filter((t) => !t.activo && !t.entregas.length)
+  const otros = (est.planilla?.tambos ?? []).filter((t) => t.activo && t.ocasional)
   const aviso = $('aviso-ocasional')
-  if (!fuera.length) {
-    $('op-ocasionales').replaceChildren()
-    aviso.textContent =
-      'No hay ninguna procedencia ocasional cargada. Se agregan desde Datos maestros, dadas de baja: ' +
+  aviso.textContent = otros.length
+    ? 'Si el tambo que entregó no está en esta lista, hay que darlo de alta en Datos maestros.'
+    : 'Todavía no hay tambos excepcionales cargados. Se agregan desde Datos maestros: ' +
       'así no aparecen todos los días y se pueden sumar al día que entregan.'
-    return
-  }
-  aviso.textContent = ''
-  botones($('op-ocasionales'), fuera, (t) => {
+  botones($('op-ocasionales'), otros, (t) => {
     irA('planilla')
     abrirCelda(t, null)
-  }, (t) => (t.nombre ? `${t.numero} · ${t.nombre}` : String(t.numero)))
+  }, comoSeLlama)
 }
 
 // ---------------------------------------------------------------- observacion

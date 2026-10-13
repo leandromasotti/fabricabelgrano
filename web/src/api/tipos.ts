@@ -282,6 +282,8 @@ export interface Tambo {
 export interface FilaTambo {
   tambo: number
   nombre: string | null
+  /** Entrega de vez en cuando: se marca en la tabla, pero cuenta como cualquier otro. */
+  ocasional: boolean
   entregas: number
   litros: number
   temp_promedio: number | null
@@ -295,6 +297,9 @@ export interface EntregaLeche {
   id: number
   fecha_hora: string
   tambo: number
+  tambo_nombre: string | null
+  /** Entrega de un tambo que no es de los de todos los días. */
+  ocasional: boolean
   litros: number
   temperatura: number | null
   remito: string | null
@@ -403,6 +408,8 @@ export interface TamboMaestro extends Maestro {
   /** La clave con la que la fábrica los conoce: el remito dice "tambo 14". */
   numero: number
   nombre: string | null
+  /** Entrega de vez en cuando: no va en la planilla diaria, se elige desde "Otros tambos". */
+  ocasional: BoolApi
 }
 
 export interface MarcaMaestro extends Maestro {

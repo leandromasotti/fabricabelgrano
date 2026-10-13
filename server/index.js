@@ -151,7 +151,9 @@ app.get('/api/catalogo', async (req, res) => {
 // lugar; el reporte por tambo es lo que hace desaparecer la suma.
 
 const qRec = {
-  tambos: await db.prepare('SELECT id, numero, nombre FROM tambos WHERE activo = 1 ORDER BY orden, numero'),
+  tambos: await db.prepare(
+    'SELECT id, numero, nombre FROM tambos WHERE activo = 1 AND ocasional = 0 ORDER BY orden, numero'
+  ),
   porClientId: db.prepare('SELECT id FROM recepciones WHERE client_id = ?'),
   insertar: db.prepare(`
     INSERT INTO recepciones
@@ -197,20 +199,6 @@ const qRec = {
     'SELECT id, nombre FROM motivos_recepcion WHERE activo = 1 ORDER BY orden, nombre'
   ),
 
-  // En cuántos de los últimos días entregó cada tambo.
-  //
-  // Es lo que separa "este tambo no entrega hoy" de "falta cargarlo". Sin eso, una
-  // planilla con 15 tambos y 9 entregas muestra 6 casilleros en rojo todos los días, y
-  // un rojo que siempre está no avisa de nada.
-  diasConEntrega: db.prepare(`
-    SELECT t.numero, COUNT(DISTINCT date(r.fecha_hora, 'localtime')) AS dias
-      FROM recepciones r
-      JOIN tambos t ON t.id = r.tambo_id
-     WHERE r.anulado = 0
-       AND date(r.fecha_hora, 'localtime') BETWEEN date(?, '-14 days') AND ?
-     GROUP BY t.id, t.numero
-  `),
-
   // Las entregas del día con todo lo que la planilla muestra en cada celda.
   delDiaCompleto: db.prepare(`
     SELECT r.id, r.client_id, r.tambo_id, t.numero AS tambo, r.fecha_hora, r.litros,
@@ -222,11 +210,20 @@ const qRec = {
      ORDER BY r.fecha_hora
   `),
 
-  // Todos, no sólo los activos: los de baja son los "ocasionales" —otra fábrica que
-  // nos manda leche para elaborar— y tienen que poder agregarse a un día puntual.
+  // Todos, incluidos los de baja: si un tambo dado de baja tiene entregas cargadas hoy,
+  // su fila tiene que seguir viéndose el resto del día.
   todosLosTambos: db.prepare(
-    'SELECT id, numero, nombre, activo FROM tambos ORDER BY numero'
+    'SELECT id, numero, nombre, activo, ocasional FROM tambos ORDER BY numero'
   ),
+
+  // Los que entregan de vez en cuando. Se eligen desde "Otros tambos" y se suman al dia
+  // en que aparecen, sin ensuciar la planilla de todos los dias.
+  otrosTambos: db.prepare(`
+    SELECT id, numero, nombre
+      FROM tambos
+     WHERE activo = 1 AND ocasional = 1
+     ORDER BY orden, numero
+  `),
   anular: db.prepare(
     'UPDATE recepciones SET anulado = 1, anulado_en = ? WHERE id = ? AND anulado = 0'
   ),
@@ -236,7 +233,7 @@ const qRec = {
   // y los totales siguieran mostrando todos los tambos mientras el detalle muestra uno,
   // los numeros de la misma pantalla se contradicen.
   porTambo: `
-    SELECT t.numero AS tambo, t.nombre,
+    SELECT t.numero AS tambo, t.nombre, t.ocasional,
            COUNT(*) AS entregas,
            SUM(r.litros) AS litros,
            ROUND(AVG(r.temperatura), 1) AS temp_promedio,
@@ -248,7 +245,7 @@ const qRec = {
      WHERE r.anulado = 0
        AND date(r.fecha_hora, 'localtime') BETWEEN ? AND ?
        /*TAMBOS*/
-     GROUP BY t.id, t.numero, t.nombre
+     GROUP BY t.id, t.numero, t.nombre, t.ocasional
      ORDER BY litros DESC
   `,
   porDia: `
@@ -267,7 +264,8 @@ const qRec = {
   // dentro de su ventana de 60 s. Una entrega mal cargada que se descubría más tarde
   // no tenía arreglo por ningún lado (le pasó al cliente probando, 2026-09-25).
   detallePeriodo: `
-    SELECT r.id, r.fecha_hora, t.numero AS tambo, r.litros, r.temperatura, r.remito,
+    SELECT r.id, r.fecha_hora, t.numero AS tambo, t.nombre AS tambo_nombre, t.ocasional,
+           r.litros, r.temperatura, r.remito,
            r.observacion, mo.nombre AS motivo, o.nombre AS operario
       FROM recepciones r
       JOIN tambos    t ON t.id = r.tambo_id
@@ -320,6 +318,10 @@ function tambosPedidos(req) {
 }
 
 app.get('/api/tambos', async (_req, res) => res.json(await qRec.tambos.all()))
+
+// Los tambos excepcionales: los que entregan de vez en cuando. No van en la planilla
+// principal, se eligen desde "Otros tambos".
+app.get('/api/tambos/otros', async (_req, res) => res.json(await qRec.otrosTambos.all()))
 
 app.post('/api/recepciones', async (req, res) => {
   const {
@@ -465,17 +467,10 @@ app.post('/api/recepciones/:id/anular', async (req, res) => {
 app.get('/api/recepciones/planilla', async (req, res) => {
   const fecha = req.query.fecha ?? hoyLocal()
 
-  const [tambos, entregas, dias] = await Promise.all([
+  const [tambos, entregas] = await Promise.all([
     qRec.todosLosTambos.all(),
     qRec.delDiaCompleto.all(fecha),
-    qRec.diasConEntrega.all(fecha, fecha),
   ])
-
-  // Tres días de los últimos catorce. Con menos, un tambo que entregó una vez queda
-  // marcado como esperado para siempre; con más, uno que entrega semana por medio
-  // nunca entra.
-  const MINIMO_PARA_HABITUAL = 3
-  const porNumero = new Map(dias.map((d) => [d.numero, Number(d.dias)]))
 
   const porTambo = new Map()
   for (const e of entregas) {
@@ -483,10 +478,15 @@ app.get('/api/recepciones/planilla', async (req, res) => {
     porTambo.get(e.tambo).push(e)
   }
 
+  // `habitual` ya no se deduce de cuántos días entregó en las últimas dos semanas: lo
+  // dice la ficha del tambo. Un rojo que se adivina se equivoca justo cuando importa —el
+  // tambo nuevo que todavía no tiene historia, el que volvió después de parar un mes— y
+  // además nadie podía corregirlo.
   const filas = tambos.map((t) => ({
     ...t,
     activo: Boolean(t.activo),
-    habitual: (porNumero.get(t.numero) ?? 0) >= MINIMO_PARA_HABITUAL,
+    ocasional: Boolean(t.ocasional),
+    habitual: Boolean(t.activo) && !t.ocasional,
     entregas: porTambo.get(t.numero) ?? [],
   }))
 
@@ -507,7 +507,11 @@ app.get('/api/recepciones/reporte', async (req, res) => {
   const tambos = tambosPedidos(req)
   const args = [desde, hasta, ...tambos]
 
-  const porTambo = await conTambos(qRec.porTambo, tambos.length).all(...args)
+  // SQLite devuelve 0/1 y Postgres true/false. La pantalla no tiene por qué saber en
+  // qué motor está corriendo.
+  const conBandera = (filas) => filas.map((f) => ({ ...f, ocasional: Boolean(f.ocasional) }))
+
+  const porTambo = conBandera(await conTambos(qRec.porTambo, tambos.length).all(...args))
   res.json({
     desde,
     hasta,
@@ -515,7 +519,11 @@ app.get('/api/recepciones/reporte', async (req, res) => {
     tambos,
     por_tambo: porTambo,
     por_dia: await conTambos(qRec.porDia, tambos.length).all(...args),
-    detalle: await conTambos(qRec.detallePeriodo, tambos.length).all(...args),
+    detalle: conBandera(await conTambos(qRec.detallePeriodo, tambos.length).all(...args)),
+    // Una sola tabla y un solo total: un excepcional es un tambo como cualquier otro, con
+    // su número y su liquidación. La bandera `ocasional` viaja igual para que la fila se
+    // pueda marcar — "este no es de los de todos los días" es lo que hay que ver antes de
+    // pagar un mes que no se esperaba.
     total: {
       litros: porTambo.reduce((n, r) => n + r.litros, 0),
       entregas: porTambo.reduce((n, r) => n + r.entregas, 0),
@@ -531,11 +539,18 @@ app.get('/api/recepciones.csv', async (req, res) => {
   const tambos = tambosPedidos(req)
   const filas = await conTambos(qRec.porTambo, tambos.length).all(desde, hasta, ...tambos)
   const csv = [
-    'tambo,entregas,litros,temp_promedio,temp_maxima,primera,ultima',
+    'tambo,nombre,tipo,entregas,litros,temp_promedio,temp_maxima,primera,ultima',
+    // `tipo` es la misma marca que lleva la fila en pantalla: el que liquida abre esto en
+    // una planilla y tiene que poder separar de un filtro lo que no se esperaba.
     ...filas.map((r) =>
-      [r.tambo, r.entregas, r.litros, r.temp_promedio ?? '', r.temp_maxima ?? '', r.primera, r.ultima].join(',')
+      [
+        r.tambo,
+        `"${String(r.nombre ?? '').replace(/"/g, '""')}"`,
+        r.ocasional ? 'excepcional' : 'habitual',
+        r.entregas, r.litros, r.temp_promedio ?? '', r.temp_maxima ?? '', r.primera, r.ultima,
+      ].join(',')
     ),
-    ['TOTAL', filas.reduce((n, r) => n + r.entregas, 0), filas.reduce((n, r) => n + r.litros, 0), '', '', desde, hasta].join(','),
+    ['TOTAL', '', '', filas.reduce((n, r) => n + r.entregas, 0), filas.reduce((n, r) => n + r.litros, 0), '', '', desde, hasta].join(','),
   ].join('\n')
   res.type('text/csv').attachment(`leche-cruda-${desde}_${hasta}.csv`).send(csv)
 })

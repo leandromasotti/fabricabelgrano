@@ -183,8 +183,27 @@ export function LecheCruda() {
   )
 }
 
+/**
+ * Los tambos que entregan de vez en cuando se marcan, no se separan: son un tambo como
+ * cualquier otro, con su número y su liquidación. Pero antes de pagar un mes que no se
+ * esperaba conviene ver de un saque cuál no es de los de todos los días.
+ */
+const Excepcional = () => (
+  <span className="rounded bg-atencion/15 px-1.5 py-0.5 text-[11px] font-semibold text-atencion">
+    excepcional
+  </span>
+)
+
 const COLUMNAS_TAMBO: Columna<FilaTambo>[] = [
-  { titulo: 'Tambo', celda: (r) => (r.nombre ? `${r.tambo} · ${r.nombre}` : String(r.tambo)) },
+  {
+    titulo: 'Tambo',
+    celda: (r) => (
+      <span className="flex flex-wrap items-baseline gap-1.5">
+        {r.nombre ? `${r.tambo} · ${r.nombre}` : String(r.tambo)}
+        {r.ocasional && <Excepcional />}
+      </span>
+    ),
+  },
   { titulo: 'Entregas', num: true, celda: (r) => num(r.entregas) },
   { titulo: 'Litros', num: true, celda: (r) => num(r.litros) },
   { titulo: 'Promedio', num: true, celda: (r) => num(Math.round(r.litros / r.entregas)) },
@@ -211,7 +230,15 @@ const columnasDetalle = (
 ): Columna<EntregaLeche>[] => [
   { titulo: 'Fecha', celda: (r) => new Date(r.fecha_hora).toLocaleDateString('es-AR') },
   { titulo: 'Hora', celda: (r) => hhmm(r.fecha_hora) },
-  { titulo: 'Tambo', celda: (r) => String(r.tambo) },
+  {
+    titulo: 'Tambo',
+    celda: (r) => (
+      <span className="flex flex-wrap items-baseline gap-1.5">
+        {String(r.tambo)}
+        {r.ocasional && <Excepcional />}
+      </span>
+    ),
+  },
   { titulo: 'Litros', num: true, celda: (r) => num(r.litros) },
   {
     titulo: 'Temp.',

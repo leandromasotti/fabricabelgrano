@@ -115,10 +115,10 @@ export const MAESTROS = {
   tambos: {
     etiqueta: 'tambo',
     listar: `
-      SELECT t.id, t.numero, t.nombre, t.activo, t.orden,
+      SELECT t.id, t.numero, t.nombre, t.activo, t.ocasional, t.orden,
              (SELECT COUNT(*) FROM recepciones r WHERE r.tambo_id = t.id AND r.anulado = 0) AS usos
         FROM tambos t
-       ORDER BY t.numero
+       ORDER BY t.ocasional, t.numero
     `,
     leer(cuerpo, actual) {
       // El número es la clave con la que la fábrica los conoce: en el remito del
@@ -131,11 +131,17 @@ export const MAESTROS = {
       }
       const nombre = texto(cuerpo?.nombre) || (cuerpo?.nombre === '' ? null : actual?.nombre ?? null)
       if (nombre && nombre.length > 80) return { error: 'nombre demasiado largo' }
-      return { valores: { numero, nombre } }
+      // Habitual o excepcional. Un tambo NUEVO arranca excepcional: la lista de los que
+      // entregan todos los días ya está cargada, así que el que se da de alta ahora es,
+      // por definición, uno que apareció. Si entra a la rutina se lo cambia con un clic.
+      const ocasional =
+        cuerpo?.ocasional === undefined ? (actual ? actual.ocasional : true) : Boolean(cuerpo.ocasional)
+      return { valores: { numero, nombre, ocasional } }
     },
     duplicado: 'SELECT id FROM tambos WHERE numero = @numero',
-    insertar: 'INSERT INTO tambos (numero, nombre, activo, orden) VALUES (@numero, @nombre, true, @orden)',
-    actualizar: 'UPDATE tambos SET numero = @numero, nombre = @nombre WHERE id = @id',
+    insertar:
+      'INSERT INTO tambos (numero, nombre, activo, orden, ocasional) VALUES (@numero, @nombre, true, @orden, @ocasional)',
+    actualizar: 'UPDATE tambos SET numero = @numero, nombre = @nombre, ocasional = @ocasional WHERE id = @id',
     maxOrden: 'SELECT COALESCE(MAX(orden), 0) AS n FROM tambos',
   },
 

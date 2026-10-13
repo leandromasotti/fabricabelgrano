@@ -69,7 +69,7 @@ const cache = new Map()
 // por backtracking, pero ponerlas al revés hace obvio que son dos columnas distintas.
 const BOOLEANAS =
   'anulado|activo|provisorio|es_propia|se_envasa|madura_antes_de_envasar|madura|' +
-  'pasa_por_sal|dias_provisorios|datos_provisorios'
+  'pasa_por_sal|dias_provisorios|datos_provisorios|ocasional'
 
 function traducir(sql) {
   if (cache.has(sql)) return cache.get(sql)

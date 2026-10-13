@@ -321,7 +321,11 @@ sqlite.exec(`
     numero INTEGER NOT NULL UNIQUE,
     nombre TEXT,
     activo INTEGER NOT NULL DEFAULT 1,
-    orden  INTEGER NOT NULL DEFAULT 0
+    orden  INTEGER NOT NULL DEFAULT 0,
+    -- Procedencia ocasional: otra fabrica que nos manda leche para elaborar. No tiene
+    -- numero de tambo, asi que se le asigna uno sintetico (9001+) que no se muestra
+    -- nunca: se la ve siempre por su nombre. Se crea desde la tablet al recibirla.
+    ocasional INTEGER NOT NULL DEFAULT 0
   );
 
   -- Por que puede quedar observada una entrega de leche cruda: cortada, con olor, etc.
