@@ -93,6 +93,7 @@ function Fila({
   activo,
   usos,
   sustantivo,
+  estado,
   puedeGuardar,
   alGuardar,
   children,
@@ -102,6 +103,8 @@ function Fila({
   activo: boolean
   usos: number
   sustantivo: string
+  /** Reemplaza el tilde "en uso". Para cuando dar de baja no es la única opción. */
+  estado?: ReactNode
   puedeGuardar: boolean
   alGuardar: (editar: ReturnType<typeof useEditarMaestro>, avisar: (s: string) => void) => void
   children: ReactNode
@@ -118,15 +121,17 @@ function Fila({
     >
       {children}
 
-      <label className="flex items-center gap-1.5 text-[12.5px] whitespace-nowrap text-tinta-2">
-        <input
-          type="checkbox"
-          checked={activo}
-          disabled={visibilidad.isPending}
-          onChange={(e) => visibilidad.mutate({ tipo, id, activo: e.target.checked })}
-        />
-        {activo ? 'en uso' : 'de baja'}
-      </label>
+      {estado ?? (
+        <label className="flex items-center gap-1.5 text-[12.5px] whitespace-nowrap text-tinta-2">
+          <input
+            type="checkbox"
+            checked={activo}
+            disabled={visibilidad.isPending}
+            onChange={(e) => visibilidad.mutate({ tipo, id, activo: e.target.checked })}
+          />
+          {activo ? 'en uso' : 'de baja'}
+        </label>
+      )}
 
       {/* La cuenta de uso no es decorativa: es lo que hay que mirar antes de renombrar.
           Cambiarle el nombre a alguien con 400 registros reescribe cómo se lee todo ese
@@ -430,6 +435,22 @@ function FilaCliente({ cliente: c }: { cliente: ClienteMaestro }) {
 
 // ---------------------------------------------------------------- tambos
 
+/*
+ * Un tambo está en uno de tres estados, y son excluyentes. Como dos tildes sueltos
+ * —"en uso" y "entrega de vez en cuando"— se leen mal: no se ve que son un solo
+ * atributo, y "dar de baja" queda escondido detrás de destildar algo que dice "en uso".
+ * Nombrados los tres, no hay nada que deducir.
+ */
+const ESTADOS = [
+  { clave: 'diario', nombre: 'Todos los días', ayuda: 'Va en la planilla, y si falta se pone en rojo' },
+  { clave: 'otros', nombre: 'De vez en cuando', ayuda: 'No ensucia la planilla: se elige desde “Otros tambos”' },
+  { clave: 'baja', nombre: 'De baja', ayuda: 'Ya no entrega: no aparece en ninguna pantalla' },
+] as const
+
+type Estado = (typeof ESTADOS)[number]['clave']
+const estadoDe = (t: TamboMaestro): Estado => (!t.activo ? 'baja' : t.ocasional ? 'otros' : 'diario')
+
+
 function Tambos({ tambos }: { tambos: TamboMaestro[] }) {
   const crear = useCrearMaestro()
   const [numero, setNumero] = useState('')
@@ -470,10 +491,25 @@ function Tambos({ tambos }: { tambos: TamboMaestro[] }) {
       >
         <Entrada valor={numero} alCambiar={setNumero} etiqueta="Número de tambo" tipo="number" ancho="w-24" placeholder="14" />
         <Entrada valor={nombre} alCambiar={setNombre} etiqueta="Nombre del tambo" ancho="w-64" placeholder="Nombre (opcional)" />
-        <label className="flex items-center gap-1.5 text-[12.5px] text-tinta-2">
-          <input type="checkbox" checked={ocasional} onChange={(e) => setOcasional(e.target.checked)} />
-          entrega de vez en cuando
-        </label>
+        {/* Los mismos dos nombres que en las filas de arriba. "De baja" no está: nadie
+            da de alta un tambo para dejarlo apagado. */}
+        <span className="flex flex-wrap items-center gap-3">
+          {ESTADOS.filter((e) => e.clave !== 'baja').map((e) => (
+            <label
+              key={e.clave}
+              title={e.ayuda}
+              className="flex items-center gap-1.5 text-[12.5px] whitespace-nowrap text-tinta-2"
+            >
+              <input
+                type="radio"
+                name="estado-tambo-nuevo"
+                checked={ocasional === (e.clave === 'otros')}
+                onChange={() => setOcasional(e.clave === 'otros')}
+              />
+              {e.nombre}
+            </label>
+          ))}
+        </span>
       </Alta>
     </Panel>
   )
@@ -482,12 +518,26 @@ function Tambos({ tambos }: { tambos: TamboMaestro[] }) {
 function FilaTambo({ tambo: t }: { tambo: TamboMaestro }) {
   const [numero, setNumero] = useState(String(t.numero))
   const [nombre, setNombre] = useState(t.nombre ?? '')
-  const [ocasional, setOcasional] = useState(Boolean(t.ocasional))
+  const editar = useEditarMaestro()
+  const visibilidad = useVisibilidadMaestro()
   const cambio =
-    (Number(numero) !== t.numero ||
-      nombre.trim() !== (t.nombre ?? '') ||
-      ocasional !== Boolean(t.ocasional)) &&
-    Number(numero) >= 1
+    (Number(numero) !== t.numero || nombre.trim() !== (t.nombre ?? '')) && Number(numero) >= 1
+
+  const actual = estadoDe(t)
+  const trabajando = editar.isPending || visibilidad.isPending
+
+  const ponerEstado = (destino: Estado) => {
+    if (destino === actual || trabajando) return
+    if (destino === 'baja') return visibilidad.mutate({ tipo: 'tambos', id: t.id, activo: false })
+    // Los datos van con lo que está GUARDADO, no con lo que haya en los campos: cambiar
+    // el estado no tiene que confirmar de paso un nombre a medio escribir.
+    editar.mutate({
+      tipo: 'tambos',
+      id: t.id,
+      datos: { numero: t.numero, nombre: t.nombre ?? '', ocasional: destino === 'otros' },
+    })
+    if (!t.activo) visibilidad.mutate({ tipo: 'tambos', id: t.id, activo: true })
+  }
 
   return (
     <Fila
@@ -496,6 +546,26 @@ function FilaTambo({ tambo: t }: { tambo: TamboMaestro }) {
       activo={Boolean(t.activo)}
       usos={t.usos}
       sustantivo="entregas"
+      estado={
+        <span className="flex flex-wrap items-center gap-3">
+          {ESTADOS.map((e) => (
+            <label
+              key={e.clave}
+              title={e.ayuda}
+              className="flex items-center gap-1.5 text-[12.5px] whitespace-nowrap text-tinta-2"
+            >
+              <input
+                type="radio"
+                name={`estado-tambo-${t.id}`}
+                checked={actual === e.clave}
+                disabled={trabajando}
+                onChange={() => ponerEstado(e.clave)}
+              />
+              {e.nombre}
+            </label>
+          ))}
+        </span>
+      }
       puedeGuardar={cambio}
       alGuardar={(editar, avisar) =>
         cambio &&
@@ -503,7 +573,7 @@ function FilaTambo({ tambo: t }: { tambo: TamboMaestro }) {
           {
             tipo: 'tambos',
             id: t.id,
-            datos: { numero: Number(numero), nombre: nombre.trim(), ocasional },
+            datos: { numero: Number(numero), nombre: nombre.trim(), ocasional: Boolean(t.ocasional) },
           },
           { onSuccess: () => avisar('guardado') },
         )
@@ -517,10 +587,6 @@ function FilaTambo({ tambo: t }: { tambo: TamboMaestro }) {
         ancho="w-64"
         placeholder="Sin nombre"
       />
-      <label className="flex items-center gap-1.5 text-[12.5px] text-tinta-2">
-        <input type="checkbox" checked={ocasional} onChange={(e) => setOcasional(e.target.checked)} />
-        entrega de vez en cuando
-      </label>
     </Fila>
   )
 }
