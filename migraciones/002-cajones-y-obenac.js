@@ -28,7 +28,7 @@ const confirmar = process.argv.includes('--confirmar')
 // ---------------------------------------------------------------- a dónde apunta
 
 function destino() {
-  if (motor !== 'postgres') return 'SQLite (data/fabrica.db)'
+  if (motor !== 'postgres') return `SQLite (${process.env.DB_PATH ?? 'data/fabrica.db'})`
   const u = new URL(process.env.DATABASE_URL)
   const local = ['localhost', '127.0.0.1', '::1', 'host.docker.internal'].includes(u.hostname)
   return `PostgreSQL en ${u.host}${u.pathname}${local ? '' : '  ← REMOTA'}`
