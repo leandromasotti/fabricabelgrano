@@ -85,7 +85,12 @@ const pasos = [
           : 'ALTER TABLE tambos ADD COLUMN ocasional INTEGER NOT NULL DEFAULT 0',
       )
       const deBaja = await db.prepare('SELECT numero, nombre FROM tambos WHERE activo = 0').all()
-      await db.exec('UPDATE tambos SET ocasional = 1, activo = 1 WHERE activo = 0')
+      // prepare().run() y NO db.exec(): exec manda el SQL CRUDO a Postgres, sin pasar por
+      // el traductor de dialecto. Con exec, este UPDATE llegaba como `ocasional = 1`
+      // contra una columna BOOLEAN y Postgres lo rechaza (42883), dejando la columna
+      // creada y el backfill sin hacer. En SQLite andaba, que es lo que lo hace peligroso.
+      // exec sirve para el DDL de arriba porque ese ya está escrito por motor.
+      await db.prepare('UPDATE tambos SET ocasional = 1, activo = 1 WHERE activo = 0').run()
       return deBaja.length
         ? `${deBaja.length} reactivado(s) como excepcional(es): ` +
           deBaja.map((t) => t.nombre ?? t.numero).join(', ')
