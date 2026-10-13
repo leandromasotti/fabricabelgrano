@@ -94,9 +94,15 @@ const qCatalogo = {
      ORDER BY m.orden, m.nombre
   `),
   productos: db.prepare(`
-    SELECT id, nombre, unidades_por_bin, kilos_por_unidad, datos_provisorios
+    SELECT id, nombre, unidades_por_bin, kilos_por_unidad, datos_provisorios,
+           presentacion, unidades_por_bulto, marca_id
       FROM productos WHERE activo = 1 AND familia = ? ORDER BY orden, nombre
   `),
+  // Por que un bin no se llenó. Viajan con el catálogo por lo mismo que los de
+  // recepción: la tablet los necesita en el momento de usarlos, que puede ser sin red.
+  motivosYogur: db.prepare(
+    'SELECT id, nombre, es_perdida FROM motivos_yogur WHERE activo = 1 ORDER BY orden, nombre'
+  ),
   envases: db.prepare(`
     SELECT id, nombre, bultos_por_pallet, unidades_por_bulto, litros_por_unidad, provisorio,
            CASE
@@ -126,6 +132,7 @@ app.get('/api/catalogo', async (req, res) => {
     // tablet de recepción los necesita al arrancar y funciona sin red: pedirlos aparte
     // en el momento de usarlos sería justo cuando puede no haber conexión.
     motivos_recepcion: await qRec.motivos.all(),
+    motivos_yogur: await qCatalogo.motivosYogur.all(),
     // Las opciones viajan con el catálogo, que la tablet ya pide al arrancar: una
     // preferencia no merece su propia ida y vuelta.
     opciones: Object.fromEntries(
@@ -843,32 +850,40 @@ app.get('/api/registros.csv', async (req, res) => {
 // cambiara el tamano del sachet, la cantidad por bin se deduce de la capacidad.
 // Los kilos salen del peso del sachet (1 kg), configurable desde /envases.html.
 
+// Lo que el operario puede decir mirando un bin. No hay un 60% porque nadie distingue
+// 60 de 65 a ojo: cuatro opciones es un toque y es honesto sobre la precisión que tiene.
+const LLENADOS = [100, 75, 50, 25]
+
 const qYogur = {
   porClientId: db.prepare('SELECT id FROM registros_yogur WHERE client_id = ?'),
   insertar: db.prepare(`
     INSERT INTO registros_yogur
       (client_id, fecha_hora, origen, sincronizado, operario_id, marca_id, producto_id,
-       unidades, kilos)
+       unidades, llenado, cajas, motivo_id, kilos)
     VALUES
       (@client_id, @fecha_hora, @origen, @sincronizado, @operario_id, @marca_id, @producto_id,
-       @unidades,
+       @unidades, @llenado, @cajas, @motivo_id,
        (SELECT CASE WHEN kilos_por_unidad IS NULL THEN NULL
                     ELSE kilos_por_unidad * @unidades END
           FROM productos WHERE id = @producto_id))
   `),
   detalle: db.prepare(`
     SELECT y.id, y.client_id, y.fecha_hora, y.origen, y.unidades, y.kilos, y.anulado,
-           o.nombre AS operario, m.nombre AS marca, p.nombre AS producto
+           y.llenado, y.cajas, y.motivo_id, mo.nombre AS motivo,
+           o.nombre AS operario, m.nombre AS marca, p.nombre AS producto, p.presentacion
       FROM registros_yogur y
+      LEFT JOIN motivos_yogur mo ON mo.id = y.motivo_id
       JOIN operarios o ON o.id = y.operario_id
       JOIN marcas    m ON m.id = y.marca_id
       JOIN productos p ON p.id = y.producto_id
      WHERE y.id = ?
   `),
   delDia: db.prepare(`
-    SELECT y.id, y.fecha_hora, y.origen, y.unidades, y.kilos, y.anulado,
-           o.nombre AS operario, m.nombre AS marca, p.nombre AS producto
+    SELECT y.id, y.client_id, y.fecha_hora, y.origen, y.unidades, y.kilos, y.anulado,
+           y.llenado, y.cajas, mo.nombre AS motivo,
+           o.nombre AS operario, m.nombre AS marca, p.nombre AS producto, p.presentacion
       FROM registros_yogur y
+      LEFT JOIN motivos_yogur mo ON mo.id = y.motivo_id
       JOIN operarios o ON o.id = y.operario_id
       JOIN marcas    m ON m.id = y.marca_id
       JOIN productos p ON p.id = y.producto_id
@@ -878,12 +893,30 @@ const qYogur = {
   anular: db.prepare(
     'UPDATE registros_yogur SET anulado = 1, anulado_en = ? WHERE id = ? AND anulado = 0'
   ),
-  unidadesDe: db.prepare('SELECT unidades_por_bin FROM productos WHERE id = ?'),
+  comoSeRegistra: db.prepare(
+    'SELECT presentacion, unidades_por_bin, unidades_por_bulto, marca_id FROM productos WHERE id = ?'
+  ),
+  // El ajuste de llenado va por client_id y no por id: puede llegar de una tablet que
+  // registró sin red y todavía no conoce el id del servidor. Mismo criterio que la
+  // observación de recepción.
+  ajustarLlenado: db.prepare(`
+    UPDATE registros_yogur
+       SET llenado = @llenado, motivo_id = @motivo_id, unidades = @unidades,
+           kilos = (SELECT CASE WHEN kilos_por_unidad IS NULL THEN NULL
+                                ELSE kilos_por_unidad * @unidades END
+                      FROM productos WHERE id = registros_yogur.producto_id)
+     WHERE client_id = @client_id AND anulado = 0
+  `),
+  porClientIdVivo: db.prepare(
+    'SELECT id, producto_id FROM registros_yogur WHERE client_id = ? AND anulado = 0'
+  ),
 }
 
 app.post('/api/yogur', async (req, res) => {
-  const { client_id, operario_id, marca_id, producto_id, unidades, fecha_hora_cliente } =
-    req.body ?? {}
+  const {
+    client_id, operario_id, marca_id, producto_id, unidades, fecha_hora_cliente,
+    llenado, cajas, motivo_id,
+  } = req.body ?? {}
 
   if (!client_id || !operario_id || !marca_id || !producto_id) {
     return res.status(400).json({ error: 'faltan campos obligatorios' })
@@ -896,11 +929,42 @@ app.post('/api/yogur', async (req, res) => {
   if (!(await existe('marcas', marca_id))) return res.status(400).json({ error: 'marca inexistente' })
   if (!(await existe('productos', producto_id))) return res.status(400).json({ error: 'producto inexistente' })
 
-  // Si la tablet no manda unidades, se usa la cantidad configurada de la caja.
-  const porDefecto = (await qYogur.unidadesDe.get(producto_id))?.unidades_por_bin
-  const n = unidades ?? porDefecto
+  // Cuántas unidades son depende de CÓMO se registra el producto, y eso lo decide el
+  // producto, no la tablet: un bebible viene de a un bin (con su llenado), un pote viene
+  // en cajas contadas. Se calcula acá y no en la pantalla para que una tablet vieja —o la
+  // cola offline de ayer— no pueda mandar una cuenta hecha con otras reglas.
+  const prod = await qYogur.comoSeRegistra.get(producto_id)
+
+  // Un producto de una sola marca es de esa marca. Los potes los hace una sola.
+  if (prod?.marca_id != null && Number(prod.marca_id) !== Number(marca_id)) {
+    return res.status(400).json({ error: 'ese producto no se hace en esa marca' })
+  }
+
+  let n
+  let llenadoFinal = 100
+  let cajasFinal = null
+
+  if (prod?.presentacion === 'caja') {
+    if (!Number.isInteger(cajas) || cajas < 1 || cajas > 999) {
+      return res.status(400).json({ error: 'cantidad de cajas fuera de rango (1 a 999)' })
+    }
+    cajasFinal = cajas
+    n = cajas * (prod.unidades_por_bulto ?? 0)
+  } else {
+    if (!LLENADOS.includes(llenado ?? 100)) {
+      return res.status(400).json({ error: 'llenado inválido (100, 75, 50 o 25)' })
+    }
+    llenadoFinal = llenado ?? 100
+    // La tablet puede mandar unidades igual —el ajuste de un pallet incompleto hace lo
+    // mismo en lechería— pero si no, salen del bin y su llenado.
+    n = unidades ?? Math.round(((prod?.unidades_por_bin ?? 0) * llenadoFinal) / 100)
+  }
+
   if (!Number.isInteger(n) || n < 1) {
     return res.status(400).json({ error: 'unidades debe ser un entero mayor a cero' })
+  }
+  if (motivo_id != null && !(await existe('motivos_yogur', motivo_id))) {
+    return res.status(400).json({ error: 'motivo inexistente' })
   }
 
   const info = await qYogur.insertar.run({
@@ -910,8 +974,55 @@ app.post('/api/yogur', async (req, res) => {
     marca_id,
     producto_id,
     unidades: n,
+    llenado: llenadoFinal,
+    cajas: cajasFinal,
+    motivo_id: motivo_id ?? null,
   })
   res.status(201).json(await qYogur.detalle.get(info.lastInsertRowid))
+})
+
+// El bin que no se llenó.
+//
+//   "Hay bines que no llegan llenos porque quizás se termina antes el yogurt y te queda
+//    1/2 bin."  [Alexis, 12/10]
+//
+// NO es un paso del flujo. La enorme mayoría de los bins salen llenos y pagarían un toque
+// de más todo el día por la excepción; se registra el bin lleno y, si no lo fue, se
+// corrige desde la misma confirmación. Mismo criterio que "No fue un pallet completo" en
+// lechería y que la observación de recepción.
+//
+// Las unidades y los kilos se recalculan acá y no en la tablet: son el dato con el que
+// después se liquida, y la regla tiene que vivir en un solo lugar.
+app.put('/api/yogur/llenado', async (req, res) => {
+  const { client_id, llenado, motivo_id } = req.body ?? {}
+  if (!client_id) return res.status(400).json({ error: 'falta client_id' })
+  if (!LLENADOS.includes(llenado)) {
+    return res.status(400).json({ error: 'llenado inválido (100, 75, 50 o 25)' })
+  }
+  if (motivo_id != null && !(await existe('motivos_yogur', motivo_id))) {
+    return res.status(400).json({ error: 'motivo inexistente' })
+  }
+
+  const fila = await qYogur.porClientIdVivo.get(client_id)
+  if (!fila) return res.status(404).json({ error: 'registro inexistente o anulado' })
+
+  const prod = await qYogur.comoSeRegistra.get(fila.producto_id)
+  // Un pote se cuenta por cajas: no tiene llenado que ajustar.
+  if (prod?.presentacion === 'caja') {
+    return res.status(400).json({ error: 'ese producto se registra por cajas, no por bin' })
+  }
+
+  const unidades = Math.round(((prod?.unidades_por_bin ?? 0) * llenado) / 100)
+  if (unidades < 1) return res.status(400).json({ error: 'el bin no tiene unidades configuradas' })
+
+  await qYogur.ajustarLlenado.run({
+    client_id,
+    llenado,
+    // Un bin lleno no tiene por qué explicar nada.
+    motivo_id: llenado === 100 ? null : (motivo_id ?? null),
+    unidades,
+  })
+  res.json(await qYogur.detalle.get(fila.id))
 })
 
 app.get('/api/yogur', async (req, res) => {
@@ -925,15 +1036,33 @@ app.get('/api/yogur', async (req, res) => {
   const porMarcaProducto = new Map()
   for (const r of vivos) {
     const clave = `${r.marca}\u0000${r.producto}`
-    const acc = porMarcaProducto.get(clave) ?? { marca: r.marca, producto: r.producto, n: 0, unidades: 0 }
-    acc.n += 1
+    const pote = r.presentacion === 'caja'
+    const acc = porMarcaProducto.get(clave) ??
+      { marca: r.marca, producto: r.producto, unidad: pote ? 'cajas' : 'bins', n: 0, unidades: 0 }
+    // Para un pote, lo que se cuenta son las CAJAS. Contar registros diría "3 Pote
+    // vainilla" cuando fueron 3 cargas de 12 cajas: un número que no es de nada.
+    acc.n += pote ? (r.cajas ?? 0) : 1
     acc.unidades += r.unidades
     porMarcaProducto.set(clave, acc)
   }
 
+  // Bins y cajas NO se suman entre sí: un bin es un recipiente de ~500 sachets y una
+  // caja son 24 potes. Un total que dijera "14 bultos" no significaría nada. Lo único
+  // comparable entre las dos presentaciones son las unidades.
+  const bins = vivos.filter((r) => r.presentacion !== 'caja')
+  const potes = vivos.filter((r) => r.presentacion === 'caja')
+
   res.json({
     fecha,
-    bins: vivos.length,
+    bins: bins.length,
+    cajas: potes.reduce((n, r) => n + (r.cajas ?? 0), 0),
+    // Cuántos bins LLENOS equivalen los que se cargaron. Con medios bins, contar
+    // recipientes deja de describir la producción.
+    // Dos decimales y no uno: los llenados son cuartos (100/75/50/25) y a un decimal
+    // 0,75 se redondea a 0,8. Un total que no cierra con la suma de sus partes es
+    // exactamente lo que hace que alguien deje de confiar en el número.
+    bins_equivalentes:
+      Math.round(bins.reduce((n, r) => n + (r.llenado ?? 100), 0)) / 100,
     unidades: vivos.reduce((n, r) => n + r.unidades, 0),
     kilos: vivos.reduce((n, r) => n + (r.kilos ?? 0), 0),
     por_marca_producto: [...porMarcaProducto.values()].sort((a, b) => b.n - a.n),

@@ -35,12 +35,40 @@
       <div class="opciones" id="op-productos"></div>
     </section>
 
+    <!-- Potes. No hay bin: hay cajas que alguien cuenta, asi que hace falta un numero.
+         Es el unico paso del yogur que pide tipear, y solo aparece para los potes. -->
+    <section class="paso" id="paso-cajas" hidden>
+      <p class="pregunta">¿Cuántas cajas?</p>
+      <div class="centrado">
+        <div class="contador">
+          <div class="valor vacio" id="cajas-valor">0</div>
+          <div class="unidad">cajas</div>
+        </div>
+        <div class="equivale" id="cajas-equivale"></div>
+        <div class="teclado" id="cajas-teclado"></div>
+      </div>
+    </section>
+
+    <!-- El bin que no se llenó. Se llega acá DESDE la confirmación, no antes: casi todos
+         salen llenos y no pueden pagar un toque de más por la excepción. -->
+    <section class="paso" id="paso-llenado" hidden>
+      <p class="pregunta">¿Cuánto se llenó el bin?</p>
+      <div class="opciones" id="op-llenados"></div>
+    </section>
+
+    <section class="paso" id="paso-motivo" hidden>
+      <p class="pregunta">¿Por qué no se llenó?</p>
+      <div class="opciones" id="op-motivos-yogur"></div>
+    </section>
+
     <section class="paso" id="paso-listo" hidden>
       <div class="confirmacion">
         <div class="tilde">✓</div>
-        <div class="titulo">BIN REGISTRADO</div>
+        <div class="titulo" id="listo-titulo">BIN REGISTRADO</div>
         <div class="hora" id="listo-hora"></div>
         <div class="detalle" id="listo-detalle"></div>
+        <!-- Solo para bins: un pote se cuenta por cajas y no tiene llenado que ajustar. -->
+        <button class="btn-ajustar" id="btn-no-lleno" hidden>No se llenó el bin</button>
         <div class="acciones-confirmacion">
           <button class="btn-deshacer" id="btn-deshacer">DESHACER · <span id="deshacer-seg">60</span>s</button>
           <button class="btn-seguir" id="btn-seguir">SEGUIR</button>
@@ -53,6 +81,7 @@
     <section class="totales">
       <div class="totales-cifras">
         <span><strong id="bins-hoy">0</strong> bins</span>
+        <span id="cajas-hoy-caja" hidden><strong id="cajas-hoy">0</strong> cajas</span>
         <span>≈ <strong id="unidades-hoy">0</strong> sachets<span id="kilos-hoy"></span></span>
       </div>
       <div class="desglose" id="desglose-hoy"></div>

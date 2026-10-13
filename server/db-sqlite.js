@@ -331,6 +331,20 @@ sqlite.exec(`
   -- Por que puede quedar observada una entrega de leche cruda: cortada, con olor, etc.
   -- Va como tabla y no como lista fija en el codigo porque la conoce la fabrica, no
   -- nosotros: el sembrado es un punto de partida y se edita desde /app/maestros.
+  -- Por que un bin de yogur no se lleno. Mismo criterio que los motivos de recepcion:
+  -- se repite, alguien va a querer contarlo, y un texto libre no se puede contar.
+  --
+  -- La columna es_perdida separa el final normal de una produccion ("se termino la partida") de
+  -- una perdida de verdad. Sin esa distincion, el reporte de merma contaria como perdida
+  -- casi todos los bins incompletos de la fabrica, que es la mayoria de los dias.
+  CREATE TABLE IF NOT EXISTS motivos_yogur (
+    id         INTEGER PRIMARY KEY,
+    nombre     TEXT NOT NULL UNIQUE,
+    es_perdida INTEGER NOT NULL DEFAULT 1,
+    activo     INTEGER NOT NULL DEFAULT 1,
+    orden      INTEGER NOT NULL DEFAULT 0
+  );
+
   CREATE TABLE IF NOT EXISTS motivos_recepcion (
     id     INTEGER PRIMARY KEY,
     nombre TEXT NOT NULL UNIQUE,
@@ -459,6 +473,10 @@ agregarColumna('productos', 'unidades_por_bin', 'INTEGER')
 // eso entran ~500 sachets de 1 litro. Se llamaba "caja" por una lectura mia del
 // primer relevamiento; usar el nombre real importa porque es lo que el operario ve en
 // la tablet y lo que dice cuando algo no cuadra.
+// CUIDADO: este bloque BORRA la columna `productos.unidades_por_caja` y corre en cada
+// arranque. No volver a usar ese nombre para otra cosa — una columna nueva que se llamara
+// asi se perderia sola en el siguiente `npm start`, llevandose su contenido a
+// `unidades_por_bin`. El embalaje de los potes se llama `unidades_por_bulto` por esto.
 if (columnasDe('productos').includes('unidades_por_caja')) {
   const viejos = sqlite.prepare('SELECT id, unidades_por_caja FROM productos WHERE unidades_por_caja IS NOT NULL').all()
   const pasar = sqlite.prepare('UPDATE productos SET unidades_por_bin = ? WHERE id = ? AND unidades_por_bin IS NULL')
@@ -467,6 +485,22 @@ if (columnasDe('productos').includes('unidades_por_caja')) {
   console.log('  columna unidades_por_caja renombrada a unidades_por_bin')
 }
 agregarColumna('productos', 'datos_provisorios', 'INTEGER NOT NULL DEFAULT 1')
+
+// Yogur en potes. El bebible se registra DE A UN BIN y el pote POR CAJAS: son dos formas
+// de medir la misma produccion, asi que el producto dice cual usa.
+//   presentacion 'bin'  -> una carga = un bin (lo de siempre)
+//   presentacion 'caja' -> una carga = N cajas de `unidades_por_bulto`
+// `marca_id` en NULL significa "lo hacen todas las marcas de la familia", que es el caso
+// normal; con valor, el producto es de una sola marca. Los potes son solo de una.
+agregarColumna('productos', 'presentacion', "TEXT NOT NULL DEFAULT 'bin'")
+agregarColumna('productos', 'unidades_por_bulto', 'INTEGER')
+agregarColumna('productos', 'marca_id', 'INTEGER REFERENCES marcas(id)')
+
+// Cuanto se lleno el bin: 100, 75, 50 o 25. El operario mira y estima, no cuenta.
+// 100 por defecto porque es lo que el sistema asumia para todo lo ya cargado.
+agregarColumna('registros_yogur', 'llenado', 'INTEGER NOT NULL DEFAULT 100')
+agregarColumna('registros_yogur', 'cajas', 'INTEGER')
+agregarColumna('registros_yogur', 'motivo_id', 'INTEGER REFERENCES motivos_yogur(id)')
 
 // Los litros se CONGELAN en cada registro, no se calculan al mostrarlos.
 //

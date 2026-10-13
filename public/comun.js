@@ -439,19 +439,27 @@ export function pintarDesglose(nodo, filas, unidad = '') {
     const n = document.createElement('b')
     n.textContent = f.n
     const t = document.createElement('span')
+    // La unidad puede venir en la fila: en yogur conviven bins (bebible) y cajas (potes)
+    // en el mismo desglose, y decirle "bins" a una caja de potes es decir una falsedad
+    // en la pantalla que el operario mira todo el día.
+    const u = f.unidad ?? unidad
     // Producto primero: es lo que el operario busca. La marca desambigua.
-    t.textContent = `${f.producto} · ${f.marca}${unidad ? ` ${unidad}` : ''}`
+    t.textContent = `${f.producto} · ${f.marca}${u ? ` ${u}` : ''}`
     c.append(n, t)
     return c
   }))
 }
 
-// Suma uno a la combinacion, creandola si es la primera del dia. Devuelve una lista
-// nueva ya ordenada: lo mas cargado primero, que es lo que el operario mira.
-export function sumarDesglose(filas, marca, producto) {
+// Suma a la combinacion, creandola si es la primera del dia. Devuelve una lista nueva ya
+// ordenada: lo mas cargado primero, que es lo que el operario mira.
+//
+// `cuanto` y `unidad` son para cuando lo que se suma no es "uno de algo": en yogur, una
+// carga de potes son 12 cajas, no un bin. Sin eso el desglose optimista dice otra cosa
+// que el del servidor y los numeros bailan al refrescar.
+export function sumarDesglose(filas, marca, producto, cuanto = 1, unidad = undefined) {
   const copia = filas.map((f) => ({ ...f }))
   const f = copia.find((x) => x.marca === marca && x.producto === producto)
-  if (f) f.n += 1
-  else copia.push({ marca, producto, n: 1 })
+  if (f) f.n += cuanto
+  else copia.push({ marca, producto, n: cuanto, ...(unidad ? { unidad } : {}) })
   return copia.sort((a, b) => b.n - a.n)
 }
