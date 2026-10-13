@@ -11,6 +11,30 @@
   --acento: #2e9e5b;
   --acento-alto: #37b76a;
   --alerta: #c4562f;
+
+  /* Estado, no accion: el semaforo de la planilla, el tambo ya cargado, el dia que
+     no es hoy. El verde es el mismo de --acento-alto a proposito. En una tablet que
+     se lee a dos metros, dos verdes casi iguales son dos cosas que decodificar; y
+     de los candidatos es el que mas contrasta contra --panel-alto (5.5:1).
+     El rojo del semaforo es --alerta, que ya estaba. */
+  --bien: #37b76a;
+  --aviso: #c9a227;
+  --aviso-fondo: #5c4a1a;
+  --aviso-texto: #ffe9a3;
+
+  /* Azul: la unica accion que no es "agregar". Entrada es --acento, salida es esto.
+     Que no compartan color es el punto; con guantes y de lejos, el color llega
+     antes que la palabra. */
+  --salida: #2f6ea8;
+  --salida-alto: #3d86c6;
+
+  /* Los chips de estado de maduracion: fondo teñido oscuro + texto claro del mismo
+     tono. Son mas apagados que --aviso-fondo a proposito: el chip informa, el boton
+     de fecha interrumpe. */
+  --chip-bien-fondo: #1d4d30;  --chip-bien-texto: #6fce90;
+  --chip-mal-fondo: #5a2a18;   --chip-mal-texto: #f0a184;
+  --chip-aviso-fondo: #3a3320; --chip-aviso-texto: #e8d49a; --chip-aviso-borde: #5c5030;
+
   --radio: 14px;
   --toque-min: 96px; /* alto minimo de cualquier cosa tocable, con guantes */
 }
@@ -205,9 +229,9 @@ h1 {
    y nadie lo nota mete toda la semana en el día equivocado: es el error caro de esta
    pantalla, y tiene que ser imposible no verlo. */
 .btn-fecha.otro-dia {
-  background: #5c4a1a;
-  border-color: #c9a227;
-  color: #ffe9a3;
+  background: var(--aviso-fondo);
+  border-color: var(--aviso);
+  color: var(--aviso-texto);
 }
 
 .ultimo {
@@ -225,7 +249,7 @@ h1 {
   margin-top: 6px;
   font-size: 15px;
   font-weight: 700;
-  color: var(--bien, #3fb27f);
+  color: var(--bien);
 }
 
 /* El calendario del paso de fecha. Secundario a propósito: separado por una línea y más
@@ -335,9 +359,9 @@ h1 {
   background: var(--borde);
 }
 
-.fila-tambo.cargado .luz { background: var(--bien, #3fb27f); }
-.fila-tambo.falta .luz { background: var(--alerta, #e0674f); }
-.fila-tambo.cargado .quien { border-color: var(--bien, #3fb27f); }
+.fila-tambo.cargado .luz { background: var(--bien); }
+.fila-tambo.falta .luz { background: var(--alerta); }
+.fila-tambo.cargado .quien { border-color: var(--bien); }
 
 /* Cada entrega del día es una celda. La segunda sólo aparece cuando hay una primera:
    los datos dicen que una segunda entrega pasa como mucho una vez por día. */
@@ -355,14 +379,14 @@ h1 {
 }
 
 .celda:active { transform: scale(0.96); }
-.celda.llena { background: color-mix(in srgb, var(--bien, #3fb27f) 18%, var(--panel-alto)); border-color: var(--bien, #3fb27f); }
+.celda.llena { background: color-mix(in srgb, var(--bien) 18%, var(--panel-alto)); border-color: var(--bien); }
 .celda.sumar { font-size: 26px; color: var(--texto-tenue); font-weight: 400; }
 /* Los lugares que sobran de la grilla no son botones: se dejan vacíos para que el "+"
    sea siempre uno solo por fila, el de la entrega que sigue. */
 .celda.hueco { visibility: hidden; }
 .celda small { display: block; font-size: 12px; font-weight: 600; color: var(--texto-tenue); margin-top: 2px; }
 /* La entrega con observación se marca: es lo que hay que mirar antes de liquidar. */
-.celda.observada { border-color: #c9a227; }
+.celda.observada { border-color: var(--aviso); }
 
 .pie-planilla {
   display: flex;
@@ -442,6 +466,11 @@ h1 {
 .tecla-letra.ancha { max-width: none; flex: 4; font-size: 17px; letter-spacing: 1px; }
 .tecla-letra.borrar { flex: 1.4; max-width: 120px; font-size: 24px; color: var(--texto-tenue); }
 
+/* Las procedencias ocasionales ya conocidas, arriba del teclado.
+   Una sola fila de alto: abajo va el teclado, que es lo que de verdad necesita el
+   espacio. Si hay mas, scrollean. No se achican por debajo de --toque-min aunque
+   entrarian mas: tocar una de estas ELIGE EL TAMBO al que despues hay que pagarle,
+   no es un atajo decorativo. */
 /* Lo que se va escribiendo. Alto fijo para que el teclado no salte al pasar de renglón. */
 .nota-valor {
   min-height: 64px;
@@ -731,7 +760,7 @@ h1 {
 
 .opcion.grande { min-height: 150px; font-size: 34px; }
 .opcion.entrada:active { background: var(--acento); }
-.opcion.salida:active { background: #2f6ea8; border-color: #3d86c6; }
+.opcion.salida:active { background: var(--salida); border-color: var(--salida-alto); }
 
 /* Si aun asi algo desborda, que se note: el borde inferior se desvanece en vez de
    cortar en seco, que es lo que hace pensar que no hay nada mas abajo. */
@@ -845,10 +874,10 @@ h1 {
   padding: 4px 11px; border-radius: 20px; white-space: nowrap;
 }
 .estado-falta  { background: var(--borde);  color: var(--texto-tenue); }
-.estado-apto   { background: #1d4d30; color: #6fce90; }
+.estado-apto   { background: var(--chip-bien-fondo); color: var(--chip-bien-texto); }
 .estado-optimo { background: var(--acento); color: #fff; }
-.estado-pasado { background: #5a2a18; color: #f0a184; }
-.estado-sin_dato { background: #3a3320; color: #d9c07a; }
+.estado-pasado { background: var(--chip-mal-fondo); color: var(--chip-mal-texto); }
+.estado-sin_dato { background: var(--chip-aviso-fondo); color: var(--chip-aviso-texto); }
 
 .tarjeta-tina.optimo { border-color: var(--acento); }
 .tarjeta-tina.pasado { border-color: var(--alerta); }
@@ -869,7 +898,7 @@ h1 {
 .resumen-camara .t { font-size: 12px; color: var(--texto-tenue); text-transform: uppercase; letter-spacing: .7px; }
 
 .aviso-provisorio {
-  flex: none; background: #3a3320; color: #e8d49a; border: 1px solid #5c5030;
+  flex: none; background: var(--chip-aviso-fondo); color: var(--chip-aviso-texto); border: 1px solid var(--chip-aviso-borde);
   border-radius: 10px; padding: 10px 15px; font-size: 15px; line-height: 1.4;
 }
 

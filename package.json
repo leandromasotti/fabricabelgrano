@@ -13,6 +13,8 @@
     "backup": "node --env-file-if-exists=.env.local server/backup.js",
     "operarios": "node --env-file-if-exists=.env.local server/operarios.js",
     "migrar": "node migraciones/migrar-desde-sqlite.js",
+    "revisar": "node herramientas/revisar-pantallas.mjs",
+    "revisar:navegador": "node herramientas/revisar-pantallas.mjs --con-navegador",
     "web": "npm --prefix web run dev",
     "web:build": "npm --prefix web run build",
     "web:install": "npm --prefix web install"
