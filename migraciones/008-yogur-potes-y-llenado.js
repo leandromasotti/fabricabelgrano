@@ -144,13 +144,22 @@ const pasos = [
       return Number(n.n) === 0
     },
     async aplica() {
-      // prepare().run() y no exec(): exec manda el SQL crudo a Postgres y los booleanos
-      // escritos como 0/1 revientan. Es lo que rompio la 007.
-      const ins = db.prepare(
-        'INSERT INTO motivos_yogur (nombre, es_perdida, activo, orden) VALUES (?, ?, 1, ?)',
-      )
+      // Los booleanos van como LITERAL `true`/`false` en el SQL, no como 0/1 ni como
+      // parametro ligado.
+      //
+      // El traductor de dialecto reescribe `columna = 0` a `columna = false`, pero eso es
+      // para COMPARACIONES. Un 1 suelto adentro de un VALUES no lo toca nadie, y un 0/1
+      // pasado como parametro tampoco: Postgres recibe un integer contra una columna
+      // boolean y corta con 42804. En SQLite las dos formas andan, que es por lo que este
+      // error ya nos mordio tres veces y siempre se descubre recien en produccion.
+      const ins = (esPerdida) =>
+        db.prepare(
+          'INSERT INTO motivos_yogur (nombre, es_perdida, activo, orden) VALUES (?, ' +
+            (esPerdida ? 'true' : 'false') +
+            ', true, ?)',
+        )
       for (const [i, nombre] of MOTIVOS.entries()) {
-        await ins.run(nombre, nombre === 'Se terminó la partida' ? 0 : 1, i + 1)
+        await ins(nombre !== 'Se terminó la partida').run(nombre, i + 1)
       }
       return `${MOTIVOS.length} motivos (editables desde /app/maestros)`
     },
@@ -208,9 +217,10 @@ const pasos = [
       const max = await db
         .prepare("SELECT COALESCE(MAX(orden), 0) AS n FROM productos WHERE familia = 'yogur'")
         .get()
+      // `true` y no `1`: ver el comentario del paso de los motivos.
       const ins = db.prepare(`
         INSERT INTO productos (nombre, familia, activo, orden, presentacion, unidades_por_bulto, marca_id)
-        VALUES (?, 'yogur', 1, ?, 'caja', ?, ?)
+        VALUES (?, 'yogur', true, ?, 'caja', ?, ?)
       `)
       for (const [i, sabor] of POTES.entries()) {
         await ins.run(`Pote ${sabor.toLowerCase()}`, Number(max.n) + i + 1, UNIDADES_POR_BULTO_POTE, marca.id)
