@@ -81,12 +81,36 @@ const seccionesTablero = [
 // ese numero es estimado. Existe una clase .aviso-provisorio en styles.css que nadie usa,
 // justamente para esto. Mientras no se muestre, el flag sirve al encargado y no al
 // operario — que es la mitad del valor que deberia tener.
+//
+// Los del yogur salen del audio del 2026-11-06 y del detalle del 10/11:
+//
+//   "Entran 70 cajas de yogurt por pallet. De 15 unidades cada caja en la marca Lácteos
+//    Belgrano que es de 1 kg la presentación, y de 16 unidades en la marca Central
+//    Lechera que son de 900 gramos."
+//
+// Por eso llevan `marca`: no es un formato con dos variantes, son dos formatos. Un pallet
+// de Belgrano da 70 × 15 × 1 = 1.050 kg y uno de Central Lechera 70 × 16 × 0,9 = 1.008 kg.
+// El numero sale de multiplicar, no de una constante: el dia que cambie la caja es una
+// fila editada desde /app/envases y no una linea de codigo.
+//
+// El BIN sigue existiendo ("por el momento sigue apareciendo pero cada vez menos.
+// Tendria que estar igual la opcion") y entra como un envase mas, de un solo bulto de
+// ~500 sachets. Va PROVISORIO a proposito: los 500 siempre fueron "aproximadamente 500",
+// y eso es exactamente lo que `provisorio` significa. Es tambien la diferencia de fondo
+// entre las dos formas — un bin se estima a ojo, las cajas de un pallet se cuentan.
 const envases = [
-  { nombre: 'Caja 12 × 1 L',       bultos: 70, unidades: 12, litros: 1, provisorio: 0, orden: 1 },
-  { nombre: 'Cajón lácteo x 18',   bultos: 40, unidades: 18, litros: 1, provisorio: 0, orden: 2 },
-  { nombre: 'Cajón lácteo x 20',   bultos: 40, unidades: 20, litros: 1, provisorio: 1, orden: 3 },
-  { nombre: 'Palangana 30',        bultos: 30, unidades: 18, litros: 1, provisorio: 0, orden: 4 },
-  { nombre: 'Bandejón de colores', bultos: 30, unidades: 18, litros: 1, provisorio: 0, orden: 5 },
+  { nombre: 'Caja 12 × 1 L',       bultos: 70, unidades: 12,  litros: 1,   provisorio: 0, orden: 1 },
+  { nombre: 'Cajón lácteo x 18',   bultos: 40, unidades: 18,  litros: 1,   provisorio: 0, orden: 2 },
+  { nombre: 'Cajón lácteo x 20',   bultos: 40, unidades: 20,  litros: 1,   provisorio: 1, orden: 3 },
+  { nombre: 'Palangana 30',        bultos: 30, unidades: 18,  litros: 1,   provisorio: 0, orden: 4 },
+  { nombre: 'Bandejón de colores', bultos: 30, unidades: 18,  litros: 1,   provisorio: 0, orden: 5 },
+
+  { nombre: 'Pallet 70 cajas × 15', familia: 'yogur', unidad: 'kg', marca: 'Lácteos Belgrano',
+    bultos: 70, unidades: 15,  litros: 1,   provisorio: 0, orden: 11 },
+  { nombre: 'Pallet 70 cajas × 16', familia: 'yogur', unidad: 'kg', marca: 'Central Lechera',
+    bultos: 70, unidades: 16,  litros: 0.9, provisorio: 0, orden: 12 },
+  { nombre: 'Bin 500',              familia: 'yogur', unidad: 'kg',
+    bultos: 1,  unidades: 500, litros: 1,   provisorio: 1, orden: 13 },
 ]
 
 // Que familia hace cada marca. El yogur va en dos marcas: Obenac NO hace yogur
@@ -261,8 +285,12 @@ const insertSeccion = db.prepare(
   'INSERT INTO tablero_secciones (clave, nombre, descripcion, visible, orden) VALUES (@clave, @nombre, @descripcion, true, @orden)'
 )
 const insertEnvase = db.prepare(`
-  INSERT INTO envases (nombre, bultos_por_pallet, unidades_por_bulto, litros_por_unidad, provisorio, orden)
-  VALUES (@nombre, @bultos, @unidades, @litros, @provisorio, @orden)
+  INSERT INTO envases
+    (nombre, bultos_por_pallet, unidades_por_bulto, litros_por_unidad, provisorio, orden,
+     familia, unidad, marca_id)
+  VALUES
+    (@nombre, @bultos, @unidades, @litros, @provisorio, @orden,
+     @familia, @unidad, @marca_id)
 `)
 const insertMarcaFamilia = db.prepare(
   'INSERT OR IGNORE INTO marcas_familias (marca_id, familia) VALUES (?, ?)'
@@ -328,7 +356,20 @@ async function cargar() {
   const existeEnvase = db.prepare('SELECT 1 FROM envases WHERE nombre = ?')
   const nuevosEnvases = []
   for (const e of envases) if (!(await existeEnvase.get(e.nombre))) nuevosEnvases.push(e)
-  for (const e of nuevosEnvases) await insertEnvase.run(e)
+  // La marca del formato viaja por NOMBRE y se resuelve acá: el id no se conoce al
+  // escribir la lista, y clavarlo a mano es el tipo de numero que se rompe en silencio
+  // cuando la base se recrea.
+  const buscarMarca = db.prepare('SELECT id FROM marcas WHERE nombre = ?')
+  for (const e of nuevosEnvases) {
+    const m = e.marca ? await buscarMarca.get(e.marca) : null
+    if (e.marca && !m) throw new Error(`el envase "${e.nombre}" apunta a una marca inexistente: ${e.marca}`)
+    await insertEnvase.run({
+      ...e,
+      familia: e.familia ?? 'leche',
+      unidad: e.unidad ?? 'L',
+      marca_id: m?.id ?? null,
+    })
+  }
   if (nuevosEnvases.length) console.log(`  envases:   +${nuevosEnvases.length}`)
 
   // Idempotente por clave: agregar una seccion nueva al tablero no pisa lo que el

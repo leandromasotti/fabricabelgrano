@@ -69,13 +69,26 @@ export interface Envase {
   nombre: string
   bultos_por_pallet: number | null
   unidades_por_bulto: number | null
+  /**
+   * Cuánto mide UNA unidad. El nombre dice litros porque los envases empezaron siendo
+   * solo de leche; para los de yogur contiene kilos. Lo que vale es `unidad`.
+   */
   litros_por_unidad: number | null
   litros_por_pallet: number | null
   provisorio: BoolApi
   activo: BoolApi
   /** Posición en la lista de la tablet. El más usado va primero. */
   orden: number
+  /** Cargas registradas con este formato, de leche y de yogur. */
   pallets: number
+  /** 'leche' | 'yogur'. Decide qué tablet lo ofrece. */
+  familia: string
+  /** 'L' o 'kg'. La leche se cuenta y el yogur se pesa. */
+  unidad: string
+  /** Con valor, el formato es de una sola marca: la caja de yogur es de 15 en Lácteos
+   *  Belgrano y de 16 en Central Lechera. En null lo usan todas. */
+  marca_id: number | null
+  marca: string | null
 }
 
 export interface Catalogo {

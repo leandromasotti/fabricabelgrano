@@ -35,6 +35,16 @@
       <div class="opciones" id="op-productos"></div>
     </section>
 
+    <!-- En que sale esta carga: pallet de cajas, o bin. Es el mismo concepto que el
+         envase de lechería, y por eso usa la misma tabla.
+
+         Solo aparece cuando hay mas de una opcion para esa marca: un paso con una sola
+         respuesta no es una pregunta, es un toque de mas. -->
+    <section class="paso" id="paso-envase" hidden>
+      <p class="pregunta">¿En qué sale?</p>
+      <div class="opciones" id="op-envases"></div>
+    </section>
+
     <!-- Potes. No hay bin: hay cajas que alguien cuenta, asi que hace falta un numero.
          Es el unico paso del yogur que pide tipear, y solo aparece para los potes. -->
     <section class="paso" id="paso-cajas" hidden>
@@ -49,6 +59,24 @@
       </div>
     </section>
 
+    <!-- El pallet que no se completó. Se llega acá DESDE la confirmación, igual que el
+         llenado del bin y por el mismo motivo.
+
+         Acá se CUENTAN cajas y en el bin se ESTIMA un porcentaje: esa es toda la
+         diferencia entre las dos formas, y es la razon por la que el pallet da un numero
+         mejor que el bin. -->
+    <section class="paso" id="paso-ajustar" hidden>
+      <p class="pregunta" id="ajustar-pregunta">¿Cuántas cajas entraron?</p>
+      <div class="centrado">
+        <div class="contador">
+          <div class="valor vacio" id="ajustar-valor">0</div>
+          <div class="unidad">cajas</div>
+        </div>
+        <div class="equivale" id="ajustar-equivale"></div>
+        <div class="teclado" id="ajustar-teclado"></div>
+      </div>
+    </section>
+
     <!-- El bin que no se llenó. Se llega acá DESDE la confirmación, no antes: casi todos
          salen llenos y no pueden pagar un toque de más por la excepción. -->
     <section class="paso" id="paso-llenado" hidden>
@@ -57,18 +85,20 @@
     </section>
 
     <section class="paso" id="paso-motivo" hidden>
-      <p class="pregunta">¿Por qué no se llenó?</p>
+      <p class="pregunta">¿Por qué salió menos?</p>
       <div class="opciones" id="op-motivos-yogur"></div>
     </section>
 
     <section class="paso" id="paso-listo" hidden>
       <div class="confirmacion">
         <div class="tilde">✓</div>
-        <div class="titulo" id="listo-titulo">BIN REGISTRADO</div>
+        <div class="titulo" id="listo-titulo">PALLET REGISTRADO</div>
         <div class="hora" id="listo-hora"></div>
         <div class="detalle" id="listo-detalle"></div>
-        <!-- Solo para bins: un pote se cuenta por cajas y no tiene llenado que ajustar. -->
-        <button class="btn-ajustar" id="btn-no-lleno" hidden>No se llenó el bin</button>
+        <!-- No aparece para los potes: esos se cuentan por cajas al final de la
+             produccion y no hay nada que corregir. Para el pallet pregunta cuantas cajas
+             entraron; para el bin, cuanto se llenó. -->
+        <button class="btn-ajustar" id="btn-ajustar" hidden>No fue un pallet completo</button>
         <div class="acciones-confirmacion">
           <button class="btn-deshacer" id="btn-deshacer">DESHACER · <span id="deshacer-seg">60</span>s</button>
           <button class="btn-seguir" id="btn-seguir">SEGUIR</button>
@@ -80,7 +110,8 @@
          opción de configuración. -->
     <section class="totales">
       <div class="totales-cifras">
-        <span><strong id="bins-hoy">0</strong> bins</span>
+        <span><strong id="pallets-hoy">0</strong> pallets</span>
+        <span id="bins-hoy-caja" hidden><strong id="bins-hoy">0</strong> bins</span>
         <span id="cajas-hoy-caja" hidden><strong id="cajas-hoy">0</strong> cajas</span>
         <span>≈ <strong id="unidades-hoy">0</strong> sachets<span id="kilos-hoy"></span></span>
       </div>

@@ -502,6 +502,47 @@ agregarColumna('registros_yogur', 'llenado', 'INTEGER NOT NULL DEFAULT 100')
 agregarColumna('registros_yogur', 'cajas', 'INTEGER')
 agregarColumna('registros_yogur', 'motivo_id', 'INTEGER REFERENCES motivos_yogur(id)')
 
+// El yogur sale en PALLETS DE CAJAS, no solo en bins.
+//
+//   "Ya no sale el bin, sino que vas armando el pallet, directamente ya lo marcás como
+//    pallet de yogurt, pero las cajas de yogurt son por 15 unidades, así que también lo
+//    puedo marcar como hago con la leche."  [Alexis, audio 2026-11-06]
+//   "Entran 70 cajas de yogurt por pallet. De 15 unidades cada caja en la marca Lácteos
+//    Belgrano que es de 1 kg la presentación, y de 16 unidades en la marca Central
+//    Lechera que son de 900 gramos."  [Alexis, 2026-11-10]
+//
+// Es la MISMA leccion que ya habiamos aprendido con la leche, repetida: mientras el yogur
+// salia siempre en bin, "cuanto entra" podia vivir en el producto. Ahora el mismo sabor
+// sale en pallet o en bin ("el bin por el momento sigue apareciendo pero cada vez menos.
+// Tendria que estar igual la opcion"), asi que la equivalencia dejo de ser una propiedad
+// del producto y paso a ser una eleccion del operario en cada carga: la tabla `envases`,
+// que ya existia para la leche.
+//
+// Se congelan igual que en los pallets de leche: si manana cambia la caja, lo viejo no se
+// reescribe solo.
+agregarColumna('registros_yogur', 'envase_id', 'INTEGER REFERENCES envases(id)')
+agregarColumna('registros_yogur', 'bultos', 'INTEGER')
+agregarColumna('registros_yogur', 'unidades_por_bulto', 'INTEGER')
+
+// Los envases dejan de ser solo de leche.
+//
+// `familia` — que tablet lo ofrece. Sin esto, la de lecheria mostraria "Bin 500" entre
+//   los formatos de pallet de leche.
+// `marca_id` — NULL = lo usan todas las marcas, que es el caso normal de la leche. Con
+//   valor, el formato es de una sola marca: la caja de yogur es de 15 en Lacteos Belgrano
+//   y de 16 en Central Lechera, asi que no son un formato con dos variantes sino dos
+//   formatos distintos. Mismo criterio que `productos.marca_id`.
+// `unidad` — 'L' o 'kg'. La leche se cuenta en litros y el yogur se pesa en kilos.
+//
+// OJO CON EL NOMBRE: la columna que guarda el tamano de UNA unidad se llama
+// `litros_por_unidad` y para el yogur contiene KILOS. El nombre quedo de cuando los
+// envases eran solo de leche; renombrarla toca ocho archivos y una columna generada en
+// Postgres, y el riesgo no se justifica. Lo que vale es `unidad`: es de ahi que salen las
+// etiquetas de las pantallas, no del nombre de la columna.
+agregarColumna('envases', 'familia', "TEXT NOT NULL DEFAULT 'leche'")
+agregarColumna('envases', 'marca_id', 'INTEGER REFERENCES marcas(id)')
+agregarColumna('envases', 'unidad', "TEXT NOT NULL DEFAULT 'L'")
+
 // Los litros se CONGELAN en cada registro, no se calculan al mostrarlos.
 //
 // Si el ano que viene cambia el tamano de la caja y el calculo fuera en vivo, todos

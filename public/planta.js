@@ -22,7 +22,7 @@ import { $, red, pintarEstado, sincronizar, registrarSW, botones } from '/comun.
 const SECTORES = {
   recepcion: { nombre: 'Recepción', detalle: 'Leche cruda que entra', url: '/recepcion.html' },
   lecheria: { nombre: 'Lechería', detalle: 'Pallets de leche', url: '/lecheria.html' },
-  yogures: { nombre: 'Yogures', detalle: 'Bins de yogur', url: '/yogures.html' },
+  yogures: { nombre: 'Yogures', detalle: 'Pallets y bins de yogur', url: '/yogures.html' },
   queseria: { nombre: 'Quesería', detalle: 'Tinas y piezas producidas', url: '/queseria.html' },
   saladero: { nombre: 'Saladero', detalle: 'Entrada y salida de sal', url: '/saladero.html' },
   envasado: { nombre: 'Envasado', detalle: 'Piezas envasadas', url: '/envasado.html' },
@@ -31,6 +31,12 @@ const SECTORES = {
 }
 
 // Lo que pidio el cliente: una tablet para queseria y saladero.
+//
+// La otra combinacion que la fabrica ya necesita es yogures + lecheria: en la sala del
+// yogur tambien se envasa leche ("tambien ahi se elabora leche en esas maquinas. Asi que
+// tambien tendriamos que tener para armar pallets de cajones y cajas a veces tambien",
+// Alexis 10/11). No hace falta tocar nada: esa tablet se abre en
+// /planta.html?sectores=yogures,lecheria y queda con las dos.
 const POR_DEFECTO = ['queseria', 'saladero']
 
 const pedidos = new URLSearchParams(location.search).get('sectores')

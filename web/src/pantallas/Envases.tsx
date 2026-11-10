@@ -30,22 +30,23 @@ export function Envases() {
       <header className="mb-5">
         <h1 className="text-[23px] font-semibold">Envases y formatos</h1>
         <p className="text-[14px] text-tinta-2">
-          De acá salen los litros de cada pallet y los kilos de cada bin. Completar un
-          formato también completa los registros viejos que lo usan.
+          De acá salen los litros de cada pallet de leche y los kilos de cada pallet o
+          bin de yogur. Completar un formato también completa los registros viejos que
+          lo usan.
         </p>
       </header>
 
       <div className="flex flex-col gap-5">
         <Panel
           titulo="Pallets y cajones"
-          nota="bultos por pallet × unidades por bulto × litros por unidad"
+          nota="bultos por pallet × unidades por bulto × cuánto mide cada unidad"
           acciones={<AltaFormato />}
         >
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-[13.5px]">
               <thead>
                 <tr className="border-b border-borde">
-                  {['Formato', 'Bultos', 'Unidades', 'Litros c/u', 'Total', 'Pallets cargados', 'Orden', 'En la tablet', '', ''].map(
+                  {['Formato', 'Bultos', 'Unidades', 'Cada una', 'Total', 'Cargas', 'Orden', 'En la tablet', '', ''].map(
                     (h, i) => (
                       <th
                         key={h || i}
@@ -257,15 +258,25 @@ function FilaPallet({ envase: e }: { envase: Envase }) {
 
   return (
     <tr className={`border-b border-borde/60 last:border-0 ${e.activo ? '' : 'opacity-55'}`}>
-      <td className="py-2">{e.nombre}</td>
+      <td className="py-2">
+        {e.nombre}
+        {/* De qué es el formato y, si es de una sola marca, cuál. Sin esto, "Pallet 70
+            cajas × 15" y "× 16" se leen como dos variantes de lo mismo y es fácil
+            editar la equivocada: son la caja de Lácteos Belgrano y la de Central
+            Lechera, que pesan distinto. */}
+        <span className="block text-[12px] text-tinta-suave">
+          {e.familia === 'yogur' ? 'yogur' : 'leche'}
+          {e.marca ? ` · solo ${e.marca}` : ''}
+        </span>
+      </td>
       <td className="px-2 py-2 text-right">{campo(bultos, setBultos, 'Bultos por pallet')}</td>
       <td className="px-2 py-2 text-right">{campo(unidades, setUnidades, 'Unidades por bulto')}</td>
       <td className="px-2 py-2 text-right">
-        {campo(litros, setLitros, 'Litros por unidad', '0.001')}
+        {campo(litros, setLitros, `${e.unidad === 'kg' ? 'Kilos' : 'Litros'} por unidad`, '0.001')}
       </td>
       <td className="cifras px-2 py-2 text-right font-semibold">
         {total !== null ? (
-          `${num(total)} L`
+          `${num(total)} ${e.unidad ?? 'L'}`
         ) : (
           <span className="font-normal text-tinta-suave">sin datos</span>
         )}
