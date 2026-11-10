@@ -9,7 +9,26 @@
 
 const usarPostgres = Boolean(process.env.DATABASE_URL)
 
-const modulo = usarPostgres ? await import('./db-pg.js') : await import('./db-sqlite.js')
+// better-sqlite3 es una dependencia OPCIONAL (ver el comentario en package.json): se
+// compila para cada versión de Node y en la nube no se usa nunca. Si falta y además no hay
+// DATABASE_URL, el sistema se queda sin las dos bases, y el error crudo que sale es
+// ERR_MODULE_NOT_FOUND, que no dice nada de lo que realmente pasó.
+async function cargar() {
+  if (usarPostgres) return import('./db-pg.js')
+  try {
+    return await import('./db-sqlite.js')
+  } catch (e) {
+    if (e.code !== 'ERR_MODULE_NOT_FOUND') throw e
+    throw new Error(
+      'No hay base: DATABASE_URL no está definida y better-sqlite3 no está instalado.\n' +
+        'Definí DATABASE_URL para usar PostgreSQL, o corré `npm install` para el modo SQLite\n' +
+        '(better-sqlite3 es opcional y puede no haberse compilado para esta versión de Node).',
+      { cause: e },
+    )
+  }
+}
+
+const modulo = await cargar()
 
 export const db = modulo.db
 export const motor = modulo.motor

@@ -19,12 +19,16 @@
     "web:build": "npm --prefix web run build",
     "web:install": "npm --prefix web install"
   },
+  "//engines": "Major FIJO, no '>=20'. Con un rango abierto Vercel elige la más nueva que tenga, y el 2026-11-10 eligió Node 26: better-sqlite3 no tiene binario precompilado para esa versión, intentó compilarlo desde C++ y el deploy murió en 'npm ci' sin llegar al código. Subir de major es una decisión, no algo que deba pasar solo.",
   "engines": {
-    "node": ">=20"
+    "node": "22.x"
   },
   "dependencies": {
-    "better-sqlite3": "^11.5.0",
     "express": "^4.21.1",
     "pg": "^8.23.0"
+  },
+  "//optionalDependencies": "better-sqlite3 es OPCIONAL de verdad: server/db.js la importa sólo si NO hay DATABASE_URL, así que en la nube —donde siempre hay— nunca se carga. Acá adentro, si no hay binario para la versión de Node, npm sigue de largo en vez de voltear la instalación entera. En una máquina de desarrollo se instala igual y SQLite funciona como siempre.",
+  "optionalDependencies": {
+    "better-sqlite3": "^11.5.0"
   }
 }
