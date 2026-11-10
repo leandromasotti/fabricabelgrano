@@ -258,6 +258,10 @@ Para darle una URL pública al cliente: **[docs/10-online-vercel-supabase.md](do
 
 La opción con servidor propio —Fly.io, Docker— está en [docs/06-despliegue.md](docs/06-despliegue.md).
 
+Para **cambiar de base** (de Supabase al PostgreSQL de un hosting, o al revés):
+**[docs/13-base-en-el-hosting.md](docs/13-base-en-el-hosting.md)** y
+`herramientas/mudar-base.mjs`, que copia de un PostgreSQL a otro conservando los ids.
+
 Lo esencial en tres líneas:
 
 1. **Poné la clave.** `ACCESO_CLAVE="..."` como variable de entorno. Sin ella el sistema no

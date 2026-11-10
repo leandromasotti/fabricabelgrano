@@ -32,6 +32,21 @@ types.setTypeParser(types.builtins.INT8, (v) => (v === null ? null : Number(v)))
 // un único proceso, el pool sí tiene sentido.
 const serverless = Boolean(process.env.VERCEL ?? process.env.AWS_LAMBDA_FUNCTION_NAME)
 
+// EL TLS VIENE EN LA URL, NO ACÁ. `sslmode` al final de DATABASE_URL es lo único que
+// decide, y los valores no significan lo mismo que en psql:
+//
+//   (sin sslmode)        SIN CIFRAR, y sin un solo aviso: la conexión anda igual.
+//   ?sslmode=disable     lo mismo, pero dicho a propósito.
+//   ?sslmode=no-verify   cifra y NO valida el certificado. Para un autofirmado.
+//   ?sslmode=verify-full cifra y valida la cadena entera. Es lo que usa el hosting.
+//   ?sslmode=require     hoy hace lo mismo que verify-full —ojo, NO lo que hace psql con
+//                        ese valor— pero imprime un aviso de deprecación en cada conexión
+//                        y va a cambiar de significado en pg 9. Mejor escribir verify-full.
+//
+// Por eso no hay una opción `ssl` escrita en el código: una vez puesta, aplica a todos los
+// entornos, incluido el día que la base vuelva a tener un certificado de verdad.
+
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   max: Number(process.env.PG_POOL ?? (serverless ? 1 : 10)),
