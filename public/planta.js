@@ -40,17 +40,50 @@ const SECTORES = {
 const POR_DEFECTO = ['queseria', 'saladero']
 
 const pedidos = new URLSearchParams(location.search).get('sectores')
-const claves = (pedidos ? pedidos.split(',') : POR_DEFECTO)
-  .map((c) => c.trim())
-  .filter((c) => SECTORES[c])
+const sinLimpiar = (pedidos ? pedidos.split(',') : POR_DEFECTO).map((c) => c.trim()).filter(Boolean)
+const claves = sinLimpiar.filter((c) => SECTORES[c])
 
 // Si la URL trae puras claves inventadas, mejor volver al default que dejar la pantalla
 // vacia: una tablet amurada sin botones no tiene como salir de ahi.
 const elegidos = claves.length ? claves : POR_DEFECTO
 
+// UN NOMBRE MAL ESCRITO NO SE PUEDE COMER UN SECTOR EN SILENCIO.
+//
+// `?sectores=yogur,lecheria` —en singular— dejaba la pantalla con Lecheria sola, sin
+// error ni aviso. En una tablet amurada eso es medio sector sin poder cargar y nadie
+// sabiendo por que, hasta que alguien se acuerde de mirar la URL del kiosco.
+//
+// El aviso queda a la vista y no bloquea: los sectores que SI se entendieron siguen
+// funcionando, que es lo que la planta necesita mientras tanto.
+const desconocidos = sinLimpiar.filter((c) => !SECTORES[c])
+if (desconocidos.length) {
+  const aviso = $('aviso-sectores')
+  const cuales = desconocidos.map((c) => `«${c}»`).join(', ')
+  aviso.textContent =
+    `No reconocí ${cuales} en la dirección de esta tablet` +
+    (claves.length ? '.' : ', así que abrí con los sectores por defecto.') +
+    ` Los nombres válidos son: ${Object.keys(SECTORES).join(', ')}.`
+  aviso.hidden = false
+}
+
 // A donde vuelve cada sector: a ESTA url, con los mismos sectores. Asi la vuelta
 // reconstruye la misma pantalla y no una generica.
 const volver = encodeURIComponent(location.pathname + location.search)
+
+// EL ICONO INSTALADO TIENE QUE ABRIR DONDE ABRE ESTA PANTALLA.
+//
+// Estas tablets se instalan como PWA para ir a pantalla completa, y el `start_url` del
+// manifiesto es lo que decide donde abre el icono. El manifiesto estatico pide
+// /planta.html pelado, o sea el default (queseria y saladero): la direccion correcta
+// funcionaba hasta que alguien instalaba la app, y ahi la tablet del yogur amanecia en
+// otro sector. Se reescribe el link ANTES de que Chrome ofrezca instalar.
+//
+// Si la tablet ya estaba instalada de antes, hay que desinstalar y volver a instalar:
+// el start_url queda congelado en el momento de instalar.
+const ligaManifiesto = document.querySelector('link[rel="manifest"]')
+if (ligaManifiesto) {
+  ligaManifiesto.href = `/manifest.json?para=planta&sectores=${elegidos.join(',')}`
+}
 
 // Mismo formato de tarjeta que los envases de lecheria: titulo grande y una linea chica
 // abajo. El operario ya vio esa forma en otra pantalla.

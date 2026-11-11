@@ -3155,8 +3155,43 @@ const INICIO_PWA = {
   pedidos: { url: '/pedidos.html', nombre: 'Pedidos' },
 }
 
+// La tablet compartida lleva sus sectores en la URL (?sectores=yogures,lecheria), y el
+// manifiesto tiene que llevarlos tambien. Sin esto el start_url era /planta.html pelado:
+// la tablet del yogur abria en quesería y saladero apenas alguien instalaba la app, y la
+// direccion correcta funcionaba solo mientras se usara desde el navegador.
+//
+// Se FILTRA contra la lista conocida en vez de copiar lo que vino: lo que entra por query
+// termina adentro del manifiesto, y un start_url armado con texto ajeno es una redirección
+// regalada. 'planta' queda afuera para que una tablet no se apunte a si misma.
+const SECTORES_COMPARTIBLES = Object.keys(INICIO_PWA).filter(
+  (k) => k !== 'planta' && k !== 'recepcion-planilla',
+)
+
+// "Yogures y Lechería", pero "Yogures, Lechería y Recepción". Es el texto que va abajo del
+// icono en la pantalla de inicio de la tablet; que se lea como lo diría una persona.
+const nombrarSectores = (ns) =>
+  ns.length < 2 ? (ns[0] ?? '') : `${ns.slice(0, -1).join(', ')} y ${ns.at(-1)}`
+
+function inicioPwa(para, sectores) {
+  const base = INICIO_PWA[para]
+  if (!base || para !== 'planta' || !sectores) return base
+
+  const limpios = String(sectores)
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => SECTORES_COMPARTIBLES.includes(s))
+  if (!limpios.length) return base
+
+  return {
+    url: `${base.url}?sectores=${limpios.join(',')}`,
+    // Dos tablets compartidas se llamarian las dos "Planta", que es justamente el problema
+    // que el short_name existe para evitar. Que diga que sectores atiende.
+    nombre: nombrarSectores(limpios.map((s) => INICIO_PWA[s].nombre)),
+  }
+}
+
 app.get('/manifest.json', (req, res) => {
-  const sector = INICIO_PWA[req.query.para]
+  const sector = inicioPwa(req.query.para, req.query.sectores)
   res.type('application/manifest+json').json({
     name: sector ? `Belgrano · ${sector.nombre}` : 'Lácteos Belgrano · Producción',
     // El nombre corto es el que se ve abajo del icono: tiene que decir QUE TABLET es,

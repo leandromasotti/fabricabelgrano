@@ -120,13 +120,22 @@ Para usar otro puerto: `PORT=3017 npm start`
 | Pantalla | URL | Para quién |
 |---|---|---|
 | Lanzador | `/` | Solo para probar; cada tablet abre su sector en modo kiosco |
+| Recepción | `/recepcion.html` | Tablet amurada: leche cruda que entra, por tambo |
 | Lechería | `/lecheria.html` | Tablet amurada: pallets por marca y tipo |
+| Yogures | `/yogures.html` | Tablet amurada: pallets, bins y potes de yogur |
+| **Compartida** | `/planta.html?sectores=a,b` | **Una tablet para dos sectores.** Pregunta a cuál se va y cada uno conserva su flujo entero. Sin `?sectores` abre en quesería y saladero |
 | Quesería | `/queseria.html` | Tablet amurada: tinas y piezas obtenidas |
 | Saladero | `/saladero.html` | Tablet amurada: entrada y salida de sal |
 | Maduración | `/maduracion.html` | Tablet amurada: entrada y salida de cámara, con estado por lote |
 | Envasado | `/envasado.html` | Tablet amurada: lo que ya está listo para envasar |
 | Armado de pedidos | `/pedidos.html` | Tablet amurada: armar, pesar pieza por pieza y cerrar |
 | **Tablero LED** | `/tablero.html` | **Pantalla colgada en planta. No se toca, se mira.** |
+
+La sala del yogur produce yogur media jornada y leche la otra mitad —limpian la máquina y
+cambian de producto—, así que esa tablet va en
+**`/planta.html?sectores=yogures,lecheria`**. Los nombres de sector son los de la columna
+URL sin `.html`, y **`yogures` va en plural**: un nombre que no se entiende sale avisado en
+pantalla, pero el sector no aparece.
 
 Y el escritorio, que corre en React bajo `/app`:
 
