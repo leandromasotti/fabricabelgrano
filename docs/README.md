@@ -19,6 +19,7 @@ Sistema de seguimiento de producción para fábrica de lácteos y quesos, con ta
 | [11-pedidos-leche-yogur.md](11-pedidos-leche-yogur.md) | **Los pedidos dejan de ser sólo de queso** |
 | [12-circuitos-del-queso.md](12-circuitos-del-queso.md) | **Los tres circuitos reales (respuesta a B3) y qué hay que cambiar** |
 | [13-base-en-el-hosting.md](13-base-en-el-hosting.md) | **Mudar la base de Supabase al PostgreSQL del hosting** |
+| [14-servidor-en-planta.md](14-servidor-en-planta.md) | **El sistema corriendo en un servidor Windows de la fábrica** |
 
 ## Fuente
 

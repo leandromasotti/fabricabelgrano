@@ -24,7 +24,7 @@ sobre lo que hay que escribir.
 |---|---|
 | Tu máquina | `.env.local`, línea `DATABASE_URL=...`. Está en `.gitignore`: no se sube nunca. |
 | Vercel | Panel → Settings → Environment Variables → `DATABASE_URL`. Hay que **volver a desplegar** para que tome el valor nuevo. |
-| Servidor de planta | el `.env` de ese servidor, cuando exista. |
+| Servidor de planta | el `.env.local` de ese servidor —es el que leen `npm start` y el seed—. Lo escribe solo `instalar\planta.ps1`; ver [14-servidor-en-planta.md](14-servidor-en-planta.md). |
 
 ### El deploy que falla en `npm ci` y no tiene nada que ver con la base
 

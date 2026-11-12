@@ -267,6 +267,25 @@ Para darle una URL pública al cliente: **[docs/10-online-vercel-supabase.md](do
 
 La opción con servidor propio —Fly.io, Docker— está en [docs/06-despliegue.md](docs/06-despliegue.md).
 
+## En un servidor de la planta
+
+La instalación real: la app y PostgreSQL en una máquina Windows de la fábrica, y las tablets
+pegándole por la red local. Así el sistema **no depende de internet**, que en una planta es
+la diferencia entre un enlace caído y la producción sin registrar.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File instalar\planta.ps1             # revisa, no toca nada
+powershell -ExecutionPolicy Bypass -File instalar\planta.ps1 -Confirmar  # instala
+```
+
+El procedimiento completo —qué pide la máquina, por qué sobre `http://` las tablets dejan de
+instalarse como PWA y qué usar en su lugar, backups y vuelta atrás— está en
+**[docs/14-servidor-en-planta.md](docs/14-servidor-en-planta.md)**.
+
+> **Mientras Vercel siga prendido hay DOS bases.** Las dos arrancan sus ids en 1, así que
+> cargar producción de verdad en las dos deja dos conjuntos de datos imposibles de unir. En
+> cada momento una sola es la real.
+
 Para **cambiar de base** (de Supabase al PostgreSQL de un hosting, o al revés):
 **[docs/13-base-en-el-hosting.md](docs/13-base-en-el-hosting.md)** y
 `herramientas/mudar-base.mjs`, que copia de un PostgreSQL a otro conservando los ids.

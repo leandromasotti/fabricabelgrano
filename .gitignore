@@ -35,3 +35,7 @@ cuenta_4x.pub
 *.pem
 id_ed25519*
 id_rsa*
+
+# Lo genera instalar\planta.ps1 en cada servidor: la ruta a node.exe de ESA maquina.
+# Versionarlo significaria que el servidor de la fabrica busque un node que no tiene.
+instalar/entorno.ps1
