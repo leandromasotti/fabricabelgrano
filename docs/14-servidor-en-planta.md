@@ -67,6 +67,33 @@ activas las tiene que mirar una persona.
 
 ---
 
+## Mandarle el paquete a la fábrica
+
+Si la instalación la hace otra persona, el paquete se arma con un comando:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File herramientasrmar-paquete.ps1
+```
+
+Deja `FabricaBelgrano-planta.zip` (unos 2 MB) en el escritorio, listo para subir.
+
+**No armes ese zip a mano.** En el repo conviven `.env.local` (la contraseña del
+PostgreSQL del hosting y la de Supabase), las claves SSH `cuenta_4x`, `data/` y
+`supabase-backup/`. Arrastrar la carpeta se lleva las cuatro, y el paquete anda igual:
+no hay forma de darse cuenta. El script parte de `git archive` —sólo lo versionado, o
+sea que todo eso queda afuera por definición—, agrega `node_modules` y `public/app`
+(que no se versionan y sin los cuales no arranca), y al final revisa el resultado y
+**aborta** si apareció algo que no corresponde.
+
+Adentro del zip, en la raíz, quedan los tres archivos que abre quien instala:
+`LEEME.txt`, `1-REVISAR.cmd` y `2-INSTALAR.cmd`.
+
+> **Lo que el zip NO trae: Node y PostgreSQL.** Son dos instaladores que se bajan de
+> internet (están linkeados en el `LEEME.txt`). Si el servidor de la fábrica no tiene
+> internet, hay que bajarlos aparte y subirlos al mismo Drive.
+
+---
+
 ## Instalar
 
 El instalador tiene dos modos, igual que las migraciones del proyecto: **sin `-Confirmar`
