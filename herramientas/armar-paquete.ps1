@@ -92,26 +92,46 @@ try {
   Ok 'public\app\ (el escritorio compilado)'
 
   # node_modules va adentro para no depender de que el servidor de la fábrica tenga
-  # internet. Son 18 MB.
+  # internet.
+  #
+  # better-sqlite3 NO viaja, y se excluye AL COPIAR en vez de borrarla después: es la
+  # carpeta más pesada de todas (13 de los 18 MB), así que copiarla para borrarla era
+  # la mayor parte del tiempo de empaquetado. Es un binario compilado para la versión
+  # de Node de ESTA máquina y el servidor va a tener otra; es opcional de verdad,
+  # server/db.js sólo la importa si no hay DATABASE_URL y en la fábrica siempre va a
+  # haber.
+  #
+  # robocopy y no Copy-Item porque son miles de archivos chicos y la diferencia se
+  # mide en minutos. Devuelve 0-7 cuando anduvo (1 = copió archivos); de 8 para
+  # arriba es un error de verdad.
   $nmOrigen = Join-Path $RAIZ 'node_modules'
   if (-not (Test-Path (Join-Path $nmOrigen 'pg'))) { Morir 'no hay node_modules\pg - corré npm install' }
-  Copy-Item $nmOrigen (Join-Path $Destino 'node_modules') -Recurse -Force
-  Ok 'node_modules\'
 
-  # better-sqlite3 NO viaja. Es un binario compilado para la versión de Node de ESTA
-  # máquina, y el servidor va a tener otra. Es opcional de verdad: server/db.js sólo la
-  # importa si no hay DATABASE_URL, y en la fábrica siempre va a haber.
-  $sqlite = Join-Path $Destino 'node_modules\better-sqlite3'
-  if (Test-Path $sqlite) { Remove-Item $sqlite -Recurse -Force; Ok 'sacado: better-sqlite3 (binario de otra máquina)' }
+  & robocopy.exe $nmOrigen (Join-Path $Destino 'node_modules') /E /XD 'better-sqlite3' `
+    /NFL /NDL /NJH /NJS /NP /R:1 /W:1 | Out-Null
+  if ($LASTEXITCODE -ge 8) { Morir "robocopy falló (código $LASTEXITCODE)" }
+  $global:LASTEXITCODE = 0
+
+  if (-not (Test-Path (Join-Path $Destino 'node_modules\pg'))) { Morir 'node_modules quedó incompleto' }
+  Ok 'node_modules\ (sin better-sqlite3, que es de esta máquina)'
 
   # ---------------------------------------------------------------- 4. la revisión
   Paso 'revisando que no se haya colado nada'
 
+  # EL PAQUETE SE RECORRE UNA SOLA VEZ.
+  #
+  # Antes había un Get-ChildItem -Recurse por cada patrón prohibido —nueve— más el del
+  # conteo, el del escaneo de texto y el del tamaño: doce recorridos completos sobre los
+  # mismos archivos. Con un antivirus mirando cada lectura eso son minutos. Se enumera
+  # una vez y se filtra en memoria.
+  $todos = @(Get-ChildItem $Destino -Recurse -File -Force -EA SilentlyContinue)
+  Ok "$($todos.Count) archivos en total"
+
   $prohibidos = @('.env', '.env.*', 'cuenta_4x', 'cuenta_4x.*', '*.pem', 'id_ed25519*', 'id_rsa*', '*.db', '*.db-wal')
-  $colados = @()
-  foreach ($patron in $prohibidos) {
-    $colados += @(Get-ChildItem $Destino -Recurse -File -Filter $patron -Force -EA SilentlyContinue)
-  }
+  $colados = @($todos | Where-Object {
+    $nombre = $_.Name
+    @($prohibidos | Where-Object { $nombre -like $_ }).Count -gt 0
+  })
   foreach ($carpeta in @('data', 'supabase-backup', '.vercel')) {
     if (Test-Path (Join-Path $Destino $carpeta)) { $colados += (Get-Item (Join-Path $Destino $carpeta)) }
   }
@@ -125,9 +145,21 @@ try {
   # Una contraseña real adentro de un archivo de texto no la agarra el filtro de nombres.
   # Esto no decide por su cuenta: marca lo que parezca una URL con usuario y contraseña
   # para que lo mire una persona antes de subir nada.
-  $sospechosas = @(Get-ChildItem $Destino -Recurse -File -Include '*.md','*.json','*.js','*.mjs','*.ps1','*.txt','*.sql','*.yml' -EA SilentlyContinue |
+  #
+  # node_modules queda AFUERA del escaneo. Son miles de archivos de terceros: revisarlos
+  # tardaba mas que todo el resto del empaquetado junto y no puede encontrar nada nuestro.
+  # Lo que se revisa es lo que escribimos nosotros.
+  $aRevisar = @($todos |
+    Where-Object {
+      $_.FullName -notlike "*\node_modules\*" -and
+      $_.FullName -notlike "*\public\app\*" -and
+      $_.Extension -in '.md', '.json', '.js', '.mjs', '.ps1', '.cmd', '.txt', '.sql', '.yml', '.html'
+    })
+
+  $sospechosas = @($aRevisar |
     Select-String -Pattern 'postgres(ql)?://[^:/\s]+:[^@\s]+@' -EA SilentlyContinue |
     Where-Object { $_.Line -notmatch 'USUARIO|CLAVE|usuario:clave|<|\.\.\.' })
+  Ok "revisados $($aRevisar.Count) archivos de texto nuestros"
 
   if ($sospechosas) {
     Ojo 'esto parece una URL con contraseña - miralo antes de subir:'
@@ -139,14 +171,24 @@ try {
   }
 
   # ---------------------------------------------------------------- 5. el zip
-  $tam = [Math]::Round((Get-ChildItem $Destino -Recurse -File | Measure-Object Length -Sum).Sum / 1MB, 1)
+  # Se reusa $todos: entre la revisión y acá no se tocó nada del paquete.
+  $tam = [Math]::Round(($todos | Measure-Object Length -Sum).Sum / 1MB, 1)
   Paso 'listo'
   Ok "$Destino  ($tam MB)"
 
   if (-not $SinZip) {
     $zip = "$Destino.zip"
     if (Test-Path $zip) { Remove-Item $zip -Force }
-    Compress-Archive -Path "$Destino\*" -DestinationPath $zip -CompressionLevel Optimal
+    # tar.exe y no Compress-Archive: el segundo, sobre los miles de archivos chicos de
+    # node_modules, tarda muchisimo. tar viene con Windows 10 y 11 y hace el mismo .zip.
+    Push-Location (Split-Path $Destino -Parent)
+    & tar.exe -a -c -f $zip (Split-Path $Destino -Leaf)
+    $codigoTar = $LASTEXITCODE
+    Pop-Location
+    if ($codigoTar -ne 0) {
+      Ojo 'tar falló; pruebo con Compress-Archive (va a tardar bastante más)'
+      Compress-Archive -Path "$Destino\*" -DestinationPath $zip -CompressionLevel Optimal
+    }
     $tamZip = [Math]::Round((Get-Item $zip).Length / 1MB, 1)
     Ok "$zip  ($tamZip MB)  <- esto es lo que va al Drive"
   }
