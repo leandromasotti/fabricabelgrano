@@ -16,8 +16,15 @@ Son dos pasos y están numerados. Hacelos en orden.
 La computadora necesita dos cosas instaladas. Si ya las tiene, saltá al PASO 1
 (el paso 1 avisa si falta alguna).
 
-  1) Node.js            https://nodejs.org   -> botón de descarga, versión LTS
-  2) PostgreSQL 17      https://www.enterprisedb.com/downloads/postgres-postgresql-downloads
+  1) Node.js  VERSIÓN 22    https://nodejs.org/dist/latest-v22.x/
+               (bajá el archivo que termina en  -x64.msi )
+  2) PostgreSQL 17          https://www.enterprisedb.com/downloads/postgres-postgresql-downloads
+
+OJO CON NODE: tiene que ser la 22, no "la última".
+
+El botón grande de nodejs.org dice "LTS" y hoy entrega la versión 26. El sistema
+está hecho y probado sobre la 22, y la 26 ya nos rompió una vez. Por eso el link
+de arriba va directo a la 22 y no a la portada.
 
 >>> IMPORTANTE, LO MÁS IMPORTANTE DE TODO ESTE ARCHIVO <<<
 
