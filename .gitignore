@@ -39,3 +39,6 @@ id_rsa*
 # Lo genera instalar\planta.ps1 en cada servidor: la ruta a node.exe de ESA maquina.
 # Versionarlo significaria que el servidor de la fabrica busque un node que no tiene.
 instalar/entorno.ps1
+
+# Lo deja 1-REVISAR.cmd en la maquina de la fabrica: el diagnostico de ESE servidor.
+instalar/REVISION.txt

@@ -1,0 +1,6 @@
+# Los .cmd los ejecuta cmd.exe y los .txt los abre el Bloc de notas en el servidor
+# de la fabrica. Con finales de linea de Unix, un bloque if (...) de varias lineas en
+# un .cmd puede romperse, y esto sale por `git archive` directo a esa maquina.
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+*.txt text eol=crlf

@@ -137,24 +137,39 @@ try {
 
 Titulo 'red'
 
+# LAS DOS CONSULTAS DE RED SE HACEN UNA SOLA VEZ.
+#
+# Son consultas CIM y pueden ser carísimas: en esta misma máquina de desarrollo,
+# Get-NetAdapter tarda 11 s y Get-NetIPAddress 10,7 s. Pidiendo las direcciones placa
+# por placa, el diagnóstico pasó de 5 s a 124 s. Un script que parece colgado durante
+# dos minutos en la máquina de otro lo cancelan a los treinta segundos, y con razón.
+# Se traen las dos listas enteras y se cruzan en memoria.
+Write-Host '       consultando la red (puede tardar)...' -ForegroundColor DarkGray
+
+$placas = @(Get-NetAdapter -EA SilentlyContinue)
+$todasLasIps = @(Get-NetIPAddress -AddressFamily IPv4 -EA SilentlyContinue)
+
 # Sólo las placas FÍSICAS que estén levantadas.
 #
 # Sin este filtro, la primera dirección de la lista puede ser la de WSL, la de Hyper-V o
 # la de una VPN: en esta misma máquina de desarrollo, `172.19.240.1` (WSL) salía antes
 # que la de la red real. Amurar esa IP en ocho tablets es un día perdido buscando por
 # qué no llegan a un servidor que está perfectamente prendido.
-$fisicas = @(Get-NetAdapter -EA SilentlyContinue |
-  Where-Object { -not $_.Virtual -and $_.Status -eq 'Up' })
+$fisicas = @($placas | Where-Object { -not $_.Virtual -and $_.Status -eq 'Up' })
 
-$ips = @()
-foreach ($placa in $fisicas) {
-  $ips += @(Get-NetIPAddress -AddressFamily IPv4 -InterfaceIndex $placa.InterfaceIndex -EA SilentlyContinue |
-    Where-Object { $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*' } |
-    ForEach-Object {
-      $_ | Add-Member -NotePropertyName PorCable `
-        -NotePropertyValue ($placa.PhysicalMediaType -notmatch '802\.11|Wireless') -PassThru
-    })
-}
+$porIndice = @{}
+foreach ($placa in $fisicas) { $porIndice[[int]$placa.InterfaceIndex] = $placa }
+
+$ips = @($todasLasIps |
+  Where-Object {
+    $porIndice.ContainsKey([int]$_.InterfaceIndex) -and
+    $_.IPAddress -notlike '127.*' -and $_.IPAddress -notlike '169.254.*'
+  } |
+  ForEach-Object {
+    $suPlaca = $porIndice[[int]$_.InterfaceIndex]
+    $_ | Add-Member -NotePropertyName PorCable `
+      -NotePropertyValue ($suPlaca.PhysicalMediaType -notmatch '802\.11|Wireless') -PassThru
+  })
 
 # Un servidor por WiFi en una fábrica es el enlace más frágil de toda la instalación, y
 # encima es el único que nadie mira cuando algo falla. Si hay cable, va por cable.
@@ -179,7 +194,7 @@ if (-not $ips) {
   }
 }
 
-$virtuales = @(Get-NetAdapter -EA SilentlyContinue | Where-Object { $_.Virtual -and $_.Status -eq 'Up' })
+$virtuales = @($placas | Where-Object { $_.Virtual -and $_.Status -eq 'Up' })
 if ($virtuales) {
   Dato "ignoré $($virtuales.Count) placa(s) virtual(es): $(($virtuales.Name) -join ', ')"
 }
@@ -190,6 +205,10 @@ if ($enUso) {
   Ojo "el puerto $Puerto ya está ocupado por '$quien' - elegí otro con -Puerto"
 } else { Ok "el puerto $Puerto está libre" }
 
+# Otra consulta cara: en esta máquina tarda entre 11 y 17 s, y probar con netsh en vez
+# del cmdlet no cambió nada (11,2 s), así que es el servicio de firewall y no la forma
+# de preguntarle. Se avisa antes para que no parezca colgado.
+Write-Host '       consultando el firewall (puede tardar)...' -ForegroundColor DarkGray
 $regla = Get-NetFirewallRule -DisplayName $REGLA_FIREWALL -EA SilentlyContinue
 if ($regla) { Ok "la regla de firewall '$REGLA_FIREWALL' ya existe" }
 else { Dato "falta la regla de firewall - la creo en la instalación" }

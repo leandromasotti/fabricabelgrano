@@ -1,0 +1,125 @@
+﻿==============================================================================
+  SISTEMA DE PRODUCCIÓN - LÁCTEOS BELGRANO
+  Instalación en el servidor de la fábrica
+==============================================================================
+
+Esta carpeta instala el sistema en una computadora de la fábrica. Desde ahí las
+tablets de planta se conectan por la red interna, sin depender de internet.
+
+Son dos pasos y están numerados. Hacelos en orden.
+
+
+------------------------------------------------------------------------------
+  ANTES DE EMPEZAR: DOS PROGRAMAS
+------------------------------------------------------------------------------
+
+La computadora necesita dos cosas instaladas. Si ya las tiene, saltá al PASO 1
+(el paso 1 avisa si falta alguna).
+
+  1) Node.js            https://nodejs.org   -> botón de descarga, versión LTS
+  2) PostgreSQL 17      https://www.enterprisedb.com/downloads/postgres-postgresql-downloads
+
+>>> IMPORTANTE, LO MÁS IMPORTANTE DE TODO ESTE ARCHIVO <<<
+
+Cuando se instala PostgreSQL, en algún momento pide elegir UNA CONTRASEÑA
+para el usuario "postgres".
+
+    ANOTÁ ESA CONTRASEÑA EN UN PAPEL.
+
+El paso 2 te la va a pedir. Si se pierde no hay forma de recuperarla y hay que
+desinstalar y volver a empezar.
+
+Del resto de las preguntas que hagan los dos instaladores, dejá todo como viene
+(Siguiente, Siguiente). El puerto 5432 que propone PostgreSQL está bien. Si al
+final ofrece abrir el "Stack Builder", decile que no.
+
+
+------------------------------------------------------------------------------
+  ANTES DEL PASO 1: DESBLOQUEAR LA CARPETA
+------------------------------------------------------------------------------
+
+Windows desconfía de todo lo que se baja de internet, y esta carpeta vino de un
+Drive. Si no hacés esto, los pasos 1 y 2 no van a arrancar.
+
+  a) Botón derecho sobre el archivo .ZIP que bajaste (ANTES de descomprimirlo)
+  b) Propiedades
+  c) Abajo de todo, donde dice "Seguridad", tildá  [x] Desbloquear
+  d) Aceptar
+  e) Recién ahora descomprimilo
+
+Si igual aparece un cartel azul que dice "Windows protegió su PC":
+
+  -> Hacé clic en "Más información"
+  -> Después en "Ejecutar de todas formas"
+
+No es un virus: es que el archivo no está firmado por una empresa conocida.
+
+
+------------------------------------------------------------------------------
+  PASO 1 - REVISAR
+------------------------------------------------------------------------------
+
+Doble clic en:        1-REVISAR.cmd
+
+NO INSTALA NADA y NO CAMBIA NADA. Sólo mira qué tiene la computadora y escribe
+el resultado en un archivo llamado REVISION.txt, acá al lado.
+
+    >>> Mandale el REVISION.txt a Leandro y esperá que te confirme. <<<
+
+Ese archivo dice si esta máquina sirve, qué falta y qué conviene cambiar.
+Son dos minutos y evita instalar en una computadora que no va a aguantar.
+
+
+------------------------------------------------------------------------------
+  PASO 2 - INSTALAR
+------------------------------------------------------------------------------
+
+Sólo cuando Leandro te haya dicho que está todo bien.
+
+Doble clic en:        2-INSTALAR.cmd
+
+  - Windows va a preguntar si permitís cambios: decile que SÍ.
+  - Va a pedir la contraseña de "postgres", la del papel.
+    Mientras la escribís NO se ve nada en pantalla. Es normal, seguí
+    escribiendo y apretá Enter.
+  - Tarda un minuto.
+
+Al final muestra la lista de direcciones, una por tablet. Anotalas o sacale una
+foto a la pantalla: son las que hay que cargar en cada tablet.
+
+Desde ese momento el sistema arranca solo cada vez que se prende la
+computadora. No hay que abrir nada ni iniciar sesión.
+
+
+------------------------------------------------------------------------------
+  TRES COSAS DE LA COMPUTADORA, QUE EL PROGRAMA NO PUEDE RESOLVER
+------------------------------------------------------------------------------
+
+  1) QUE TENGA UPS.
+     Esta computadora pasa a ser el corazón del registro de producción. Si se
+     corta la luz y se apaga de golpe, las tablets de toda la planta se quedan
+     sin sistema hasta que vuelva.
+
+  2) QUE ESTÉ POR CABLE, NO POR WIFI.
+     Es el único punto por el que pasa todo. Entre las cámaras de frío, los
+     lavados y la humedad, el WiFi es lo primero que falla.
+
+  3) QUE NO SE REINICIE SOLA DE MADRUGADA.
+     Windows Update a veces reinicia la máquina sin avisar. Si eso cae en el
+     medio de un turno, se corta el registro. Se configura en:
+     Configuración -> Windows Update -> Horas activas.
+
+
+------------------------------------------------------------------------------
+  SI ALGO SALE MAL
+------------------------------------------------------------------------------
+
+No pasa nada grave: ninguno de los dos pasos borra información.
+
+Sacale una foto a la pantalla con el error, o mandá estos dos archivos:
+
+    REVISION.txt
+    data\logs\servidor.log      (si llegaste a hacer el paso 2)
+
+Cualquier cosa, llamame.
+                                                              Leandro
