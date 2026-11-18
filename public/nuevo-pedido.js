@@ -8,6 +8,8 @@
 // La hoja deja columnas EN BLANCO a propósito. El armador anota ahí mientras camina y
 // después vuelca en la tablet. Una hoja que no se pueda escribir no sirve de nada.
 
+import { nuevoId } from '/comun.js'
+
 const $ = (s) => document.querySelector(s)
 const fmt = (n) => (n ?? 0).toLocaleString('es-AR')
 
@@ -69,7 +71,7 @@ $('#btn-crear').addEventListener('click', async () => {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
-      client_id: crypto.randomUUID(),
+      client_id: nuevoId(),
       cliente_id: Number($('#cliente').value),
       origen: 'encargado',
       nota: $('#nota').value.trim() || null,

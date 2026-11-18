@@ -20,6 +20,7 @@ import {
   $, hhmm, cola, red, horaServidor, pintarEstado, postear, sincronizar,
   cargarCatalogo, configurarTablet, botones, hacerPasos, pintarMigas, registrarSW,
   configurarVuelta, armarTecladoLetras,
+  nuevoId,
 } from '/comun.js'
 
 const TOPE_DIAS_ATRAS = 30
@@ -277,7 +278,7 @@ async function guardar() {
 
   const fecha = horaServidor()
   const cuerpo = {
-    client_id: crypto.randomUUID(),
+    client_id: nuevoId(),
     operario_id: est.operario.id,
     tambo_id: tambo.id,
     litros,

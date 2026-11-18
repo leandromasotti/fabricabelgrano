@@ -2,6 +2,8 @@
 // puede facturar NADA hasta que suban todos los pedidos juntos. Aca los ve llegar de
 // a uno, en el momento, y factura el que esta listo sin esperar al resto.
 
+import { nuevoId } from '/comun.js'
+
 const $ = (s) => document.querySelector(s)
 const kg = (g) => (g / 1000).toFixed(3).replace('.', ',')
 const hhmm = (d) =>
@@ -224,7 +226,7 @@ $('#btn-crear').addEventListener('click', async () => {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
-      client_id: crypto.randomUUID(),
+      client_id: nuevoId(),
       cliente_id: Number($('#cliente').value),
       origen: 'encargado',
       lineas: lineasNuevas.map(({ tipo_queso_id, cantidad_pedida }) => ({ tipo_queso_id, cantidad_pedida })),

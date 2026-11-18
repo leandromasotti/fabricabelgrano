@@ -11,6 +11,7 @@ import {
   $, hhmm, cola, red, horaServidor, pintarEstado, postear, sincronizar,
   cargarCatalogo, configurarTablet, botones, hacerPasos, pintarMigas, cuentaRegresiva, registrarSW,
   configurarVuelta,
+  nuevoId,
 } from '/comun.js'
 
 const VENTANA_DESHACER = 60
@@ -324,7 +325,7 @@ async function agregarCantidad() {
   if (cantidad < 1) return
 
   const fecha = horaServidor()
-  const cuerpo = { client_id: crypto.randomUUID(), linea_id: est.linea.id, cantidad }
+  const cuerpo = { client_id: nuevoId(), linea_id: est.linea.id, cantidad }
 
   // Optimista, igual que el pesaje: el operario ya movio los cajones.
   est.linea.cantidades.push({ id: null, client_id: cuerpo.client_id, cantidad })
@@ -411,7 +412,7 @@ async function agregarPeso() {
   if (gramos < 1) return
 
   const fecha = horaServidor()
-  const cuerpo = { client_id: crypto.randomUUID(), linea_id: est.linea.id, gramos }
+  const cuerpo = { client_id: nuevoId(), linea_id: est.linea.id, gramos }
 
   // Optimista: la pieza aparece en la lista al instante. El operario ya la puso en
   // la caja y agarro la siguiente.
@@ -566,7 +567,7 @@ function pintarPieNuevo() {
 
 async function crearPedido() {
   const cuerpo = {
-    client_id: crypto.randomUUID(),
+    client_id: nuevoId(),
     cliente_id: est.nuevo.cliente.id,
     origen: 'tablet',
     lineas: est.nuevo.lineas.map(({ tipo_queso_id, cantidad_pedida }) => ({ tipo_queso_id, cantidad_pedida })),

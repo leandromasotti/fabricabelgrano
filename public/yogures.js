@@ -32,6 +32,7 @@ import {
   cargarCatalogo, configurarTablet, botones, hacerPasos, pintarMigas, cuentaRegresiva, registrarSW,
   configurarVuelta,
   pintarDesglose, sumarDesglose,
+  nuevoId,
 } from '/comun.js'
 
 const VENTANA_DESHACER = 60
@@ -197,7 +198,7 @@ async function registrar() {
   const porBulto = pote ? null : (e?.unidades_por_bulto ?? null)
 
   const cuerpo = {
-    client_id: crypto.randomUUID(),
+    client_id: nuevoId(),
     operario_id: est.operario.id,
     marca_id: est.marca.id,
     producto_id: est.producto.id,

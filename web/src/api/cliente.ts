@@ -385,6 +385,33 @@ export function useAccionPedido() {
   })
 }
 
+// Mismo problema y misma solucion que `nuevoId` en public/comun.js, por duplicado
+// porque el escritorio es un build de Vite y no comparte modulos con las tablets.
+//
+// `crypto.randomUUID` solo existe en contexto seguro —https:// o localhost— y la
+// fabrica abre todo en http://192.168.100.254:3000, donde no esta definida. Grabar
+// tiraba "crypto.randomUUID is not a function" en planta y andaba en localhost.
+function nuevoId(): string {
+  if (typeof crypto !== 'undefined') {
+    if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+
+    if (typeof crypto.getRandomValues === 'function') {
+      const b = crypto.getRandomValues(new Uint8Array(16))
+      // El doble-interrogante es para TypeScript, que con noUncheckedIndexedAccess no
+      // sabe que un Uint8Array(16) tiene indice 6 y 8. En ejecucion nunca son undefined.
+      b[6] = ((b[6] ?? 0) & 0x0f) | 0x40 // version 4
+      b[8] = ((b[8] ?? 0) & 0x3f) | 0x80 // variante RFC 4122
+      const h = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('')
+      return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`
+    }
+  }
+
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
+  })
+}
+
 export function useCrearPedido() {
   const qc = useQueryClient()
   return useMutation({
@@ -392,7 +419,7 @@ export function useCrearPedido() {
       enviar<PedidoDetalle>('/api/pedidos', {
         // client_id lo genera el cliente y es UNIQUE en la base: si el encargado
         // aprieta dos veces, o la respuesta se pierde y reintenta, se guarda uno solo.
-        client_id: crypto.randomUUID(),
+        client_id: nuevoId(),
         origen: 'encargado',
         ...p,
       }),

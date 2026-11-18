@@ -16,6 +16,7 @@ import {
   $, hhmm, cola, red, horaServidor, pintarEstado, postear, sincronizar,
   cargarCatalogo, configurarTablet, botones, hacerPasos, pintarMigas, cuentaRegresiva, registrarSW,
   configurarVuelta,
+  nuevoId,
 } from '/comun.js'
 
 const VENTANA_DESHACER = 60
@@ -245,7 +246,7 @@ async function registrar() {
 
   const fecha = horaServidor()
   const cuerpo = {
-    client_id: crypto.randomUUID(),
+    client_id: nuevoId(),
     operario_id: est.operario.id,
     tina_id: est.tina.id,
     tipo: est.tipo,

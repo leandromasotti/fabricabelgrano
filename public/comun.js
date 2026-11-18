@@ -29,6 +29,41 @@ export function transcurrido(minutos) {
   return m ? `${h} h ${String(m).padStart(2, '0')}` : `${h} h`
 }
 
+// ---------------------------------------------------------------- id de registro
+// El `client_id` que viaja con cada registro: es la clave con la que el servidor
+// descarta duplicados cuando la cola reenvia algo que ya habia llegado. Sin id no hay
+// registro, asi que esta funcion no puede fallar nunca.
+//
+// POR QUE NO ES `crypto.randomUUID()` A SECAS. Esa funcion existe solo en "contexto
+// seguro": https:// o localhost. La fabrica abre las tablets en
+// http://192.168.100.254:3000 — una IP sobre http simple NO es contexto seguro, asi que
+// ahi `crypto.randomUUID` ni siquiera esta definida y grabar reventaba con
+// "crypto.randomUUID is not a function". En la maquina del desarrollador, sobre
+// localhost, andaba perfecto: por eso no aparecio hasta estar instalado en planta.
+//
+// `crypto.getRandomValues` SI esta disponible sobre http, asi que el respaldo arma el
+// UUID v4 a mano con la misma entropia. Math.random queda de ultimo recurso para un
+// navegador sin Web Crypto; es peor azar, pero un id repetido es un riesgo remoto y no
+// grabar es una perdida segura.
+export function nuevoId() {
+  if (typeof crypto !== 'undefined') {
+    if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+
+    if (typeof crypto.getRandomValues === 'function') {
+      const b = crypto.getRandomValues(new Uint8Array(16))
+      b[6] = (b[6] & 0x0f) | 0x40 // version 4
+      b[8] = (b[8] & 0x3f) | 0x80 // variante RFC 4122
+      const h = Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('')
+      return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`
+    }
+  }
+
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16)
+  })
+}
+
 // ---------------------------------------------------------------- cola offline
 // localStorage y no IndexedDB a proposito: son registros de ~100 bytes y el codigo
 // entra en 20 lineas. Si algun dia hay que guardar fotos, se cambia solo aca.
