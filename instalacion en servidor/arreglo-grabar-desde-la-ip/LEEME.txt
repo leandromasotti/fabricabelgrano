@@ -1,0 +1,92 @@
+﻿  NO SE PUEDE GRABAR DESDE LAS TABLETS - ARREGLO
+  Lacteos Belgrano. 18/11/2026.
+
+
+  QUE PASABA
+
+  Cualquier tablet, al apretar GRABAR, tiraba en la consola:
+
+      crypto.randomUUID is not a function
+
+  y no guardaba nada. Desde la maquina del servidor, entrando por
+  localhost:3000, andaba perfecto.
+
+  No era la tablet, ni la red, ni la base. Era la direccion. Cada registro
+  viaja con un numero unico que lo identifica, y la funcion del navegador que
+  lo genera SOLO existe cuando la pagina se abre por https:// o por
+  localhost. La fabrica entra por http://192.168.100.254:3000, que no es
+  ninguna de las dos, asi que ahi esa funcion ni siquiera existe.
+
+  Por eso no aparecio antes: en desarrollo todo es localhost.
+
+  Afectaba a LAS TRECE pantallas, no solo a yogures: recepcion, lecheria,
+  yogures, queseria, saladero, envasado, maduracion, pedidos y el escritorio.
+  Ninguna podia grabar desde la IP.
+
+  Ahora el numero se genera solo, sin depender de esa funcion.
+
+
+  PASO 1 - BACKUP (opcional pero recomendado)
+
+      powershell -ExecutionPolicy Bypass -File instalar\backup.ps1
+
+  Esto no toca la base, solo archivos de pantalla. Pero si ya vas a estar ahi,
+  el backup no sobra.
+
+
+  PASO 2 - COPIAR LA CARPETA
+
+  Arrastra la carpeta  public  de aca adentro sobre
+
+      C:\FabricaBelgrano-planta
+
+  y deci que SI a reemplazar todo.
+
+  Es una sola carpeta. Reemplaza las pantallas enteras, no hay que elegir
+  archivos.
+
+
+  PASO 3 - NO HACE FALTA REINICIAR NADA
+
+  El servidor lee estos archivos en el momento, no los tiene en memoria.
+
+
+  PASO 4 - PROBAR
+
+  En una tablet, abri la pantalla y RECARGA FORZANDO:
+
+      Ctrl + Shift + R        (o manten apretado el boton de recargar)
+
+  El navegador se guarda copias de los archivos viejos; sin esa recarga podes
+  seguir viendo el error aunque el arreglo ya este puesto.
+
+  Despues carga un registro de prueba y fijate que aparezca en el tablero.
+  Hacelo en una tablet de cada pantalla que usen.
+
+
+  SI SIGUE FALLANDO
+
+  Abri la consola del navegador (F12, pestana Console) y mira el error.
+
+  - Si vuelve a decir "crypto.randomUUID is not a function", el navegador
+    sigue sirviendo el archivo viejo: recarga forzando otra vez, o entra y
+    sali del modo incognito para confirmarlo.
+
+  - Si dice otra cosa, sacale una foto a la consola y mandamela.
+
+
+  LO QUE ESTO NO ARREGLA
+
+  Por la misma razon -entrar por IP y no por https- las tablets NO pueden
+  instalar el modo sin conexion. En la practica:
+
+  - Si la pantalla YA ESTA ABIERTA y se corta el WiFi, se puede seguir
+    cargando igual: los registros quedan en la tablet y suben solos cuando
+    vuelve la red. Esto NO cambia, sigue funcionando.
+
+  - Lo que no se puede es ABRIR una pantalla de cero sin red.
+
+  Para que eso funcione habria que entrar por https con un certificado, o
+  darle un nombre a la maquina en lugar de la IP. Se puede hacer, pero es otra
+  tarea y hay que coordinarla con Carlos.
+

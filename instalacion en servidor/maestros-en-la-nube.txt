@@ -1,0 +1,157 @@
+Datos maestros que tenia Supabase, del backup db_cluster-24-10-2026@00-44-28.
+Extraido el 2026-11-16. Es lo ULTIMO que existio en la nube: el proyecto
+de Supabase ya no responde, asi que este archivo es la unica copia.
+
+========== marcas ==========
+COPY public.marcas (id, nombre, es_propia, activo, orden) FROM stdin;
+1	Lácteos Belgrano	t	t	1
+2	Central Lechera	f	t	2
+3	Obenak	t	t	3
+
+========== marcas_familias ==========
+COPY public.marcas_familias (marca_id, familia) FROM stdin;
+1	leche
+1	yogur
+2	leche
+2	yogur
+3	leche
+
+========== productos ==========
+COPY public.productos (id, nombre, familia, activo, orden, unidades_por_bin, kilos_por_unidad, datos_provisorios, presentacion, unidades_por_bulto, marca_id) FROM stdin;
+1	Entera	leche	t	1	\N	\N	t	bin	\N	\N
+2	Largavida	leche	t	2	\N	\N	t	bin	\N	\N
+3	Descremada	leche	t	3	\N	\N	t	bin	\N	\N
+4	Vainilla	yogur	t	1	500	1.000	t	bin	\N	\N
+5	Frutilla	yogur	t	2	500	1.000	t	bin	\N	\N
+6	Pote vainilla	yogur	t	3	\N	\N	t	caja	24	1
+7	Pote frutilla	yogur	t	4	\N	\N	t	caja	24	1
+
+========== envases ==========
+COPY public.envases (id, nombre, bultos_por_pallet, unidades_por_bulto, litros_por_unidad, provisorio, activo, orden) FROM stdin;
+2	Palangana	\N	\N	1.000	t	f	2
+3	Palangana 2	\N	\N	1.000	t	f	3
+5	Cajón Sancor	40	18	1.000	f	f	3
+6	Cajón La Serenísima	40	18	1.000	f	f	4
+1	Caja 12 × 1 L	70	12	1.000	f	t	1
+4	Cajón lácteo x 18	40	18	1.000	f	t	2
+8	Bandejón de colores	30	18	1.000	f	f	5
+7	Palangana 30	30	18	1.000	f	f	4
+9	Cajón lácteo x 20	40	20	1.000	f	t	3
+
+========== tipos_queso ==========
+COPY public.tipos_queso (id, nombre, familia, se_envasa, madura, dias_minimos, dias_optimos, dias_maximos, dias_provisorios, activo, orden, pasa_por_sal, madura_antes_de_envasar) FROM stdin;
+4	Mozzarella cilindro	blando	t	f	\N	\N	\N	t	t	4	f	f
+3	Mozzarella barra	blando	t	f	\N	\N	\N	t	t	3	f	f
+19	Cremoso procesado	blando	t	f	\N	\N	\N	t	t	19	f	f
+11	Cheddar en barra	semiduro	t	t	60	90	180	t	f	11	t	f
+13	Ricota	semiduro	t	f	\N	\N	\N	t	f	13	t	f
+12	Mar del Plata	semiduro	t	t	30	45	70	t	f	12	t	f
+2	Cremoso Extra	blando	t	t	10	15	20	f	t	2	t	f
+1	Cremoso	blando	t	t	10	15	20	f	t	1	t	f
+5	Por Salut	blando	t	t	10	15	20	f	t	5	t	f
+6	Por Salut sin sal	blando	t	t	10	15	20	f	t	6	f	f
+7	Pategrás	semiduro	t	t	30	45	75	f	t	7	t	t
+8	Fontina	semiduro	t	t	30	45	70	f	t	8	t	t
+9	Gouda	semiduro	t	t	30	60	90	f	t	9	t	t
+10	Tybo	semiduro	t	t	\N	\N	\N	f	t	10	t	f
+14	Sardo	duro	f	t	90	150	270	f	t	14	t	t
+15	Reggianito	duro	t	t	150	180	300	f	t	15	t	t
+16	Parmesano	duro	t	t	180	240	365	f	t	16	t	t
+17	Provolone	duro	t	t	60	120	240	f	t	17	t	t
+18	Provoleta	duro	t	t	20	30	60	f	t	18	t	f
+
+========== operarios ==========
+COPY public.operarios (id, nombre, sector, activo, orden) FROM stdin;
+7	Recepción 2	recepcion	t	2
+17	FRANCO	lecheria	t	4
+18	JAVIER	lecheria	t	5
+19	VALENTIN	queseria	t	3
+20	JUAN PABLO	queseria	t	4
+21	SEBASTIAN	queseria	t	5
+22	EDUARDO	queseria	t	6
+23	JUAN PABLO	saladero	t	3
+24	CRISTIAN	saladero	t	4
+25	PABLO	saladero	t	5
+26	EDUARDO	saladero	t	6
+27	VALENTIN	maduracion	t	2
+28	SEBASTIAN	maduracion	t	3
+29	AGUSTIN	maduracion	t	4
+30	JUAN PABLO	maduracion	t	5
+31	CRISTIAN	maduracion	t	6
+32	PABLO	maduracion	t	7
+33	GASTON	lecheria	t	6
+1	POCO	lecheria	t	1
+3	EMILIO	lecheria	t	3
+2	JULIAN	lecheria	t	2
+8	CRISTIAN	queseria	t	1
+9	PABLO	queseria	t	2
+10	SEBASTIAN	saladero	t	1
+11	VALENTIN	saladero	t	2
+16	EDUARDO	maduracion	t	1
+14	ALEJANDRO	envasado	t	1
+15	VALENTIN	envasado	t	2
+12	AGUSTIN	pedidos	t	1
+13	VALENTIN	pedidos	t	2
+6	Prueba alexis	recepcion	t	1
+34	FRANCO	yogures	t	3
+35	AGUSTIN	yogures	t	4
+5	GASTON	yogures	t	2
+4	JULIAN	yogures	t	1
+
+========== tambos ==========
+COPY public.tambos (id, numero, nombre, activo, orden, ocasional) FROM stdin;
+1	2	SUSANA	t	1	f
+2	4	MURUAGA	t	2	f
+5	10	TUMMER	t	5	f
+7	1	FINNEGAN	t	7	f
+6	7	ALCHIDAI	t	6	f
+8	8	CESA	t	8	f
+9	11	CERR H	t	9	f
+10	12	CERR H	t	10	f
+11	6	CERRILLO B	t	11	f
+3	5	LA LUISA	t	3	f
+13	13	JULIVER	t	13	f
+12	14	GROSSI	t	12	f
+14	15	KIRO	t	14	f
+16	20	YATASTO	t	16	f
+15	3	WEIS FASON	t	15	f
+4	9	MENENDEZ	t	4	t
+17	99	OTRO TAMBO DE ALEXIS	f	17	t
+
+========== clientes ==========
+COPY public.clientes (id, nombre, activo, orden) FROM stdin;
+1	Cliente 1	t	1
+2	Cliente 2	t	2
+3	Cliente 3	t	3
+4	Cliente 4	t	4
+5	Cliente 5	t	5
+
+========== motivos_recepcion ==========
+COPY public.motivos_recepcion (id, nombre, activo, orden) FROM stdin;
+1	Cortada	t	1
+2	Con olor	t	2
+3	Temperatura alta	t	3
+4	Aguada	t	4
+5	Con sedimento	t	5
+6	Remito no coincide	t	6
+
+========== motivos_yogur ==========
+COPY public.motivos_yogur (id, nombre, es_perdida, activo, orden) FROM stdin;
+1	Se terminó la partida	f	t	1
+2	Falla en el yogur	t	t	2
+3	Se fue al desagote	t	t	3
+4	Problema en la máquina	t	t	4
+
+========== opciones_tablet ==========
+COPY public.opciones_tablet (clave, nombre, descripcion, activo, orden) FROM stdin;
+historial	Historial del día en las tablets	La lista de lo ya registrado hoy, abajo de la pantalla de cada sector	t	1
+
+========== tablero_secciones ==========
+COPY public.tablero_secciones (clave, nombre, descripcion, visible, orden) FROM stdin;
+recepcion	Leche cruda recibida	Litros que entraron hoy, entregas y temperatura máxima	f	1
+lecheria	Pallets de lechería	Pallets del día por marca y tipo de leche	t	2
+yogur	Yogures	Bins del día y su equivalencia aproximada	t	3
+queso	Circuito del queso	Producido, esperando sal, en saladero, para envasar y envasado	t	4
+pedidos	Pedidos	Pendientes, en armado y listos para facturar	f	5
+alertas	Atención	Tinas demoradas y quesos desnudos hace mucho	f	6
+

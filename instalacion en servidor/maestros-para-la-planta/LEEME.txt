@@ -1,0 +1,88 @@
+﻿﻿  LOS DATOS MAESTROS REALES - LACTEOS BELGRANO
+  Para correr en el servidor de la planta. 17/11/2026.
+
+  QUE ES ESTO
+
+  La instalacion del 16/11 dejo la base con los nombres de mentira que trae el
+  codigo para poder arrancar: "Operario 1", "Quesero 2", y seis tambos con
+  numero y sin nombre. Los nombres de verdad -33 personas y 16 tambos- los
+  habia cargado la fabrica a mano, y vivian solo en la base vieja de Supabase,
+  que ya no existe. Se recuperaron del backup del 24/10.
+
+  Esto los carga.
+
+
+  PASO 0 - COPIAR LAS TRES CARPETAS
+
+  Arrastra las carpetas  migraciones  herramientas  y  server  de aca adentro
+  sobre  C:\FabricaBelgrano-planta  y deci que SI a reemplazar.
+
+  LAS TRES, no dos. El archivo de  server  es el que evita que los nombres de
+  mentira vuelvan a aparecer la proxima vez que alguien reinstale o actualice.
+
+
+  PASO 1 - HACER UN BACKUP PRIMERO
+
+  Abri PowerShell en  C:\FabricaBelgrano-planta  y pega:
+
+      powershell -ExecutionPolicy Bypass -File instalar\backup.ps1
+
+  Es el punto de retorno. No sigas sin esto.
+
+
+  PASO 2 - MIRAR COMO ESTA HOY
+
+      node --env-file-if-exists=.env.local herramientas\ver-maestros.mjs
+
+  Tiene que decir que hay placeholders. Si ya dice los nombres reales, alguien
+  lo corrio antes y no hace falta hacer nada mas.
+
+
+  PASO 3 - SIMULACION (no escribe nada)
+
+      node --env-file-if-exists=.env.local migraciones\010-maestros-reales.js
+
+  Tiene que decir algo parecido a:
+      daria de alta 33 persona(s) y sacaria 14 placeholder(s)
+      daria de alta 10 y le pondria nombre a 6
+
+  Si los numeros son muy distintos, FRENA y avisa antes de seguir.
+
+
+  PASO 4 - APLICAR
+
+      node --env-file-if-exists=.env.local migraciones\010-maestros-reales.js --confirmar
+
+
+  PASO 5 - COMPROBAR
+
+      node --env-file-if-exists=.env.local herramientas\ver-maestros.mjs
+
+  Ahora tienen que aparecer POCO, JULIAN, EMILIO... y los tambos con nombre:
+  SUSANA, MURUAGA, LA LUISA.
+
+  NO hace falta reiniciar nada. Refresca la tablet y listo.
+
+
+  SI ALGO SALE MAL
+
+  Se restaura el backup del paso 1. El nombre del archivo lo dijo el paso 1:
+
+      cd "C:\Program Files\PostgreSQL\17\bin"
+      .\pg_restore.exe --clean --if-exists -U belgrano -d fabrica_belgrano "D:\backups\EL-ARCHIVO.dump"
+
+
+  LO QUE ESTO NO ARREGLA, Y HAY QUE HABLAR CON ALEXIS
+
+  - Los CLIENTES siguen siendo "Cliente 1".."Cliente 5". La lista real nunca se
+    cargo en ningun lado. La tablet de pedidos no sirve hasta que exista.
+
+  - RECEPCION se queda con nombres de prueba, porque en la nube tampoco habia
+    nombres reales. Se cargan asi:
+        npm run operarios -- recepcion "Nombre" "Otro Nombre"
+
+  - La marca: el codigo dice "Obenac" y en la nube figuraba "Obenak". Hay que
+    definir cual va. Se corrige desde /app/maestros, es una sola fila.
+
+  - Los tambos 11 y 12 se llaman los dos "CERR H". En la pantalla de recepcion
+    son dos renglones identicos: el operario elige a ciegas.

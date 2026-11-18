@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101418">
+  <title>Lácteos Belgrano · Producción</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/styles.css">
+  <style>
+    /* Esta pantalla no va en ninguna tablet: cada tablet abre directo su sector en
+       modo kiosco. Es para probar y para que el encargado encuentre las pantallas. */
+    html, body { overflow: auto; }
+    .lanzador { max-width: 760px; margin: 0 auto; padding: 48px 24px; }
+    .lanzador h1 { font-size: 26px; margin: 0 0 4px; }
+    .lanzador .sub { color: var(--texto-tenue); margin-bottom: 32px; }
+    .lanzador h2 {
+      font-size: 13px; text-transform: uppercase; letter-spacing: 1px;
+      color: var(--texto-tenue); margin: 28px 0 12px; font-weight: 700;
+    }
+    .enlaces { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+    a.card {
+      display: block; padding: 20px 22px; text-decoration: none; color: var(--texto);
+      background: var(--panel-alto); border: 2px solid var(--borde); border-radius: var(--radio);
+    }
+    a.card:hover { border-color: var(--acento); }
+    a.card .n { font-size: 22px; font-weight: 700; }
+    a.card .d { font-size: 15px; color: var(--texto-tenue); margin-top: 4px; }
+  </style>
+</head>
+<body>
+  <div class="lanzador">
+    <h1>Lácteos Belgrano · Producción</h1>
+    <div class="sub">Lácteos Del Salado SRL · General Belgrano</div>
+
+    <h2>Tablets de planta</h2>
+    <div class="enlaces">
+      <a class="card" href="/recepcion.html">
+        <div class="n">Recepción de leche cruda</div>
+        <div class="d">Litros y temperatura por tambo, desde el ticket</div>
+      </a>
+      <a class="card" href="/recepcion-planilla.html">
+        <div class="n">Recepción · planilla <span style="opacity:.6">(a revisar)</span></div>
+        <div class="d">
+          La misma carga pero como planilla: todos los tambos a la vista, verde/rojo
+          según falten, y el total abajo. Convive con la de arriba hasta que se apruebe.
+        </div>
+      </a>
+      <a class="card" href="/lecheria.html">
+        <div class="n">Lechería · leches</div>
+        <div class="d">Pallets por marca, tipo y formato de envase</div>
+      </a>
+      <a class="card" href="/yogures.html">
+        <div class="n">Lechería · yogures</div>
+        <div class="d">Cajas de vainilla y frutilla</div>
+      </a>
+      <!-- Va acá, justo antes de los dos sectores que combina: la lista sigue el orden
+           del circuito y esta tablet cubre quesería y saladero. -->
+      <a class="card" href="/planta.html">
+        <div class="n">Tablet compartida</div>
+        <div class="d">
+          Una tablet para quesería y saladero, con vuelta al inicio. Para otra
+          combinación: <code>/planta.html?sectores=envasado,maduracion</code>
+        </div>
+      </a>
+      <a class="card" href="/queseria.html">
+        <div class="n">Quesería</div>
+        <div class="d">Tinas producidas y piezas obtenidas</div>
+      </a>
+      <a class="card" href="/saladero.html">
+        <div class="n">Saladero</div>
+        <div class="d">Entrada y salida de sal</div>
+      </a>
+      <a class="card" href="/envasado.html">
+        <div class="n">Envasado</div>
+        <div class="d">Lo que salió de sal y espera en cámara de desnudo</div>
+      </a>
+      <a class="card" href="/maduracion.html">
+        <div class="n">Maduración</div>
+        <div class="d">Entrada y salida de cámara, con estado de cada lote</div>
+      </a>
+      <a class="card" href="/pedidos.html">
+        <div class="n">Armado de pedidos</div>
+        <div class="d">Armar, pesar pieza por pieza y cerrar</div>
+      </a>
+    </div>
+
+    <h2>Pantalla de planta</h2>
+    <div class="enlaces">
+      <a class="card" href="/tablero.html">
+        <div class="n">Tablero LED</div>
+        <div class="d">Estado del circuito en tiempo real, para la pantalla de planta</div>
+      </a>
+    </div>
+
+    <h2>Escritorio</h2>
+    <p style="margin:-4px 0 12px;font-size:13px;opacity:.65">
+      Versión nueva. Las anteriores siguen disponibles en <code>/reportes.html</code>,
+      <code>/despacho.html</code> y compañía por si hace falta volver.
+    </p>
+    <div class="enlaces">
+      <a class="card" href="/app/nuevo-pedido">
+        <div class="n">Cargar pedidos</div>
+        <div class="d">Alta administrativa e impresión de las hojas de armado</div>
+      </a>
+      <a class="card" href="/app/despacho">
+        <div class="n">Despacho</div>
+        <div class="d">Pedidos en tiempo real y facturación</div>
+      </a>
+      <a class="card" href="/app/leche-cruda">
+        <div class="n">Litros por tambo</div>
+        <div class="d">Reporte imprimible para el pago a los tambos</div>
+      </a>
+      <a class="card" href="/app/envases">
+        <div class="n">Formatos de pallet</div>
+        <div class="d">Cajas y cajones: litros de cada formato</div>
+      </a>
+      <a class="card" href="/app/maduracion-dias">
+        <div class="n">Días de maduración</div>
+        <div class="d">Corregir los días por tipo de queso</div>
+      </a>
+      <a class="card" href="/app/reportes">
+        <div class="n">Reportes</div>
+        <div class="d">Producción por fecha y tipo, rendimiento y gráficos</div>
+      </a>
+      <a class="card" href="/app/consulta">
+        <div class="n">Consulta del día</div>
+        <div class="d">Lechería: detalle, anulaciones y export</div>
+      </a>
+    </div>
+  </div>
+</body>
+</html>

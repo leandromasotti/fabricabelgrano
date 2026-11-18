@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101418">
+  <title>Recepción de leche cruda</title>
+  <link rel="icon" href="/icono-192.png">
+  <link rel="manifest" href="/manifest.json?para=recepcion">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>RECEPCIÓN</h1>
+      <div class="migas" id="migas"></div>
+      <!-- Solo aparece si la tablet llega desde /planta.html (ver configurarVuelta). -->
+      <button class="btn-txt inicio" id="btn-inicio" hidden>← Inicio</button>
+      <button class="btn-txt" id="btn-volver" hidden>Volver</button>
+      <button class="btn-txt" id="btn-reiniciar" hidden>Cambiar</button>
+      <div class="estado" id="estado"><span class="punto"></span><span id="estado-txt">En línea</span></div>
+    </header>
+
+    <section class="paso" id="paso-operario">
+      <p class="pregunta">¿Quién sos?</p>
+      <div class="opciones" id="op-operarios"></div>
+    </section>
+
+    <!-- El orden de los pasos es el mismo en que salen los datos en el ticket del
+         caudalímetro: tambo, litros, temperatura. Así se copia de arriba a abajo
+         sin tener que buscar. -->
+    <section class="paso" id="paso-tambo" hidden>
+      <p class="pregunta">¿Qué tambo?</p>
+      <!-- Lo que acaba de cargar, y de qué día está cargando.
+           "Justo están cargando los litros y hay que ir a cambiar una canilla; lo más
+           probable es que se olviden por qué tambo iban y lo carguen de nuevo o se lo
+           salteen" [Alexis, 1/10]. Por eso va acá, en el paso donde se elige. -->
+      <div class="franja-recepcion">
+        <button class="btn-fecha" id="btn-fecha">Hoy</button>
+        <div class="ultimo" id="ultimo-cargado"></div>
+      </div>
+      <div class="opciones" id="op-tambos"></div>
+    </section>
+
+    <!-- Días sueltos arriba, calendario abajo.
+         El caso que se repite —"la leche del sábado que se carga el lunes"— se resuelve
+         con un botón grande y nada más. El calendario queda abajo, secundario, para lo
+         que pasa poco: una semana entera sin cargar, un feriado largo. Poner el
+         calendario como entrada principal le cobraría al caso frecuente el precio del
+         raro. -->
+    <section class="paso" id="paso-fecha" hidden>
+      <p class="pregunta">¿De qué día es la entrega?</p>
+      <div class="opciones" id="op-fechas"></div>
+      <div class="otra-fecha">
+        <label for="fecha-libre">¿Otro día?</label>
+        <!-- `date` nativo a propósito: en la tablet abre el selector del sistema, que es
+             grande y conocido, y con el teclado físico se escribe directo. Un calendario
+             propio serían cien líneas y sus propios errores, para algo que se usa poco.
+             min y max los pone el JS, para que no se pueda elegir algo que el servidor
+             va a rechazar. -->
+        <input type="date" id="fecha-libre">
+        <button class="btn-obs principal" id="btn-fecha-libre">Usar esta fecha</button>
+        <span class="nota-limite" id="limite-fecha"></span>
+      </div>
+    </section>
+
+    <section class="paso" id="paso-litros" hidden>
+      <p class="pregunta">¿Cuántos litros?</p>
+      <div class="centrado">
+        <div class="contador">
+          <div class="valor vacio" id="litros-valor">0</div>
+          <div class="unidad">litros</div>
+        </div>
+        <div class="teclado" id="teclado-litros"></div>
+      </div>
+    </section>
+
+    <section class="paso" id="paso-temperatura" hidden>
+      <p class="pregunta">¿Qué temperatura?</p>
+      <div class="centrado">
+        <div class="contador">
+          <div class="valor vacio" id="temp-valor">0,0</div>
+          <div class="unidad">grados</div>
+        </div>
+        <div class="teclado" id="teclado-temp"></div>
+      </div>
+    </section>
+
+    <section class="paso" id="paso-listo" hidden>
+      <div class="confirmacion">
+        <div class="tilde">✓</div>
+        <div class="titulo">RECEPCIÓN REGISTRADA</div>
+        <div class="hora" id="listo-litros"></div>
+        <div class="detalle" id="listo-detalle"></div>
+        <div class="acciones-confirmacion">
+          <button class="btn-deshacer" id="btn-deshacer">DESHACER · <span id="deshacer-seg">60</span>s</button>
+          <button class="btn-seguir" id="btn-seguir">SEGUIR</button>
+        </div>
+        <!-- La leche que llega con algo raro —cortada, con olor— es la excepción, así
+             que va DESPUÉS de registrar: la entrega normal no paga ningún toque extra.
+             Mismo criterio que el "No fue un pallet completo" de lechería. -->
+        <button class="btn-ajustar" id="btn-observar">Agregar una observación</button>
+      </div>
+    </section>
+
+    <!-- 6. la observación: un motivo de la lista, o una nota escrita -->
+    <section class="paso" id="paso-observacion" hidden>
+      <p class="pregunta">¿Qué pasó con esta entrega?</p>
+      <div class="opciones" id="op-motivos"></div>
+      <div class="acciones-observacion">
+        <button class="btn-obs" id="btn-escribir">Escribir una nota</button>
+        <button class="btn-obs suave" id="btn-sin-observacion">Quitar la observación</button>
+      </div>
+    </section>
+
+    <section class="paso" id="paso-nota" hidden>
+      <p class="pregunta">Escribí la observación</p>
+      <div class="centrado">
+        <div class="nota-valor vacio" id="nota-valor">…</div>
+        <div class="teclado-letras" id="teclado-nota"></div>
+        <div class="acciones-observacion">
+          <button class="btn-obs principal" id="btn-nota-ok">GUARDAR</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="historial">
+      <div class="historial-titulo">
+        <span>Hoy · <span id="litros-hoy">0</span> litros</span>
+        <strong id="entregas-hoy">0</strong>
+      </div>
+      <div id="lista-hoy"></div>
+    </section>
+  </div>
+
+  <script type="module" src="/recepcion.js"></script>
+</body>
+</html>

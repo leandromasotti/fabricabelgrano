@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101418">
+  <title>Yogures · Producción</title>
+  <link rel="icon" href="/icono-192.png">
+  <link rel="manifest" href="/manifest.json?para=yogures">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>YOGURES</h1>
+      <div class="migas" id="migas"></div>
+      <!-- Solo aparece si la tablet llega desde /planta.html (ver configurarVuelta). -->
+      <button class="btn-txt inicio" id="btn-inicio" hidden>← Inicio</button>
+      <button class="btn-txt" id="btn-reiniciar" hidden>Cambiar</button>
+      <div class="estado" id="estado"><span class="punto"></span><span id="estado-txt">En línea</span></div>
+    </header>
+
+    <section class="paso" id="paso-operario">
+      <p class="pregunta">¿Quién sos?</p>
+      <div class="opciones" id="op-operarios"></div>
+    </section>
+
+    <section class="paso" id="paso-marca" hidden>
+      <p class="pregunta">¿Qué marca?</p>
+      <div class="opciones" id="op-marcas"></div>
+    </section>
+
+    <section class="paso" id="paso-producto" hidden>
+      <p class="pregunta">¿Qué sabor?</p>
+      <div class="opciones" id="op-productos"></div>
+    </section>
+
+    <!-- En que sale esta carga: pallet de cajas, o bin. Es el mismo concepto que el
+         envase de lechería, y por eso usa la misma tabla.
+
+         Solo aparece cuando hay mas de una opcion para esa marca: un paso con una sola
+         respuesta no es una pregunta, es un toque de mas. -->
+    <section class="paso" id="paso-envase" hidden>
+      <p class="pregunta">¿En qué sale?</p>
+      <div class="opciones" id="op-envases"></div>
+    </section>
+
+    <!-- Potes. No hay bin: hay cajas que alguien cuenta, asi que hace falta un numero.
+         Es el unico paso del yogur que pide tipear, y solo aparece para los potes. -->
+    <section class="paso" id="paso-cajas" hidden>
+      <p class="pregunta">¿Cuántas cajas?</p>
+      <div class="centrado">
+        <div class="contador">
+          <div class="valor vacio" id="cajas-valor">0</div>
+          <div class="unidad">cajas</div>
+        </div>
+        <div class="equivale" id="cajas-equivale"></div>
+        <div class="teclado" id="cajas-teclado"></div>
+      </div>
+    </section>
+
+    <!-- El pallet que no se completó. Se llega acá DESDE la confirmación, igual que el
+         llenado del bin y por el mismo motivo.
+
+         Acá se CUENTAN cajas y en el bin se ESTIMA un porcentaje: esa es toda la
+         diferencia entre las dos formas, y es la razon por la que el pallet da un numero
+         mejor que el bin. -->
+    <section class="paso" id="paso-ajustar" hidden>
+      <p class="pregunta" id="ajustar-pregunta">¿Cuántas cajas entraron?</p>
+      <div class="centrado">
+        <div class="contador">
+          <div class="valor vacio" id="ajustar-valor">0</div>
+          <div class="unidad">cajas</div>
+        </div>
+        <div class="equivale" id="ajustar-equivale"></div>
+        <div class="teclado" id="ajustar-teclado"></div>
+      </div>
+    </section>
+
+    <!-- El bin que no se llenó. Se llega acá DESDE la confirmación, no antes: casi todos
+         salen llenos y no pueden pagar un toque de más por la excepción. -->
+    <section class="paso" id="paso-llenado" hidden>
+      <p class="pregunta">¿Cuánto se llenó el bin?</p>
+      <div class="opciones" id="op-llenados"></div>
+    </section>
+
+    <section class="paso" id="paso-motivo" hidden>
+      <p class="pregunta">¿Por qué salió menos?</p>
+      <div class="opciones" id="op-motivos-yogur"></div>
+    </section>
+
+    <section class="paso" id="paso-listo" hidden>
+      <div class="confirmacion">
+        <div class="tilde">✓</div>
+        <div class="titulo" id="listo-titulo">PALLET REGISTRADO</div>
+        <div class="hora" id="listo-hora"></div>
+        <div class="detalle" id="listo-detalle"></div>
+        <!-- No aparece para los potes: esos se cuentan por cajas al final de la
+             produccion y no hay nada que corregir. Para el pallet pregunta cuantas cajas
+             entraron; para el bin, cuanto se llenó. -->
+        <button class="btn-ajustar" id="btn-ajustar" hidden>No fue un pallet completo</button>
+        <div class="acciones-confirmacion">
+          <button class="btn-deshacer" id="btn-deshacer">DESHACER · <span id="deshacer-seg">60</span>s</button>
+          <button class="btn-seguir" id="btn-seguir">SEGUIR</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Igual que en lechería: los totales siempre a la vista, el detalle detrás de la
+         opción de configuración. -->
+    <section class="totales">
+      <div class="totales-cifras">
+        <span><strong id="pallets-hoy">0</strong> pallets</span>
+        <span id="bins-hoy-caja" hidden><strong id="bins-hoy">0</strong> bins</span>
+        <span id="cajas-hoy-caja" hidden><strong id="cajas-hoy">0</strong> cajas</span>
+        <span>≈ <strong id="unidades-hoy">0</strong> sachets<span id="kilos-hoy"></span></span>
+      </div>
+      <div class="desglose" id="desglose-hoy"></div>
+    </section>
+
+    <section class="historial">
+      <div class="historial-titulo">
+        <span>Cargas anteriores</span>
+      </div>
+      <div id="lista-hoy"></div>
+    </section>
+  </div>
+
+  <script type="module" src="/yogures.js"></script>
+</body>
+</html>

@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#101418">
+  <title>Lechería · Registro de pallets</title>
+  <link rel="icon" href="/icono-192.png">
+  <link rel="manifest" href="/manifest.json?para=lecheria">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>LECHERÍA</h1>
+      <div class="migas" id="migas"></div>
+      <!-- Solo aparece si la tablet llega desde /planta.html (ver configurarVuelta). -->
+      <button class="btn-txt inicio" id="btn-inicio" hidden>← Inicio</button>
+      <button class="btn-txt" id="btn-reiniciar" hidden>Cambiar</button>
+      <div class="estado" id="estado"><span class="punto"></span><span id="estado-txt">En línea</span></div>
+    </header>
+
+    <!-- paso 1 -->
+    <section class="paso" id="paso-operario">
+      <p class="pregunta">¿Quién sos?</p>
+      <div class="opciones" id="op-operarios"></div>
+    </section>
+
+    <!-- paso 2 -->
+    <section class="paso" id="paso-marca" hidden>
+      <p class="pregunta">¿Qué marca?</p>
+      <div class="opciones" id="op-marcas"></div>
+    </section>
+
+    <!-- paso 3 -->
+    <section class="paso" id="paso-producto" hidden>
+      <p class="pregunta">¿Qué leche?</p>
+      <div class="opciones" id="op-productos"></div>
+    </section>
+
+    <!-- paso 4: el envase decide los litros del pallet, y varía entre pallets -->
+    <section class="paso" id="paso-envase" hidden>
+      <p class="pregunta">¿Cómo se armó el pallet?</p>
+      <div class="opciones" id="op-envases"></div>
+    </section>
+
+    <!-- paso 4 -->
+    <section class="paso" id="paso-ajustar" hidden>
+      <p class="pregunta" id="ajustar-pregunta">¿Cuántos bultos entraron?</p>
+      <div class="centrado">
+        <div class="contador">
+          <div class="valor vacio" id="ajustar-valor">0</div>
+          <div class="unidad" id="ajustar-unidad">bultos</div>
+        </div>
+        <div class="equivale" id="ajustar-equivale"></div>
+        <div class="teclado" id="ajustar-teclado"></div>
+        <div class="acciones-ajuste">
+          <button class="btn-ajustar" id="btn-cambiar-campo">Cambiar unidades por bulto</button>
+          <button class="btn-ajustar" id="btn-ajustar-cancelar">Volver sin cambiar</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="paso" id="paso-listo" hidden>
+      <div class="confirmacion">
+        <div class="tilde">✓</div>
+        <div class="titulo">PALLET REGISTRADO</div>
+        <div class="hora" id="listo-hora"></div>
+        <div class="detalle" id="listo-detalle"></div>
+        <div class="acciones-confirmacion">
+          <button class="btn-deshacer" id="btn-deshacer">DESHACER · <span id="deshacer-seg">60</span>s</button>
+          <button class="btn-seguir" id="btn-seguir">SEGUIR</button>
+        </div>
+        <!-- Pallet incompleto o con otra cantidad por cajon. Pasa pocas veces al dia,
+             asi que va DESPUES de registrar y no antes: el camino normal no paga nada. -->
+        <button class="btn-ajustar" id="btn-ajustar" hidden>No fue un pallet completo</button>
+      </div>
+    </section>
+
+    <!-- Los totales reemplazan al cartón que el operario tenía colgado para saber cómo
+         venía. Van SIEMPRE visibles y fuera de .historial: la opción de configuración
+         oculta el detalle de cargas anteriores, que es ruido, no la orientación. -->
+    <section class="totales">
+      <div class="totales-cifras">
+        <span><strong id="total-hoy">0</strong> pallets</span>
+        <span><strong id="litros-hoy">0</strong> litros</span>
+      </div>
+      <div class="desglose" id="desglose-hoy"></div>
+    </section>
+
+    <section class="historial">
+      <div class="historial-titulo">
+        <span>Cargas anteriores</span>
+      </div>
+      <div id="lista-hoy"></div>
+    </section>
+  </div>
+
+  <script type="module" src="/lecheria.js"></script>
+</body>
+</html>

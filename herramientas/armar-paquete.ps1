@@ -66,7 +66,15 @@ try {
 
   # Material de trabajo, no de instalación: transcripciones y análisis de los audios del
   # cliente. Son 2,3 MB que no hacen falta para que el sistema arranque.
-  foreach ($sobra in @('requerimientos', 'web', '.github', 'vercel-sin-estaticos')) {
+  #
+  # `supabase-backup` e `instalacion en servidor` entraron al repo despues de que esto
+  # se escribio, y las dos TIENEN que salir del paquete. El backup porque es un volcado
+  # de produccion y el verificador de mas abajo aborta el empaquetado si lo encuentra
+  # —correctamente: no sale de esta maquina—. La carpeta de instalacion porque son
+  # copias de archivos que el paquete ya trae, y una copia vieja al lado de la buena es
+  # una trampa para el que la abra en la fabrica.
+  foreach ($sobra in @('requerimientos', 'web', '.github', 'vercel-sin-estaticos',
+                       'supabase-backup', 'instalacion en servidor')) {
     $r = Join-Path $Destino $sobra
     if (Test-Path $r) { Remove-Item $r -Recurse -Force; Ok "sacado: $sobra/" }
   }

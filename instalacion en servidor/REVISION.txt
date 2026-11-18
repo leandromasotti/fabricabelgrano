@@ -1,0 +1,66 @@
+
+  Lácteos Belgrano - servidor en planta
+  C:\FabricaBelgrano-planta
+  MODO REVISIÓN: no se escribe nada.
+
+=== la máquina ==================================================
+       Microsoft Windows 10 Pro - 10.0.19045
+       sin Administrador - alcanza para revisar, no para instalar
+  ok   48.2 GB libres en el disco
+  ok   enchufado no se suspende
+  ok   el servicio de hora está andando
+
+=== red =========================================================
+       consultando la red (puede tardar)...
+  ojo  192.168.100.254  Ethernet  - cable, por DHCP
+       Las tablets llevan la URL amurada igual que el soporte: si la IP cambia,
+       dejan de encontrar el servidor. Reserva en el router o IP fija.
+  ojo  el puerto 3000 ya está ocupado por 'node' - elegí otro con -Puerto
+       consultando el firewall (puede tardar)...
+       falta la regla de firewall - la creo en la instalación
+
+=== Node ========================================================
+  ojo  Node v26.13.1 - el proyecto fija 22.x para el deploy; acá anda, pero conviene igualar
+       C:\Program Files\nodejs\node.exe
+  ok   las dependencias están instaladas
+
+=== PostgreSQL ==================================================
+  ok   PostgreSQL 17.12
+       C:\Program Files\PostgreSQL\17\bin
+  ok   servicio postgresql-x64-17: andando
+
+=== el proyecto =================================================
+  ok   migraciones\001-esquema.sql
+  ok   server\index.js
+  ok   herramientas\mudar-base.mjs
+  ok   package.json
+  ojo  .env.local ya existe - NO lo piso; si querés uno nuevo, renombralo antes
+
+=== veredicto ===================================================
+  SE PUEDE INSTALAR
+
+  Para mirar (no frenan la instalación):
+    - 192.168.100.254  Ethernet  - cable, por DHCP
+    - el puerto 3000 ya está ocupado por 'node' - elegí otro con -Puerto
+    - Node v26.13.1 - el proyecto fija 22.x para el deploy; acá anda, pero conviene igualar
+    - .env.local ya existe - NO lo piso; si querés uno nuevo, renombralo antes
+
+  Esto el script no lo puede ver, y hay que confirmarlo a ojo:
+    - ¿Esta máquina tiene UPS? Sin UPS, un corte de luz corta el registro
+      de producción de toda la planta.
+    - ¿Windows Update la reinicia sola de madrugada? Configurá las horas
+      activas para que no caiga en turno.
+    - ¿Qué más corre acá? Si es el servidor del ERP, la carga es despreciable
+      pero quedás atado a sus ventanas de mantenimiento.
+
+=== lo que haría con -Confirmar =================================
+  ->   apagar la suspensión del equipo (enchufado)
+  ->   crear el rol 'belgrano' y la base 'fabrica_belgrano' en PostgreSQL
+  ->   escribir .env.local con DATABASE_URL y PORT=3000
+  ->   armar el esquema (001-esquema.sql + migraciones 002..00N) y cargar el catálogo
+  ->   abrir el puerto 3000 en el firewall, SÓLO para la red local
+  ->   registrar la tarea 'FabricaBelgrano' que levanta el servidor al arrancar Windows
+  ->   registrar la tarea 'FabricaBelgrano-backup': pg_dump todos los días a las 22:00
+
+  Nada de esto pasó todavía.
+
