@@ -147,25 +147,67 @@ const motivosRecepcion = [
 // /envases.html sin tocar codigo.
 const yogurCaja = { unidades_por_bin: 500, kilos_por_unidad: 1 }
 
-// PLACEHOLDER - es el unico dato que bloquea el arranque real (ver 04-plan-mvp.md, seccion 6).
-// Reemplazar por las listas reales antes de instalar en planta.
+// La gente de la fabrica, por sector y en el orden en que aparece en la tablet.
+//
+// Hasta el 2026-11-16 esto eran placeholders ("Operario 1", "Quesero 2") con un cartel
+// que decia "reemplazar por las listas reales antes de instalar en planta". El cartel no
+// alcanzo: la base de la planta se creo con los placeholders adentro, porque las listas
+// reales se habian cargado a mano desde /app/maestros y vivian SOLO en la base de
+// Supabase. Estan aca ahora para que la proxima base que se cree nazca con la gente de
+// verdad; la que ya existe la corrige migraciones/010-maestros-reales.js.
+//
+// Son nombres de pila porque asi los cargo la fabrica: el operario se busca a si mismo en
+// una lista de seis, no en un padron. Que VALENTIN aparezca en cinco sectores no es un
+// error — son filas distintas, con UNIQUE (nombre, sector).
+//
+// RECEPCION SIGUE EN PLACEHOLDER. En Supabase ese sector tambien tenia nombres de
+// prueba, asi que no hay lista real que copiar. Se deja en pie y no vacio: un sector sin
+// ningun operario no puede registrar nada. Se carga con:
+//   npm run operarios -- recepcion "Nombre" "Otro"
 const operarios = [
-  { nombre: 'Operario 1', sector: 'lecheria', orden: 1 },
-  { nombre: 'Operario 2', sector: 'lecheria', orden: 2 },
-  { nombre: 'Operario 3', sector: 'lecheria', orden: 3 },
-  { nombre: 'Yogurtero 1', sector: 'yogures', orden: 1 },
-  { nombre: 'Yogurtero 2', sector: 'yogures', orden: 2 },
+  { nombre: 'POCO', sector: 'lecheria', orden: 1 },
+  { nombre: 'JULIAN', sector: 'lecheria', orden: 2 },
+  { nombre: 'EMILIO', sector: 'lecheria', orden: 3 },
+  { nombre: 'FRANCO', sector: 'lecheria', orden: 4 },
+  { nombre: 'JAVIER', sector: 'lecheria', orden: 5 },
+  { nombre: 'GASTON', sector: 'lecheria', orden: 6 },
+
+  { nombre: 'JULIAN', sector: 'yogures', orden: 1 },
+  { nombre: 'GASTON', sector: 'yogures', orden: 2 },
+  { nombre: 'FRANCO', sector: 'yogures', orden: 3 },
+  { nombre: 'AGUSTIN', sector: 'yogures', orden: 4 },
+
+  { nombre: 'CRISTIAN', sector: 'queseria', orden: 1 },
+  { nombre: 'PABLO', sector: 'queseria', orden: 2 },
+  { nombre: 'VALENTIN', sector: 'queseria', orden: 3 },
+  { nombre: 'JUAN PABLO', sector: 'queseria', orden: 4 },
+  { nombre: 'SEBASTIAN', sector: 'queseria', orden: 5 },
+  { nombre: 'EDUARDO', sector: 'queseria', orden: 6 },
+
+  { nombre: 'SEBASTIAN', sector: 'saladero', orden: 1 },
+  { nombre: 'VALENTIN', sector: 'saladero', orden: 2 },
+  { nombre: 'JUAN PABLO', sector: 'saladero', orden: 3 },
+  { nombre: 'CRISTIAN', sector: 'saladero', orden: 4 },
+  { nombre: 'PABLO', sector: 'saladero', orden: 5 },
+  { nombre: 'EDUARDO', sector: 'saladero', orden: 6 },
+
+  { nombre: 'EDUARDO', sector: 'maduracion', orden: 1 },
+  { nombre: 'VALENTIN', sector: 'maduracion', orden: 2 },
+  { nombre: 'SEBASTIAN', sector: 'maduracion', orden: 3 },
+  { nombre: 'AGUSTIN', sector: 'maduracion', orden: 4 },
+  { nombre: 'JUAN PABLO', sector: 'maduracion', orden: 5 },
+  { nombre: 'CRISTIAN', sector: 'maduracion', orden: 6 },
+  { nombre: 'PABLO', sector: 'maduracion', orden: 7 },
+
+  { nombre: 'ALEJANDRO', sector: 'envasado', orden: 1 },
+  { nombre: 'VALENTIN', sector: 'envasado', orden: 2 },
+
+  { nombre: 'AGUSTIN', sector: 'pedidos', orden: 1 },
+  { nombre: 'VALENTIN', sector: 'pedidos', orden: 2 },
+
+  // PLACEHOLDER, ver arriba: no hay lista real de recepcion en ningun lado.
   { nombre: 'Recepción 1', sector: 'recepcion', orden: 1 },
   { nombre: 'Recepción 2', sector: 'recepcion', orden: 2 },
-  { nombre: 'Quesero 1', sector: 'queseria', orden: 1 },
-  { nombre: 'Quesero 2', sector: 'queseria', orden: 2 },
-  { nombre: 'Salador 1', sector: 'saladero', orden: 1 },
-  { nombre: 'Salador 2', sector: 'saladero', orden: 2 },
-  { nombre: 'Armador 1', sector: 'pedidos', orden: 1 },
-  { nombre: 'Armador 2', sector: 'pedidos', orden: 2 },
-  { nombre: 'Envasador 1', sector: 'envasado', orden: 1 },
-  { nombre: 'Envasador 2', sector: 'envasado', orden: 2 },
-  { nombre: 'Madurador 1', sector: 'maduracion', orden: 1 },
 ]
 
 // Catalogo oficial de lacteosbelgrano.com.ar (2026-09-11), con los circuitos que dio el
@@ -262,9 +304,37 @@ const insertProducto = db.prepare(
 const insertOperario = db.prepare(
   'INSERT INTO operarios (nombre, sector, orden) VALUES (@nombre, @sector, @orden)'
 )
-// Tambos vistos en la planilla del 05.09.26. PLACEHOLDER: la lista real la tiene la
-// fabrica, y seguramente son mas. Se cargan con `npm run tambos`.
-const tambos = [2, 4, 5, 6, 14, 15].map((n, i) => ({ numero: n, orden: i + 1 }))
+// Los tambos que entregan, con el numero que la fabrica les da en la planilla.
+//
+// Hasta el 2026-11-16 esto eran seis numeros sueltos sacados de la planilla del 05.09.26,
+// SIN nombre: en la pantalla de recepcion el operario veia "5" y tenia que saber de
+// memoria que ese era LA LUISA. Los nombres los habia cargado la fabrica a mano y vivian
+// solo en Supabase. Misma historia que los operarios, misma correccion.
+//
+// MENENDEZ va como ocasional: entrega de vez en cuando y aparece en "Otros tambos", no en
+// la planilla diaria (ver migraciones/007-tambos-ocasionales.js).
+//
+// OJO: el 11 y el 12 se llaman los dos "CERR H". Asi estaban cargados. Dos renglones con
+// el mismo texto es una eleccion a ciegas para el operario, pero inventarles un nombre
+// seria peor que copiar lo que la fabrica escribio: se distinguen desde /app/maestros.
+const tambos = [
+  { numero: 2,  nombre: 'SUSANA',     orden: 1,  ocasional: 0 },
+  { numero: 4,  nombre: 'MURUAGA',    orden: 2,  ocasional: 0 },
+  { numero: 5,  nombre: 'LA LUISA',   orden: 3,  ocasional: 0 },
+  { numero: 9,  nombre: 'MENENDEZ',   orden: 4,  ocasional: 1 },
+  { numero: 10, nombre: 'TUMMER',     orden: 5,  ocasional: 0 },
+  { numero: 7,  nombre: 'ALCHIDAI',   orden: 6,  ocasional: 0 },
+  { numero: 1,  nombre: 'FINNEGAN',   orden: 7,  ocasional: 0 },
+  { numero: 8,  nombre: 'CESA',       orden: 8,  ocasional: 0 },
+  { numero: 11, nombre: 'CERR H',     orden: 9,  ocasional: 0 },
+  { numero: 12, nombre: 'CERR H',     orden: 10, ocasional: 0 },
+  { numero: 6,  nombre: 'CERRILLO B', orden: 11, ocasional: 0 },
+  { numero: 14, nombre: 'GROSSI',     orden: 12, ocasional: 0 },
+  { numero: 13, nombre: 'JULIVER',    orden: 13, ocasional: 0 },
+  { numero: 15, nombre: 'KIRO',       orden: 14, ocasional: 0 },
+  { numero: 3,  nombre: 'WEIS FASON', orden: 15, ocasional: 0 },
+  { numero: 20, nombre: 'YATASTO',    orden: 16, ocasional: 0 },
+]
 
 // PLACEHOLDER - la lista real de clientes la tiene el encargado.
 const clientes = [
@@ -275,8 +345,10 @@ const clientes = [
   { nombre: 'Cliente 5', orden: 5 },
 ]
 
+// `ocasional` la agrega la migracion 007, igual que `familia`/`unidad`/`marca_id` en
+// envases las agrega la 009: el seed corre DESPUES de las migraciones, nunca antes.
 const insertTambo = db.prepare(
-  'INSERT INTO tambos (numero, orden) VALUES (@numero, @orden)'
+  'INSERT INTO tambos (numero, nombre, orden, ocasional) VALUES (@numero, @nombre, @orden, @ocasional)'
 )
 const insertOpcionTablet = db.prepare(
   'INSERT INTO opciones_tablet (clave, nombre, descripcion, activo, orden) VALUES (@clave, @nombre, @descripcion, false, @orden)'
@@ -318,7 +390,7 @@ async function cargar() {
   const nuevos = []
   for (const o of operarios) if (!(await existeOperario.get(o.nombre, o.sector))) nuevos.push(o)
   for (const o of nuevos) await insertOperario.run(o)
-  if (nuevos.length) console.log(`  operarios: +${nuevos.length}  <-- PLACEHOLDER, reemplazar`)
+  if (nuevos.length) console.log(`  operarios: +${nuevos.length}`)
   // Idempotente por nombre: agregar un queso nuevo al catálogo no obliga a borrar la
   // base ni pisa los que ya están cargados.
   const existeQueso = db.prepare('SELECT 1 FROM tipos_queso WHERE nombre = ?')
@@ -350,7 +422,7 @@ async function cargar() {
   const nuevosTambos = []
   for (const x of tambos) if (!(await existeTambo.get(x.numero))) nuevosTambos.push(x)
   for (const x of nuevosTambos) await insertTambo.run(x)
-  if (nuevosTambos.length) console.log(`  tambos:    +${nuevosTambos.length}  <-- PLACEHOLDER, revisar`)
+  if (nuevosTambos.length) console.log(`  tambos:    +${nuevosTambos.length}`)
 
   // Idempotente por nombre, igual que los quesos.
   const existeEnvase = db.prepare('SELECT 1 FROM envases WHERE nombre = ?')

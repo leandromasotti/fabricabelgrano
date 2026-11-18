@@ -246,6 +246,60 @@ de levantarlo.
 
 ---
 
+## Los datos maestros reales (una sola vez, 2026-11-17)
+
+La instalación del 16/11 dejó la base con los **placeholders del seed**: dieciséis operarios
+llamados "Operario 1" y seis tambos con número y sin nombre. No fue un error de la
+instalación sino de dónde vivían los datos: las listas reales —treinta y tres personas,
+dieciséis tambos— las había cargado la fábrica a mano desde `/app/maestros` y estaban
+**sólo** en la base de Supabase, que no se migró y que ya no existe. Se recuperaron del
+backup `supabase-backup/db_cluster-24-10-2026@00-44-28.backup.gz`, que es la última copia
+que queda; el extracto legible está en `instalacion en servidor/maestros-en-la-nube.txt`.
+
+**Los tres archivos viajan juntos, y el seed no es opcional.** Si se copia la migración sin
+`server/seed.js`, el seed viejo vuelve a insertar los catorce placeholders la próxima vez
+que alguien corra `npm start` o `npm run seed`, y quedan mezclados con la gente real en la
+lista de la tablet. Está comprobado: pasa de 35 operarios a 49.
+
+```powershell
+cd C:\FabricaBelgrano-planta
+
+# 0. Backup primero. Es el punto de retorno.
+powershell -ExecutionPolicy Bypass -File instalar\backup.ps1
+
+# 1. Ver qué hay hoy.
+node --env-file-if-exists=.env.local herramientas\ver-maestros.mjs
+
+# 2. Simulación: no escribe nada, dice qué haría.
+node --env-file-if-exists=.env.local migraciones\010-maestros-reales.js
+
+# 3. Aplicar.
+node --env-file-if-exists=.env.local migraciones\010-maestros-reales.js --confirmar
+
+# 4. Comprobar.
+node --env-file-if-exists=.env.local herramientas\ver-maestros.mjs
+```
+
+**No hace falta reiniciar el servicio.** La tarea programada corre `server\index.js` directo
+—sin pasar por el seed— y `/api/catalogo` consulta la base en cada pedido, sin caché.
+Alcanza con refrescar la tablet.
+
+Un operario placeholder que ya hubiera registrado producción **no se borra**: queda de baja,
+para que su registro siga mostrando quién lo hizo. Los que nunca firmaron nada se borran,
+porque un "Operario 1" dado de baja igual aparece en `/app/maestros` y confunde.
+
+### Lo que sigue faltando después de esto
+
+| | |
+|---|---|
+| **Clientes** | Siguen siendo `Cliente 1`…`Cliente 5`. La lista real **nunca se cargó, ni en la nube**. La tablet de pedidos no sirve hasta que exista. |
+| **Recepción** | El sector queda con placeholders: en Supabase también eran de prueba (`Prueba alexis`). Se cargan con `npm run operarios -- recepcion "Nombre" "Otro"`. |
+| **La marca** | El código dice `Obenac`; en la nube figuraba `Obenak`. Es una marca que va impresa: lo define Alexis y se corrige desde `/app/maestros`. |
+| **Tambos 11 y 12** | Se llaman los dos `CERR H`. Dos renglones iguales en la pantalla de recepción es elegir a ciegas. |
+| **Días de maduración** | Quedan como "de referencia" **a propósito**. En la nube figuraban confirmados, pero con los números idénticos a los que trae el seed: nadie cambió ninguno, así que lo más probable es que se haya destildado la casilla sin que el maestro quesero dictara nada. |
+
+---
+
 ## Lo que esta instalación NO resuelve
 
 **1. Mirar la producción desde afuera de la fábrica.** Hoy Alexis puede abrir el sistema
